@@ -1,0 +1,1505 @@
+import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
+import CampaignRoundedIcon from "@mui/icons-material/CampaignRounded";
+import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
+import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
+import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
+import FeedbackOutlinedIcon from "@mui/icons-material/FeedbackOutlined";
+import GraphicEqRoundedIcon from "@mui/icons-material/GraphicEqRounded";
+import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
+import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
+import MicRoundedIcon from "@mui/icons-material/MicRounded";
+import MusicNoteRoundedIcon from "@mui/icons-material/MusicNoteRounded";
+import PaletteOutlinedIcon from "@mui/icons-material/PaletteOutlined";
+import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
+import RecordVoiceOverRoundedIcon from "@mui/icons-material/RecordVoiceOverRounded";
+import ReplayRoundedIcon from "@mui/icons-material/ReplayRounded";
+import TextFieldsRoundedIcon from "@mui/icons-material/TextFieldsRounded";
+import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
+import UploadRoundedIcon from "@mui/icons-material/UploadRounded";
+import {
+  Avatar,
+  Box,
+  Button,
+  ButtonBase,
+  Chip,
+  CircularProgress,
+  Divider,
+  IconButton,
+  Paper,
+  Stack,
+  Switch,
+  Typography,
+} from "@mui/material";
+import { alpha } from "@mui/material/styles";
+
+const navItems = ["HOME", "ABOUT", "HOW IT WORKS", "COMPARE"];
+
+const primaryLinks = [
+  { label: "Home", icon: <HomeRoundedIcon sx={{ fontSize: 18 }} /> },
+  {
+    label: "Recently Deleted",
+    icon: <DeleteOutlineRoundedIcon sx={{ fontSize: 18 }} />,
+  },
+];
+
+const productLinks = [
+  { label: "Melody Avatars", icon: <PersonRoundedIcon sx={{ fontSize: 18 }} /> },
+  {
+    label: "Text to Speech",
+    icon: <TextFieldsRoundedIcon sx={{ fontSize: 18 }} />,
+    active: true,
+  },
+  {
+    label: "Speech to text",
+    icon: <RecordVoiceOverRoundedIcon sx={{ fontSize: 18 }} />,
+  },
+  {
+    label: "Background Generator",
+    icon: <MusicNoteRoundedIcon sx={{ fontSize: 18 }} />,
+  },
+];
+
+const personalizationLinks = [
+  { label: "Personal Voice", icon: <MicRoundedIcon sx={{ fontSize: 18 }} /> },
+  { label: "Brand Kit Template", icon: <PaletteOutlinedIcon sx={{ fontSize: 18 }} /> },
+  { label: "Voice Type", icon: <TuneRoundedIcon sx={{ fontSize: 18 }} /> },
+];
+
+const emotionTags = [
+  { label: "DISGUST", color: "#9fb547" },
+  { label: "DISAPPOINTMENT", color: "#e4bb3d" },
+  { label: "9+", color: "#d8d1c7" },
+];
+
+const toneRows = [
+  { label: "Speed", left: "SLOWER", right: "FASTER", value: 28 },
+  { label: "Vocal", left: "WEAK", right: "STRONG", value: 62 },
+  { label: "Emphasis", left: "LOW", right: "STRONG", value: 46 },
+  { label: "Intonation", left: "MONOTON", right: "EXPRESSIVE", value: 46 },
+];
+
+function BrandMark() {
+  return (
+    <Box
+      sx={{
+        position: "relative",
+        width: 24,
+        height: 24,
+        borderRadius: "50%",
+        bgcolor: "#1d1c1b",
+        flexShrink: 0,
+        "&::before": {
+          content: '""',
+          position: "absolute",
+          inset: 4.5,
+          borderRadius: "50%",
+          border: "2px solid #ffffff",
+          borderColor: "#ffffff transparent #ffffff #ffffff",
+          transform: "rotate(-32deg)",
+        },
+        "&::after": {
+          content: '""',
+          position: "absolute",
+          width: 5,
+          height: 5,
+          borderRadius: "50%",
+          bgcolor: "#ffffff",
+          top: 9.5,
+          left: 9.5,
+        },
+      }}
+    />
+  );
+}
+
+function SectionLabel({ children }) {
+  return (
+    <Typography
+      variant="overline"
+      sx={{
+        color: "#a09689",
+        display: "block",
+        mb: 0.8,
+      }}
+    >
+      {children}
+    </Typography>
+  );
+}
+
+function SidebarLink({ icon, label, active = false }) {
+  return (
+    <ButtonBase
+      sx={{
+        width: "100%",
+        justifyContent: "flex-start",
+        gap: 1.1,
+        borderRadius: 2.5,
+        px: 1,
+        py: 0.9,
+        color: active ? "#1d1a17" : "#605951",
+        bgcolor: active ? "#ece7e0" : "transparent",
+        "&:hover": {
+          bgcolor: active ? "#e7e1d8" : alpha("#8f7d66", 0.08),
+        },
+      }}
+    >
+      <Box
+        sx={{
+          display: "grid",
+          placeItems: "center",
+          color: active ? "#1d1a17" : "#6a645d",
+        }}
+      >
+        {icon}
+      </Box>
+      <Typography
+        sx={{
+          fontSize: 13.5,
+          fontWeight: active ? 800 : 600,
+          lineHeight: 1.2,
+        }}
+      >
+        {label}
+      </Typography>
+    </ButtonBase>
+  );
+}
+
+function ToneBarRow({ label, left, right, value }) {
+  return (
+    <Box>
+      <Typography
+        sx={{
+          fontSize: 14,
+          fontWeight: 700,
+          color: "#211d18",
+          mb: 1.2,
+        }}
+      >
+        {label}
+      </Typography>
+      <Box
+        sx={{
+          height: 4,
+          borderRadius: 999,
+          bgcolor: "#ddd5cb",
+          overflow: "hidden",
+        }}
+      >
+        <Box
+          sx={{
+            width: `${value}%`,
+            height: "100%",
+            borderRadius: 999,
+            bgcolor: "#1c1b1a",
+          }}
+        />
+      </Box>
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+        sx={{
+          mt: 0.8,
+          color: "#b0a89e",
+          fontSize: 10.5,
+          fontWeight: 700,
+          letterSpacing: "0.15em",
+          fontFamily: 'var(--font-space-mono), "Courier New", monospace',
+        }}
+      >
+        <Box component="span">{left}</Box>
+        <Box component="span">{right}</Box>
+      </Stack>
+    </Box>
+  );
+}
+
+function EmotionChip({ label, color }) {
+  return (
+    <Chip
+      label={label}
+      icon={
+        <Box
+          sx={{
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            bgcolor: color,
+            boxShadow: `0 0 0 3px ${alpha(color, 0.14)}`,
+          }}
+        />
+      }
+      sx={{
+        height: 28,
+        borderColor: "#ebe3da",
+        bgcolor: "#f8f5f0",
+        "& .MuiChip-label": {
+          px: 1.1,
+          fontSize: 11,
+          fontWeight: 800,
+          letterSpacing: "0.06em",
+          color: "#4d463f",
+        },
+        "& .MuiChip-icon": {
+          ml: 1,
+          mr: -0.3,
+        },
+      }}
+    />
+  );
+}
+
+export default function Home() {
+  return (
+    <Box
+      sx={{
+        height: "100vh",
+        width: "100%",
+        overflow: "hidden",
+      }}
+    >
+      <Paper
+        sx={{
+          width: "100%",
+          height: "100%",
+          border: "1px solid #ddd4ca",
+          bgcolor: "#f8f5f0",
+          boxShadow: "0 30px 90px rgba(114, 94, 68, 0.12)",
+          overflow: "hidden",
+        }}
+      >
+
+
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", lg: "228px minmax(0, 1fr)" },
+            height: "100%",
+            alignItems: "stretch",
+            minHeight: 0,
+          }}
+        >
+          <Box
+            sx={{
+              order: { xs: 3, lg: 1 },
+              borderRight: { lg: "1px solid #e6ddd3" },
+              borderTop: { xs: "1px solid #e6ddd3", lg: 0 },
+              bgcolor: "#faf7f3",
+              p: 2.2,
+              display: "flex",
+              flexDirection: "column",
+              gap: 1.5,
+            }}
+          >
+            <Paper
+              sx={{
+                border: "1px solid #e7dfd5",
+                borderRadius: 3,
+                bgcolor: "#fffdfa",
+                px: 1.2,
+                py: 1,
+              }}
+            >
+              <Stack direction="row" alignItems="center" justifyContent="space-between">
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Box
+                    sx={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: "50%",
+                      bgcolor: "#f7931e",
+                      display: "grid",
+                      placeItems: "center",
+                      color: "#fffdf8",
+                    }}
+                  >
+                    <AutoAwesomeRoundedIcon sx={{ fontSize: 14 }} />
+                  </Box>
+                  <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>
+                    Odama Space
+                  </Typography>
+                </Stack>
+                <KeyboardArrowDownRoundedIcon
+                  sx={{ fontSize: 18, color: "#736d66" }}
+                />
+              </Stack>
+            </Paper>
+
+            <Stack spacing={0.25}>
+              {primaryLinks.map((item) => (
+                <SidebarLink key={item.label} {...item} />
+              ))}
+            </Stack>
+
+            <Box>
+              <SectionLabel>PRODUCT</SectionLabel>
+              <Stack spacing={0.25}>
+                {productLinks.map((item) => (
+                  <SidebarLink key={item.label} {...item} />
+                ))}
+              </Stack>
+            </Box>
+
+            <Box>
+              <SectionLabel>PERSONALIZATION</SectionLabel>
+              <Stack spacing={0.25}>
+                {personalizationLinks.map((item) => (
+                  <SidebarLink key={item.label} {...item} />
+                ))}
+              </Stack>
+            </Box>
+
+            <Box sx={{ flex: 1 }} />
+
+            <Stack spacing={0.2}>
+              <SidebarLink
+                label="Download Mac App"
+                icon={<DownloadRoundedIcon sx={{ fontSize: 18 }} />}
+              />
+              <SidebarLink
+                label="Feedback"
+                icon={<FeedbackOutlinedIcon sx={{ fontSize: 18 }} />}
+              />
+            </Stack>
+          </Box>
+          <Box
+            sx={{
+              order: { xs: 1, lg: 2 },
+              minWidth: 0,
+              width: "100%",
+              minHeight: 0,
+              p: { xs: 2, md: 3.2 },
+              display: "flex",
+              flexDirection: "column",
+              gap: 2.2,
+              overflow: "hidden",
+              background:
+                "linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(248,245,240,0.98) 100%)",
+            }}
+          >
+            <Typography
+              sx={{
+                fontSize: 16,
+                fontWeight: 600,
+                color: "#322d28",
+              }}
+            >
+              Text to Speech Playground
+            </Typography>
+
+            <Box
+              sx={{
+                position: "relative",
+                minHeight: { xs: 360, lg: 0 },
+                flex: 1,
+                width: "100%",
+                overflow: "hidden",
+                borderRadius: 5,
+              }}
+            >
+              <Box
+                sx={{
+                  position: "absolute",
+                  left: -80,
+                  top: 40,
+                  width: "100%",
+                  height: 240,
+                  borderRadius: "50%",
+                  background:
+                    "radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 72%)",
+                  filter: "blur(8px)",
+                }}
+              />
+              <Box
+                sx={{
+                  position: "absolute",
+                  right: -60,
+                  bottom: 24,
+                  width: 260,
+                  height: 200,
+                  borderRadius: "50%",
+                  background:
+                    "radial-gradient(circle, rgba(231,226,219,0.86) 0%, rgba(231,226,219,0) 72%)",
+                  filter: "blur(18px)",
+                }}
+              />
+              <Box
+                sx={{
+                  position: "absolute",
+                  left: 20,
+                  bottom: -10,
+                  width: 220,
+                  height: 140,
+                  borderRadius: "50%",
+                  background:
+                    "radial-gradient(circle, rgba(240,235,228,0.95) 0%, rgba(240,235,228,0) 74%)",
+                  filter: "blur(24px)",
+                }}
+              />
+
+              <Box
+                sx={{
+                  position: "relative",
+                  zIndex: 1,
+                  width: "100%",
+                  height: "100%",
+                  minHeight: 0,
+                }}
+              >
+                <Box
+                  component="textarea"
+                  defaultValue={`Bring your attention to the crown of your head... Notice any sensations there. Slowly let your awareness travel down to your forehead, your eyes, your jaw.
+
+If you notice any tension, imagine it softening with each breath. Let this wave of awareness flow down your neck, shoulders, arms, and all the way to your fingertips.`}
+                  sx={{
+                    width: "100%",
+                    height: "100%",
+                    minHeight: "100%",
+                    border: 0,
+                    outline: 0,
+                    resize: "none",
+                    bgcolor: "transparent",
+                    p: { xs: 1.4, md: 2.4 },
+                    fontFamily: "inherit",
+                    fontSize: { xs: 34, md: 52 },
+                    lineHeight: { xs: 1.18, md: 1.22 },
+                    fontWeight: 500,
+                    letterSpacing: "-0.045em",
+                    color: alpha("#221f1a", 0.34),
+                    overflowY: "auto",
+                    scrollbarWidth: "none",
+                    msOverflowStyle: "none",
+                    "&::-webkit-scrollbar": {
+                      display: "none",
+                    },
+                    "&::placeholder": {
+                      color: alpha("#221f1a", 0.22),
+                    },
+                  }}
+                />
+              </Box>
+            </Box>
+
+          </Box>
+        </Box>
+      </Paper>
+    </Box>
+  );
+}
+
+
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AddRoundedIcon from "@mui/icons-material/AddRounded";
+import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
+import ColorLensRoundedIcon from "@mui/icons-material/ColorLensRounded";
+import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
+import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
+import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
+import FeedbackOutlinedIcon from "@mui/icons-material/FeedbackOutlined";
+import FormatBoldRoundedIcon from "@mui/icons-material/FormatBoldRounded";
+import FormatClearRoundedIcon from "@mui/icons-material/FormatClearRounded";
+import FormatListBulletedRoundedIcon from "@mui/icons-material/FormatListBulletedRounded";
+import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
+import HighlightRoundedIcon from "@mui/icons-material/HighlightRounded";
+import ImageRoundedIcon from "@mui/icons-material/ImageRounded";
+import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
+import LinkRoundedIcon from "@mui/icons-material/LinkRounded";
+import MicRoundedIcon from "@mui/icons-material/MicRounded";
+import MusicNoteRoundedIcon from "@mui/icons-material/MusicNoteRounded";
+import PaletteOutlinedIcon from "@mui/icons-material/PaletteOutlined";
+import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
+import RecordVoiceOverRoundedIcon from "@mui/icons-material/RecordVoiceOverRounded";
+import TextFieldsRoundedIcon from "@mui/icons-material/TextFieldsRounded";
+import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
+import {
+  Box,
+  ButtonBase,
+  IconButton,
+  Paper,
+  Stack,
+  Tooltip,
+  Typography,
+} from "@mui/material";
+import { alpha } from "@mui/material/styles";
+
+const NOTE_STORAGE_KEY = "docbook-notes-v1";
+
+const primaryLinks = [
+  { label: "Home", icon: <HomeRoundedIcon sx={{ fontSize: 18 }} /> },
+  {
+    label: "Recently Deleted",
+    icon: <DeleteOutlineRoundedIcon sx={{ fontSize: 18 }} />,
+  },
+];
+
+const productLinks = [
+  { label: "Melody Avatars", icon: <PersonRoundedIcon sx={{ fontSize: 18 }} /> },
+  {
+    label: "Text to Speech",
+    icon: <TextFieldsRoundedIcon sx={{ fontSize: 18 }} />,
+    active: true,
+  },
+  {
+    label: "Speech to text",
+    icon: <RecordVoiceOverRoundedIcon sx={{ fontSize: 18 }} />,
+  },
+  {
+    label: "Background Generator",
+    icon: <MusicNoteRoundedIcon sx={{ fontSize: 18 }} />,
+  },
+];
+
+const personalizationLinks = [
+  { label: "Personal Voice", icon: <MicRoundedIcon sx={{ fontSize: 18 }} /> },
+  { label: "Brand Kit Template", icon: <PaletteOutlinedIcon sx={{ fontSize: 18 }} /> },
+  { label: "Voice Type", icon: <TuneRoundedIcon sx={{ fontSize: 18 }} /> },
+];
+
+const colorOptions = [
+  "#f97316",
+  "#ef4444",
+  "#0ea5e9",
+  "#10b981",
+  "#8b5cf6",
+  "#f59e0b",
+  "#ec4899",
+];
+
+const defaultNoteContent = [
+  "<p>Bring your attention to the crown of your head. Notice sensations there.</p>",
+  "<p>Slowly let your awareness travel down to your forehead, your eyes, and your jaw.</p>",
+].join("");
+
+const themedTooltipSlotProps = {
+  tooltip: {
+    sx: {
+      bgcolor: "#f1e8dc",
+      color: "#2f2923",
+      border: "1px solid #ded2c3",
+      boxShadow: "0 8px 24px rgba(53, 43, 34, 0.16)",
+      fontSize: 12,
+      fontWeight: 600,
+    },
+  },
+  arrow: {
+    sx: {
+      color: "#f1e8dc",
+    },
+  },
+};
+
+function buildNoteId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `note-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function createNote(overrides = {}) {
+  const now = new Date().toISOString();
+  return {
+    id: buildNoteId(),
+    title: "Untitled",
+    content: defaultNoteContent,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
+function plainTextFromHtml(html) {
+  return html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatEditedAt(date) {
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) {
+    return "Not saved";
+  }
+  return parsed.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function SectionLabel({ children }) {
+  return (
+    <Typography
+      variant="overline"
+      sx={{
+        color: "#a09689",
+        display: "block",
+        mb: 0.8,
+      }}
+    >
+      {children}
+    </Typography>
+  );
+}
+
+function SidebarLink({ icon, label, active = false }) {
+  return (
+    <ButtonBase
+      sx={{
+        width: "100%",
+        justifyContent: "flex-start",
+        gap: 1.1,
+        borderRadius: 2.5,
+        px: 1,
+        py: 0.9,
+        color: active ? "#1d1a17" : "#605951",
+        bgcolor: active ? "#ece7e0" : "transparent",
+        "&:hover": {
+          bgcolor: active ? "#e7e1d8" : alpha("#8f7d66", 0.08),
+        },
+      }}
+    >
+      <Box
+        sx={{
+          display: "grid",
+          placeItems: "center",
+          color: active ? "#1d1a17" : "#6a645d",
+        }}
+      >
+        {icon}
+      </Box>
+      <Typography
+        sx={{
+          fontSize: 13.5,
+          fontWeight: active ? 800 : 600,
+          lineHeight: 1.2,
+          textAlign: "left",
+        }}
+      >
+        {label}
+      </Typography>
+    </ButtonBase>
+  );
+}
+
+function NoteTitleLink({ note, active, onOpen, onDelete, disableDelete }) {
+  const noteTitle = note.title?.trim() || "Untitled";
+  const preview = plainTextFromHtml(note.content) || "Empty note";
+
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
+      <Tooltip
+        arrow
+        placement="right"
+        slotProps={themedTooltipSlotProps}
+        title={
+          <Box sx={{ maxWidth: 260 }}>
+            <Typography sx={{ fontSize: 12.5, lineHeight: 1.35 }}>
+              {preview.slice(0, 140)}
+            </Typography>
+            <Typography sx={{ fontSize: 10.5, mt: 0.6, opacity: 0.8 }}>
+              {formatEditedAt(note.updatedAt)}
+            </Typography>
+          </Box>
+        }
+      >
+        <ButtonBase
+          onClick={onOpen}
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            justifyContent: "flex-start",
+            gap: 1.1,
+            borderRadius: 4,
+            px: 1,
+            py: 0.9,
+            color: active ? "#1d1a17" : "#605951",
+            bgcolor: active ? "#ece7e0" : "transparent",
+            "&:hover": {
+              bgcolor: active ? "#e7e1d8" : alpha("#8f7d66", 0.08),
+            },
+          }}
+        >
+          <Box
+            sx={{
+              display: "grid",
+              placeItems: "center",
+              color: active ? "#1d1a17" : "#6a645d",
+            }}
+          >
+            <TextFieldsRoundedIcon sx={{ fontSize: 15 }} />
+          </Box>
+          <Typography
+            noWrap
+            sx={{
+              fontSize: 13.5,
+              fontWeight: active ? 800 : 600,
+              lineHeight: 1.2,
+              textAlign: "left",
+            }}
+          >
+            {noteTitle}
+          </Typography>
+        </ButtonBase>
+      </Tooltip>
+      <Tooltip
+        arrow
+        placement="right"
+        slotProps={themedTooltipSlotProps}
+        title={disableDelete ? "At least one note is required" : "Delete note"}
+      >
+        <Box component="span">
+          <IconButton
+            size="small"
+            disabled={disableDelete}
+            onClick={onDelete}
+            sx={{
+              width: 24,
+              height: 24,
+              color: "#82796f",
+              "&:hover": {
+                bgcolor: alpha("#8f7d66", 0.12),
+                color: "#5f554b",
+              },
+            }}
+          >
+            <DeleteRoundedIcon sx={{ fontSize: 15 }} />
+          </IconButton>
+        </Box>
+      </Tooltip>
+    </Box>
+  );
+}
+
+function SelectionToolbar({
+  visible,
+  x,
+  y,
+  onBold,
+  onColor,
+  onHighlight,
+  onList,
+  onLink,
+  onImage,
+  onClear,
+}) {
+  return (
+    <Box
+      sx={{
+        position: "fixed",
+        top: y,
+        left: x,
+        transform: visible
+          ? "translate(-50%, -100%) scale(1)"
+          : "translate(-50%, -92%) scale(0.96)",
+        opacity: visible ? 1 : 0,
+        transition: "opacity 180ms ease, transform 180ms ease",
+        pointerEvents: visible ? "auto" : "none",
+        zIndex: 1400,
+      }}
+    >
+      <Paper
+        elevation={6}
+        sx={{
+          borderRadius: 999,
+          px: 0.5,
+          py: 0.28,
+          bgcolor: "#f4ebdf",
+          border: "1px solid #ddd0c0",
+          color: "#352f29",
+          boxShadow: "0 12px 30px rgba(58, 46, 34, 0.18)",
+        }}
+      >
+        <Stack direction="row" alignItems="center" spacing={0.2}>
+          <Tooltip title="Bold" arrow slotProps={themedTooltipSlotProps}>
+            <IconButton
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={onBold}
+              size="small"
+              sx={{
+                color: "#352f29",
+                "&:hover": { bgcolor: alpha("#8f7d66", 0.12) },
+              }}
+            >
+              <FormatBoldRoundedIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Random Color" arrow slotProps={themedTooltipSlotProps}>
+            <IconButton
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={onColor}
+              size="small"
+              sx={{
+                color: "#352f29",
+                "&:hover": { bgcolor: alpha("#8f7d66", 0.12) },
+              }}
+            >
+              <ColorLensRoundedIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Highlight" arrow slotProps={themedTooltipSlotProps}>
+            <IconButton
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={onHighlight}
+              size="small"
+              sx={{
+                color: "#352f29",
+                "&:hover": { bgcolor: alpha("#8f7d66", 0.12) },
+              }}
+            >
+              <HighlightRoundedIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Bulleted List" arrow slotProps={themedTooltipSlotProps}>
+            <IconButton
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={onList}
+              size="small"
+              sx={{
+                color: "#352f29",
+                "&:hover": { bgcolor: alpha("#8f7d66", 0.12) },
+              }}
+            >
+              <FormatListBulletedRoundedIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Add Link" arrow slotProps={themedTooltipSlotProps}>
+            <IconButton
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={onLink}
+              size="small"
+              sx={{
+                color: "#352f29",
+                "&:hover": { bgcolor: alpha("#8f7d66", 0.12) },
+              }}
+            >
+              <LinkRoundedIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Insert Image" arrow slotProps={themedTooltipSlotProps}>
+            <IconButton
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={onImage}
+              size="small"
+              sx={{
+                color: "#352f29",
+                "&:hover": { bgcolor: alpha("#8f7d66", 0.12) },
+              }}
+            >
+              <ImageRoundedIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Clear Format" arrow slotProps={themedTooltipSlotProps}>
+            <IconButton
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={onClear}
+              size="small"
+              sx={{
+                color: "#352f29",
+                "&:hover": { bgcolor: alpha("#8f7d66", 0.12) },
+              }}
+            >
+              <FormatClearRoundedIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      </Paper>
+    </Box>
+  );
+}
+
+export default function Home() {
+  const editorRef = useRef(null);
+  const [notes, setNotes] = useState([]);
+  const [activeNoteId, setActiveNoteId] = useState("");
+  const [selectionMenu, setSelectionMenu] = useState({
+    visible: false,
+    x: 0,
+    y: 0,
+  });
+
+  const persistNotes = useCallback((nextNotes, nextActiveId) => {
+    try {
+      localStorage.setItem(
+        NOTE_STORAGE_KEY,
+        JSON.stringify({
+          notes: nextNotes,
+          activeNoteId: nextActiveId,
+        })
+      );
+    } catch {
+      // Ignore persistence failures so the editor remains usable.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(NOTE_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed.notes) && parsed.notes.length > 0) {
+          setNotes(parsed.notes);
+          setActiveNoteId(parsed.activeNoteId || parsed.notes[0].id);
+          return;
+        }
+      }
+    } catch {
+      // Ignore malformed storage and create a new first note.
+    }
+
+    const firstNote = createNote();
+    setNotes([firstNote]);
+    setActiveNoteId(firstNote.id);
+    persistNotes([firstNote], firstNote.id);
+  }, []);
+
+  const activeNote = useMemo(
+    () => notes.find((note) => note.id === activeNoteId) || notes[0] || null,
+    [notes, activeNoteId]
+  );
+
+  useEffect(() => {
+    if (!activeNote && notes.length > 0) {
+      setActiveNoteId(notes[0].id);
+    }
+  }, [notes, activeNote]);
+
+  useEffect(() => {
+    if (!editorRef.current || !activeNote) {
+      return;
+    }
+    if (editorRef.current.innerHTML !== activeNote.content) {
+      editorRef.current.innerHTML = activeNote.content || "";
+    }
+  }, [activeNoteId, activeNote]);
+
+  const updateCurrentNote = useCallback(
+    (updater) => {
+      if (!activeNoteId) {
+        return;
+      }
+      setNotes((prevNotes) =>
+        prevNotes.map((note) => {
+          if (note.id !== activeNoteId) {
+            return note;
+          }
+          const updatedNote = updater(note);
+          if (
+            updatedNote.title === note.title &&
+            updatedNote.content === note.content
+          ) {
+            return note;
+          }
+          return updatedNote;
+        })
+      );
+    },
+    [activeNoteId]
+  );
+
+  const syncEditorHtml = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) {
+      return;
+    }
+    const nextHtml = editor.innerHTML;
+    updateCurrentNote((note) => ({ ...note, content: nextHtml }));
+  }, [updateCurrentNote]);
+
+  const saveCurrentNote = useCallback(() => {
+    if (!activeNoteId) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    setNotes((prevNotes) => {
+      const selected = prevNotes.find((note) => note.id === activeNoteId);
+      if (!selected) {
+        return prevNotes;
+      }
+      const updated = {
+        ...selected,
+        title: selected.title?.trim() || "Untitled",
+        updatedAt: now,
+      };
+      const remaining = prevNotes.filter((note) => note.id !== activeNoteId);
+      const nextNotes = [updated, ...remaining];
+      persistNotes(nextNotes, updated.id);
+      return nextNotes;
+    });
+  }, [activeNoteId, persistNotes]);
+
+  useEffect(() => {
+    const handleSaveShortcut = (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        saveCurrentNote();
+      }
+    };
+    window.addEventListener("keydown", handleSaveShortcut);
+    return () => {
+      window.removeEventListener("keydown", handleSaveShortcut);
+    };
+  }, [saveCurrentNote]);
+
+  const hideSelectionMenu = useCallback(() => {
+    setSelectionMenu((previous) =>
+      previous.visible ? { ...previous, visible: false } : previous
+    );
+  }, []);
+
+  const updateSelectionMenuPosition = useCallback(() => {
+    const editor = editorRef.current;
+    const selection = window.getSelection();
+
+    if (!editor || !selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      hideSelectionMenu();
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    const commonNode =
+      range.commonAncestorContainer.nodeType === 3
+        ? range.commonAncestorContainer.parentNode
+        : range.commonAncestorContainer;
+
+    if (!commonNode || !editor.contains(commonNode)) {
+      hideSelectionMenu();
+      return;
+    }
+
+    const rect = range.getBoundingClientRect();
+    if (!rect || (!rect.width && !rect.height)) {
+      hideSelectionMenu();
+      return;
+    }
+
+    const nextMenu = {
+      visible: true,
+      x: rect.left + rect.width / 2,
+      y: Math.max(16, rect.top - 12),
+    };
+
+    setSelectionMenu((previous) => {
+      if (
+        previous.visible &&
+        Math.abs(previous.x - nextMenu.x) < 1 &&
+        Math.abs(previous.y - nextMenu.y) < 1
+      ) {
+        return previous;
+      }
+      return nextMenu;
+    });
+  }, [hideSelectionMenu]);
+
+  useEffect(() => {
+    const syncSelectionMenu = () => {
+      window.requestAnimationFrame(updateSelectionMenuPosition);
+    };
+
+    document.addEventListener("selectionchange", syncSelectionMenu);
+    window.addEventListener("resize", syncSelectionMenu);
+    window.addEventListener("scroll", syncSelectionMenu, true);
+
+    return () => {
+      document.removeEventListener("selectionchange", syncSelectionMenu);
+      window.removeEventListener("resize", syncSelectionMenu);
+      window.removeEventListener("scroll", syncSelectionMenu, true);
+    };
+  }, [updateSelectionMenuPosition]);
+
+  useEffect(() => {
+    hideSelectionMenu();
+  }, [activeNoteId, hideSelectionMenu]);
+
+  const createNewNote = useCallback(() => {
+    const freshNote = createNote({
+      content: "<p></p>",
+    });
+    setNotes((prevNotes) => {
+      const nextNotes = [freshNote, ...prevNotes];
+      persistNotes(nextNotes, freshNote.id);
+      return nextNotes;
+    });
+    setActiveNoteId(freshNote.id);
+  }, [persistNotes]);
+
+  const deleteNote = useCallback(
+    (noteId) => {
+      if (notes.length <= 1) {
+        return;
+      }
+      const nextNotes = notes.filter((note) => note.id !== noteId);
+      const nextActiveId =
+        noteId === activeNoteId ? nextNotes[0]?.id || "" : activeNoteId;
+      setNotes(nextNotes);
+      setActiveNoteId(nextActiveId);
+      persistNotes(nextNotes, nextActiveId);
+      hideSelectionMenu();
+    },
+    [notes, activeNoteId, persistNotes, hideSelectionMenu]
+  );
+
+  const runCommand = useCallback(
+    (command, value = null) => {
+      editorRef.current?.focus();
+      document.execCommand(command, false, value);
+      syncEditorHtml();
+      updateSelectionMenuPosition();
+    },
+    [syncEditorHtml, updateSelectionMenuPosition]
+  );
+
+  const withSelectionRange = useCallback(() => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      return null;
+    }
+    return selection.getRangeAt(0).cloneRange();
+  }, []);
+
+  return (
+    <Box
+      sx={{
+        height: "100vh",
+        width: "100%",
+        overflow: "hidden",
+      }}
+    >
+      <Paper
+        sx={{
+          width: "100%",
+          height: "100%",
+          border: "1px solid #ddd4ca",
+          bgcolor: "#f8f5f0",
+          boxShadow: "0 30px 90px rgba(114, 94, 68, 0.12)",
+          overflow: "hidden",
+        }}
+      >
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", lg: "228px minmax(0, 1fr)" },
+            height: "100%",
+            alignItems: "stretch",
+            minHeight: 0,
+          }}
+        >
+          <Box
+            sx={{
+              order: { xs: 2, lg: 1 },
+              borderRight: { lg: "1px solid #e6ddd3" },
+              borderTop: { xs: "1px solid #e6ddd3", lg: 0 },
+              bgcolor: "#faf7f3",
+              p: 2,
+              display: "flex",
+              flexDirection: "column",
+              gap: 1.3,
+              minHeight: 0,
+            }}
+          >
+            <Paper
+              sx={{
+                border: "1px solid #e7dfd5",
+                borderRadius: 3,
+                bgcolor: "#fffdfa",
+                px: 1.2,
+                py: 1,
+              }}
+            >
+              <Stack direction="row" alignItems="center" justifyContent="space-between">
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Box
+                    sx={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: "50%",
+                      bgcolor: "#f7931e",
+                      display: "grid",
+                      placeItems: "center",
+                      color: "#fffdf8",
+                    }}
+                  >
+                    <AutoAwesomeRoundedIcon sx={{ fontSize: 14 }} />
+                  </Box>
+                  <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>docBook</Typography>
+                </Stack>
+                <KeyboardArrowDownRoundedIcon sx={{ fontSize: 18, color: "#736d66" }} />
+              </Stack>
+            </Paper>
+
+            <Stack spacing={0.25}>
+              {primaryLinks.map((item) => (
+                <SidebarLink key={item.label} {...item} />
+              ))}
+            </Stack>
+
+
+            <Box>
+              <Stack direction="row" alignItems="center" justifyContent="space-between">
+                <SectionLabel>NOTES</SectionLabel>
+                <Tooltip title="Create new note">
+                  <IconButton
+                    onClick={createNewNote}
+                    size="small"
+                    sx={{
+                      bgcolor: "#eee7dd",
+                      border: "1px solid #ded4c8",
+                      "&:hover": { bgcolor: "#e4dbce" },
+                    }}
+                  >
+                    <AddRoundedIcon sx={{ fontSize: 16, color: "#352f29" }} />
+                  </IconButton>
+                </Tooltip>
+              </Stack>
+
+              <Stack
+                spacing={0.25}
+                sx={{
+                  maxHeight: 180,
+                  overflowY: "auto",
+                  pr: 0.2,
+                  scrollbarWidth: "thin",
+                  mt: 1
+                }}
+              >
+                {notes.map((note) => (
+                  <NoteTitleLink
+                    key={note.id}
+                    note={note}
+                    active={note.id === activeNote?.id}
+                    disableDelete={notes.length <= 1}
+                    onOpen={() => {
+                      setActiveNoteId(note.id);
+                    }}
+                    onDelete={(event) => {
+                      event.stopPropagation();
+                      deleteNote(note.id);
+                    }}
+                  />
+                ))}
+              </Stack>
+            </Box>
+
+            <Box sx={{ flex: 1 }} />
+
+            <Stack spacing={0.2}>
+              <SidebarLink
+                label="Download Mac App"
+                icon={<DownloadRoundedIcon sx={{ fontSize: 18 }} />}
+              />
+              <SidebarLink
+                label="Feedback"
+                icon={<FeedbackOutlinedIcon sx={{ fontSize: 18 }} />}
+              />
+            </Stack>
+          </Box>
+
+          <Box
+            sx={{
+              order: { xs: 1, lg: 2 },
+              minWidth: 0,
+              width: "100%",
+              minHeight: 0,
+              p: { xs: 2, md: 3.2 },
+              display: "flex",
+              flexDirection: "column",
+              gap: 2.2,
+              overflow: "hidden",
+              background:
+                "linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(248,245,240,0.98) 100%)",
+            }}
+          >
+            <Box
+              component="input"
+              value={activeNote?.title ?? ""}
+              placeholder="Untitled"
+              onChange={(event) => {
+                const nextTitle = event.target.value;
+                updateCurrentNote((note) => ({ ...note, title: nextTitle }));
+              }}
+              sx={{
+                width: "100%",
+                border: 0,
+                outline: 0,
+                bgcolor: "transparent",
+                fontFamily: "inherit",
+                fontSize: 16,
+                lineHeight: 1.25,
+                fontWeight: 600,
+                color: "#322d28",
+                "&::placeholder": {
+                  color: alpha("#322d28", 0.72),
+                },
+              }}
+            />
+
+            <Box
+              sx={{
+                position: "relative",
+                flex: 1,
+                minHeight: { xs: 360, lg: 0 },
+                width: "100%",
+                overflow: "hidden",
+                borderRadius: 5,
+              }}
+            >
+              <Box
+                sx={{
+                  position: "absolute",
+                  left: -80,
+                  top: 40,
+                  width: "100%",
+                  height: 240,
+                  borderRadius: "50%",
+                  background:
+                    "radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 72%)",
+                  filter: "blur(8px)",
+                }}
+              />
+              <Box
+                sx={{
+                  position: "absolute",
+                  right: -60,
+                  bottom: 24,
+                  width: 260,
+                  height: 200,
+                  borderRadius: "50%",
+                  background:
+                    "radial-gradient(circle, rgba(231,226,219,0.86) 0%, rgba(231,226,219,0) 72%)",
+                  filter: "blur(18px)",
+                }}
+              />
+
+              <Box
+                ref={editorRef}
+                contentEditable
+                suppressContentEditableWarning
+                spellCheck
+                data-placeholder="Start writing your note..."
+                onInput={syncEditorHtml}
+                onBlur={syncEditorHtml}
+                onMouseUp={updateSelectionMenuPosition}
+                onKeyUp={updateSelectionMenuPosition}
+                sx={{
+                  position: "relative",
+                  zIndex: 1,
+                  width: "100%",
+                  height: "100%",
+                  minHeight: "100%",
+                  overflowY: "auto",
+                  outline: 0,
+                  p: { xs: 1.4, md: 2.4 },
+                  fontFamily: "inherit",
+                  fontSize: { xs: 34, md: 52 },
+                  lineHeight: { xs: 1.18, md: 1.22 },
+                  fontWeight: 500,
+                  letterSpacing: "-0.045em",
+                  color: alpha("#221f1a", 0.34),
+                  scrollbarWidth: "none",
+                  msOverflowStyle: "none",
+                  "&::-webkit-scrollbar": {
+                    display: "none",
+                  },
+                  "&:empty::before": {
+                    content: "attr(data-placeholder)",
+                    color: alpha("#221f1a", 0.22),
+                    pointerEvents: "none",
+                  },
+                  "& p": {
+                    margin: 0,
+                  },
+                  "& div": {
+                    margin: 0,
+                  },
+                  "& li": {
+                    margin: 0,
+                  },
+                  "& p + p, & div + div, & p + div, & div + p": {
+                    marginTop: 0,
+                  },
+                  "& span[style*='background-color: rgb(35, 34, 32)']": {
+                    borderRadius: 7,
+                    paddingInline: "0.2em",
+                    color: "#ffffff !important",
+                    boxDecorationBreak: "clone",
+                    WebkitBoxDecorationBreak: "clone",
+                  },
+                  "& a": {
+                    color: "#3b5fc4",
+                    textDecoration: "underline",
+                  },
+                  "& img": {
+                    maxWidth: "100%",
+                    height: "auto",
+                    borderRadius: 10,
+                    display: "block",
+                    marginTop: 12,
+                    marginBottom: 12,
+                  },
+                }}
+              />
+            </Box>
+          </Box>
+        </Box>
+        <SelectionToolbar
+          visible={selectionMenu.visible}
+          x={selectionMenu.x}
+          y={selectionMenu.y}
+          onBold={() => runCommand("bold")}
+          onColor={() => {
+            const randomColor =
+              colorOptions[Math.floor(Math.random() * colorOptions.length)];
+            document.execCommand("styleWithCSS", false, true);
+            runCommand("foreColor", randomColor);
+          }}
+          onHighlight={() => {
+            document.execCommand("styleWithCSS", false, true);
+            document.execCommand("backColor", false, "#232220");
+            runCommand("foreColor", "#ffffff");
+          }}
+          onList={() => runCommand("insertUnorderedList")}
+          onLink={() => {
+            const range = withSelectionRange();
+            if (!range) {
+              return;
+            }
+            const rawUrl = window.prompt("Enter link URL");
+            if (!rawUrl) {
+              return;
+            }
+            let url = rawUrl.trim();
+            if (!url) {
+              return;
+            }
+            if (!/^(https?:\/\/|mailto:|tel:)/i.test(url)) {
+              url = `https://${url}`;
+            }
+            const selection = window.getSelection();
+            if (selection) {
+              selection.removeAllRanges();
+              selection.addRange(range);
+            }
+            runCommand("createLink", url);
+          }}
+          onImage={() => {
+            const rawUrl = window.prompt("Enter image URL");
+            if (!rawUrl) {
+              return;
+            }
+            const imageUrl = rawUrl.trim();
+            if (!imageUrl) {
+              return;
+            }
+            runCommand("insertImage", imageUrl);
+          }}
+          onClear={() => runCommand("removeFormat")}
+        />
+      </Paper>
+    </Box>
+  );
+}

@@ -14,8 +14,15 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata = {
-  title: "Melody Playground",
-  description: "MUI dashboard clone built with Next.js.",
+  title: "DocBook",
+  description: "Secure, beautiful note-taking with cloud sync.",
+  manifest: "/manifest.json",
+  themeColor: "#5c3d2e",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "DocBook",
+  },
 };
 
 export default function RootLayout({ children }) {

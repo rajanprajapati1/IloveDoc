@@ -114,7 +114,7 @@ export default function SettingsPanel({ open, onClose, notes, onImportNotes }) {
 
     /* Check PIN uniqueness on the server */
     setSyncStatus("syncing");
-    setSyncMessage("Checking PIN availability...");
+    setSyncMessage(pinMode === "create" ? "Checking PIN availability..." : "Verifying PIN...");
 
     try {
       const res = await fetch("/api/sync/check-pin", {
@@ -124,22 +124,35 @@ export default function SettingsPanel({ open, onClose, notes, onImportNotes }) {
       });
       const data = await res.json();
 
-      if (data.exists) {
+      if (pinMode === "create" && data.exists) {
         setSyncMessage("This PIN is already taken. Please choose a unique PIN.");
+        setSyncStatus("error");
+        setTimeout(() => { setSyncStatus("idle"); setSyncMessage(""); }, 4000);
+        return;
+      }
+
+      if (pinMode === "existing" && !data.exists) {
+        setSyncMessage("PIN not found. Check the PIN or create a new one.");
         setSyncStatus("error");
         setTimeout(() => { setSyncStatus("idle"); setSyncMessage(""); }, 4000);
         return;
       }
     } catch {
       /* If server check fails, allow saving locally but warn */
-      setSyncMessage("Could not verify PIN uniqueness (offline). Saved locally.");
+      setSyncMessage("Could not verify PIN (offline). Saved locally.");
       setSyncStatus("success");
     }
 
     setPin(trimmed);
     saveSettings({ pin: trimmed });
-    setSyncMessage("PIN saved successfully! Remember this PIN.");
+    setSyncMessage(pinMode === "create" ? "PIN created successfully! Remember it." : "PIN connected successfully!");
     setSyncStatus("success");
+
+    /* Automatically pull if connecting existing PIN */
+    if (pinMode === "existing") {
+      setTimeout(() => handlePullFromCloud(), 500);
+    }
+
     setTimeout(() => { setSyncStatus("idle"); setSyncMessage(""); }, 3000);
   };
 
@@ -328,8 +341,47 @@ export default function SettingsPanel({ open, onClose, notes, onImportNotes }) {
             </Stack>
 
             <Typography sx={{ fontSize: 12, color: "#6a6054", mb: 2, lineHeight: 1.6 }}>
-              Create a unique PIN to sync your notes across devices. <strong>Remember this PIN</strong> — it's your only key to access your cloud data. You can use letters, numbers, or both.
+              {pinMode === "create"
+                ? "Create a unique PIN to sync your notes across devices. Remember this PIN — it's your only key."
+                : "Enter your existing PIN to connect to your cloud data and sync your notes."}
             </Typography>
+
+            <Stack direction="row" spacing={1} mb={2}>
+              <Button
+                variant={pinMode === "create" ? "contained" : "outlined"}
+                size="small"
+                onClick={() => setPinMode("create")}
+                sx={{
+                  flex: 1,
+                  fontSize: 11,
+                  borderRadius: 2,
+                  textTransform: "none",
+                  bgcolor: pinMode === "create" ? "#5c3d2e" : "transparent",
+                  borderColor: "#5c3d2e",
+                  color: pinMode === "create" ? "#fff" : "#5c3d2e",
+                  "&:hover": { bgcolor: pinMode === "create" ? "#7a5240" : alpha("#5c3d2e", 0.05) },
+                }}
+              >
+                New PIN
+              </Button>
+              <Button
+                variant={pinMode === "existing" ? "contained" : "outlined"}
+                size="small"
+                onClick={() => setPinMode("existing")}
+                sx={{
+                  flex: 1,
+                  fontSize: 11,
+                  borderRadius: 2,
+                  textTransform: "none",
+                  bgcolor: pinMode === "existing" ? "#5c3d2e" : "transparent",
+                  borderColor: "#5c3d2e",
+                  color: pinMode === "existing" ? "#fff" : "#5c3d2e",
+                  "&:hover": { bgcolor: pinMode === "existing" ? "#7a5240" : alpha("#5c3d2e", 0.05) },
+                }}
+              >
+                Existing PIN
+              </Button>
+            </Stack>
 
             <Stack direction="row" spacing={1} alignItems="center">
               <TextField
@@ -396,7 +448,7 @@ export default function SettingsPanel({ open, onClose, notes, onImportNotes }) {
                 boxShadow: "0 4px 14px rgba(92, 61, 46, 0.25)",
               }}
             >
-              Save PIN
+              {pinMode === "create" ? "Create & Save PIN" : "Connect PIN"}
             </Button>
           </Box>
 

@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Box, Paper } from "@mui/material";
+import { Box, Paper, Drawer } from "@mui/material";
 import DocbookEditorSurface from "@/components/docbook/DocbookEditorSurface";
 import DocbookOverlays from "@/components/docbook/DocbookOverlays";
 import DocbookSidebar from "@/components/docbook/DocbookSidebar";
 import SettingsPanel from "@/components/docbook/SettingsPanel";
 import SelectionPanel from "@/components/docbook/SelectionPanel";
+import FeedbackModal from "@/components/docbook/FeedbackModal";
+import PricingPanel from "@/components/docbook/PricingPanel";
 import { buildId, createNote, isExpiredDelete } from "@/components/docbook/shared";
 import { docbookDb } from "../lib/docbookDb";
 
@@ -36,6 +38,9 @@ export default function Home() {
   /* Settings & Selection Panel state */
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectionPanelOpen, setSelectionPanelOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [pricingOpen, setPricingOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectionContent, setSelectionContent] = useState("");
 
   const activeNotes = useMemo(() => notes.filter((note) => !note.deletedAt), [notes]);
@@ -131,6 +136,28 @@ export default function Home() {
     /* Strip zero-width spaces used for caret escaping */
     const html = editor.innerHTML.replace(/\u200B/g, "");
     updateCurrentNote((note) => ({ ...note, content: html }));
+
+    /* Clean up orphaned images: find which IDs are still in the DOM */
+    const imgSpans = editor.querySelectorAll("[data-img-ref]");
+    const activeIds = new Set();
+    imgSpans.forEach((span) => {
+      const id = span.getAttribute("data-img-ref");
+      if (id) activeIds.add(id);
+    });
+
+    /* Remove images from IndexedDB and URL map that are no longer referenced */
+    const currentMap = objectUrlMapRef.current;
+    const orphanedIds = Object.keys(currentMap).filter((id) => !activeIds.has(id));
+
+    if (orphanedIds.length > 0) {
+      orphanedIds.forEach((id) => {
+        URL.revokeObjectURL(currentMap[id]);
+        delete currentMap[id];
+        docbookDb.images.delete(id).catch(() => {});
+      });
+      objectUrlMapRef.current = { ...currentMap };
+      setImageUrlMap({ ...currentMap });
+    }
   }, [updateCurrentNote]);
 
   const runCommand = useCallback(
@@ -776,7 +803,7 @@ export default function Home() {
   return (
     <Box sx={{ height: "100vh", width: "100%", overflow: "hidden" }}>
       <Paper sx={{ width: "100%", height: "100%", border: "1px solid #ddd4ca", bgcolor: "#f8f5f0", boxShadow: "0 30px 90px rgba(114, 94, 68, 0.12)", overflow: "hidden" }}>
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "228px minmax(0, 1fr)" }, height: "100%", alignItems: "stretch", minHeight: 0 }}>
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "240px minmax(0, 1fr)" }, height: "100%", alignItems: "stretch", minHeight: 0 }}>
           <DocbookSidebar
             notes={activeNotes}
             deletedNotes={deletedNotes}
@@ -800,7 +827,61 @@ export default function Home() {
               void permanentlyDeleteNote(noteId);
             }}
             onOpenSettings={() => setSettingsOpen(true)}
+            onOpenFeedback={() => setFeedbackOpen(true)}
+            onOpenPricing={() => setPricingOpen(true)}
+            onExpand={() => setDrawerOpen(true)}
+            onImportNotes={handleImportNotes}
           />
+
+          <Drawer
+            anchor="left"
+            open={drawerOpen}
+            onClose={() => setDrawerOpen(false)}
+            PaperProps={{
+              sx: { width: 280, bgcolor: "#faf7f3" }
+            }}
+            sx={{ display: { xs: "block", lg: "none" } }}
+          >
+            <DocbookSidebar
+              notes={activeNotes}
+              deletedNotes={deletedNotes}
+              activeNoteId={activeNote?.id}
+              showDeleted={showDeleted}
+              onToggleDeleted={() => setShowDeleted((prev) => !prev)}
+              onCreateNote={() => {
+                void createNewNote();
+                setDrawerOpen(false);
+              }}
+              onOpenNote={(noteId) => {
+                setShowDeleted(false);
+                setActiveNoteId(noteId);
+                setDrawerOpen(false);
+              }}
+              onDeleteNote={(noteId) => {
+                void deleteNote(noteId);
+              }}
+              onRestoreNote={(noteId) => {
+                void restoreNote(noteId);
+              }}
+              onPermanentlyDelete={(noteId) => {
+                void permanentlyDeleteNote(noteId);
+              }}
+              onOpenSettings={() => {
+                setSettingsOpen(true);
+                setDrawerOpen(false);
+              }}
+              onOpenFeedback={() => {
+                setFeedbackOpen(true);
+                setDrawerOpen(false);
+              }}
+              onOpenPricing={() => {
+                setPricingOpen(true);
+                setDrawerOpen(false);
+              }}
+              onImportNotes={handleImportNotes}
+              isDrawer={true}
+            />
+          </Drawer>
 
           <DocbookEditorSurface
             activeNote={activeNote}
@@ -868,6 +949,18 @@ export default function Home() {
         selectionContent={selectionContent}
         visible={selectionPanelOpen}
         onClose={() => setSelectionPanelOpen(false)}
+      />
+
+      {/* Feedback Modal */}
+      <FeedbackModal
+        open={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+      />
+
+      {/* Pricing Panel */}
+      <PricingPanel
+        open={pricingOpen}
+        onClose={() => setPricingOpen(false)}
       />
     </Box>
   );

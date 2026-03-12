@@ -1,6 +1,8 @@
 import { useState, useCallback } from "react";
-import { Box } from "@mui/material";
+import { Box, IconButton, Tooltip } from "@mui/material";
 import { alpha } from "@mui/material/styles";
+import ViewSidebarRoundedIcon from "@mui/icons-material/ViewSidebarRounded";
+import { tooltipSlotProps } from "./shared";
 
 export default function DocbookEditorSurface({
   activeNote,
@@ -16,9 +18,10 @@ export default function DocbookEditorSurface({
   onEditorDragOver,
   onEditorDragLeave,
   onEditorDrop,
+  onOpenSelectionPanel,
+  onPasteImage,
 }) {
   const [dropCaret, setDropCaret] = useState({ visible: false, x: 0, y: 0, height: 0 });
-  const [showImages, setShowImages] = useState(false);
 
   const imageEntries = Object.entries(imageUrlMap);
 
@@ -27,7 +30,6 @@ export default function DocbookEditorSurface({
       event.preventDefault();
       event.dataTransfer.dropEffect = "copy";
 
-      /* compute exact caret position for the visual indicator */
       let range;
       if (document.caretRangeFromPoint) {
         range = document.caretRangeFromPoint(event.clientX, event.clientY);
@@ -68,43 +70,166 @@ export default function DocbookEditorSurface({
     [onEditorDrop]
   );
 
-  /* Escape highlight/img-ref spans when typing at their boundary */
+  /* ── Handle paste: intercept image pastes from clipboard (PrtSc, Ctrl+V) ── */
+  const handlePaste = useCallback(
+    (event) => {
+      const clipboardData = event.clipboardData;
+      if (!clipboardData) return;
+
+      const items = clipboardData.items;
+      if (!items || items.length === 0) return;
+
+      /* Scan ALL items first — check if ANY is an image */
+      let imageItem = null;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith("image/")) {
+          imageItem = items[i];
+          break;
+        }
+      }
+
+      if (!imageItem) return;
+
+      /* IMMEDIATELY prevent browser from embedding the actual image */
+      event.preventDefault();
+      event.stopPropagation();
+
+      const file = imageItem.getAsFile();
+      if (file && onPasteImage) {
+        onPasteImage(file);
+      }
+    },
+    [onPasteImage]
+  );
+
+  /* ── Click handler: escape cursor from highlight/img-ref spans ── */
+  const handleClick = useCallback(
+    (event) => {
+      const editor = editorRef?.current;
+      if (!editor) return;
+
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+
+      /* If click is NOT on a highlight/img-ref span, but cursor ended up inside one,
+         move cursor outside */
+      const clickTarget = event.target;
+      const isOnSpecialSpan = clickTarget.closest?.("[data-highlight], [data-img-ref]");
+
+      if (!isOnSpecialSpan && sel.isCollapsed) {
+        const node = sel.anchorNode;
+        const el = node?.nodeType === 3 ? node.parentElement : node;
+        const enclosingSpan = el?.closest?.("[data-highlight], [data-img-ref]");
+
+        if (enclosingSpan && editor.contains(enclosingSpan)) {
+          /* Move cursor after the span */
+          const newRange = document.createRange();
+          if (enclosingSpan.nextSibling) {
+            /* If there's a text node after, place at its start */
+            if (enclosingSpan.nextSibling.nodeType === 3) {
+              newRange.setStart(enclosingSpan.nextSibling, 0);
+            } else {
+              newRange.setStartAfter(enclosingSpan);
+            }
+          } else {
+            /* Create a zero-width space after the span to park the cursor */
+            const zws = document.createTextNode("\u200B");
+            enclosingSpan.parentNode.appendChild(zws);
+            newRange.setStart(zws, 1);
+          }
+          newRange.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+        }
+      }
+
+      /* Delegate to parent handler */
+      if (onEditorClick) onEditorClick(event);
+    },
+    [editorRef, onEditorClick]
+  );
+
+  /* ── Escape highlight/img-ref spans when typing at their boundary ── */
   const handleEditorKeyDown = useCallback(
     (event) => {
-      /* Only handle printable characters and space */
       if (event.ctrlKey || event.metaKey || event.altKey) return;
-      if (event.key.length !== 1 && event.key !== "Enter") return;
 
       const sel = window.getSelection();
       if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return;
 
       const node = sel.anchorNode;
-      const offset = sel.anchorOffset;
       if (!node) return;
 
-      /* Check if cursor is inside a highlight or img-ref span */
       const el = node.nodeType === 3 ? node.parentElement : node;
       const span = el?.closest?.("[data-highlight], [data-img-ref]");
       if (!span) return;
 
-      /* Use Range to check if cursor is truly at the very start or end of the span */
+      /* Handle Space, Enter, and all printable characters */
+      const isPrintable = event.key.length === 1;
+      const isEnter = event.key === "Enter";
+      const isSpace = event.key === " ";
+      const isArrowRight = event.key === "ArrowRight";
+      const isArrowLeft = event.key === "ArrowLeft";
+
+      if (!isPrintable && !isEnter && !isArrowRight && !isArrowLeft) return;
+
+      /* Use Range to check if cursor is at start or end of the span */
       const spanRange = document.createRange();
       spanRange.selectNodeContents(span);
-
       const cursorRange = sel.getRangeAt(0);
 
-      /* Compare cursor to start of span content */
       const isAtStart = cursorRange.compareBoundaryPoints(Range.START_TO_START, spanRange) <= 0;
-
-      /* Compare cursor to end of span content */
       const isAtEnd = cursorRange.compareBoundaryPoints(Range.START_TO_END, spanRange) >= 0;
 
+      /* Arrow keys: move cursor outside the span boundary */
+      if (isArrowRight && isAtEnd) {
+        event.preventDefault();
+        const newRange = document.createRange();
+        if (span.nextSibling) {
+          if (span.nextSibling.nodeType === 3) {
+            newRange.setStart(span.nextSibling, Math.min(1, span.nextSibling.length));
+          } else {
+            newRange.setStartAfter(span);
+          }
+        } else {
+          const zws = document.createTextNode("\u200B");
+          span.parentNode.appendChild(zws);
+          newRange.setStart(zws, 1);
+        }
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        return;
+      }
+
+      if (isArrowLeft && isAtStart) {
+        event.preventDefault();
+        const newRange = document.createRange();
+        if (span.previousSibling) {
+          if (span.previousSibling.nodeType === 3) {
+            newRange.setStart(span.previousSibling, Math.max(0, span.previousSibling.length - 1));
+          } else {
+            newRange.setStartBefore(span);
+          }
+        } else {
+          const zws = document.createTextNode("\u200B");
+          span.parentNode.insertBefore(zws, span);
+          newRange.setStart(zws, 0);
+        }
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        return;
+      }
+
       if (!isAtEnd && !isAtStart) return;
+      if (isArrowRight || isArrowLeft) return;
 
       event.preventDefault();
 
-      /* Create a text node with the typed character outside the span */
-      const textNode = document.createTextNode(event.key === "Enter" ? "\n" : event.key);
+      /* Create text node outside the span */
+      const content = isEnter ? "\n" : event.key;
+      const textNode = document.createTextNode(content);
 
       if (isAtEnd) {
         if (span.nextSibling) {
@@ -116,14 +241,12 @@ export default function DocbookEditorSurface({
         span.parentNode.insertBefore(textNode, span);
       }
 
-      /* Move cursor to end of the new text node */
       const newRange = document.createRange();
       newRange.setStart(textNode, textNode.length);
       newRange.collapse(true);
       sel.removeAllRanges();
       sel.addRange(newRange);
 
-      /* Sync the change to React state */
       if (onEditorInput) onEditorInput();
     },
     [onEditorInput]
@@ -144,28 +267,53 @@ export default function DocbookEditorSurface({
         background: "linear-gradient(180deg, rgba(255,253,248,0.85) 0%, rgba(248,243,235,0.98) 100%)",
       }}
     >
-      {/* Title input */}
-      <Box
-        component="input"
-        value={activeNote?.title ?? ""}
-        placeholder="Untitled"
-        onChange={onTitleChange}
-        sx={{
-          width: "100%",
-          border: 0,
-          borderBottom: "1.5px solid transparent",
-          outline: 0,
-          bgcolor: "transparent",
-          fontFamily: "inherit",
-          fontSize: 17,
-          lineHeight: 1.35,
-          fontWeight: 700,
-          color: "#2e261f",
-          pb: 0.6,
-          transition: "border-color 200ms ease",
-          "&::placeholder": { color: alpha("#2e261f", 0.38), fontWeight: 500 },
-        }}
-      />
+      {/* Title input + panel toggle */}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <Box
+          component="input"
+          value={activeNote?.title ?? ""}
+          placeholder="Untitled"
+          onChange={onTitleChange}
+          sx={{
+            flex: 1,
+            border: 0,
+            borderBottom: "1.5px solid transparent",
+            outline: 0,
+            bgcolor: "transparent",
+            fontFamily: "inherit",
+            fontSize: 17,
+            lineHeight: 1.35,
+            fontWeight: 700,
+            color: "#2e261f",
+            pb: 0.6,
+            transition: "border-color 200ms ease",
+            "&::placeholder": { color: alpha("#2e261f", 0.38), fontWeight: 500 },
+          }}
+        />
+        {imageEntries.length > 0 && (
+          <Tooltip title="View images & selection" arrow slotProps={tooltipSlotProps}>
+            <IconButton
+              onClick={onOpenSelectionPanel}
+              size="small"
+              sx={{
+                background: "linear-gradient(135deg, #5c3d2e 0%, #8b5e3c 100%)",
+                color: "#fff8f0",
+                width: 32,
+                height: 32,
+                fontSize: 12,
+                fontWeight: 700,
+                boxShadow: "0 2px 10px rgba(92, 61, 46, 0.3)",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #7a5240 0%, #a87350 100%)",
+                  boxShadow: "0 4px 16px rgba(92, 61, 46, 0.4)",
+                },
+              }}
+            >
+              <ViewSidebarRoundedIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
+        )}
+      </Box>
 
       {/* Editor wrapper */}
       <Box sx={{ position: "relative", flex: 1, minHeight: { xs: 360, lg: 0 }, width: "100%", overflow: "hidden", borderRadius: 5 }}>
@@ -203,12 +351,13 @@ export default function DocbookEditorSurface({
           onBlur={onEditorBlur}
           onMouseUp={onEditorSelectionChange}
           onKeyUp={onEditorSelectionChange}
-          onClick={onEditorClick}
+          onClick={handleClick}
           onMouseMove={onEditorMouseMove}
           onMouseLeave={onEditorMouseLeave}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
+          onPaste={handlePaste}
           sx={{
             position: "relative",
             zIndex: 1,
@@ -272,11 +421,12 @@ export default function DocbookEditorSurface({
               boxShadow: "0 3px 14px rgba(139, 94, 60, 0.42)",
             },
 
-            /* Image ref token — same font size as content */
+            /* Image ref token — with green dot indicator */
             "& span[data-img-ref]": {
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
+              position: "relative",
               borderRadius: 8,
               paddingInline: "0.3em",
               paddingBlock: "0.06em",
@@ -286,10 +436,22 @@ export default function DocbookEditorSurface({
               color: "#fff8f0",
               boxDecorationBreak: "clone",
               WebkitBoxDecorationBreak: "clone",
-              cursor: "zoom-in",
+              cursor: "pointer",
               boxShadow: "0 1px 6px rgba(139, 94, 60, 0.25)",
               verticalAlign: "baseline",
               transition: "transform 150ms ease, box-shadow 150ms ease",
+            },
+            "& span[data-img-ref]::after": {
+              content: '""',
+              position: "absolute",
+              top: "0.08em",
+              right: "0.08em",
+              width: "0.2em",
+              height: "0.2em",
+              borderRadius: "50%",
+              backgroundColor: "#22c55e",
+              boxShadow: "0 0 4px rgba(34, 197, 94, 0.6)",
+              pointerEvents: "none",
             },
             "& span[data-img-ref]:hover": {
               transform: "scale(1.03)",
@@ -321,88 +483,6 @@ export default function DocbookEditorSurface({
             "& img": { maxWidth: "100%", height: "auto", borderRadius: 10, display: "block", marginTop: 12, marginBottom: 12 },
           }}
         />
-
-        {/* Floating image attachment indicator */}
-        {imageEntries.length > 0 && (
-          <Box
-            onMouseEnter={() => setShowImages(true)}
-            onMouseLeave={() => setShowImages(false)}
-            sx={{
-              position: "absolute",
-              bottom: 12,
-              right: 12,
-              zIndex: 10,
-            }}
-          >
-            {/* Badge */}
-            <Box
-              sx={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 0.5,
-                px: 1.2,
-                py: 0.5,
-                borderRadius: 999,
-                background: "linear-gradient(135deg, #5c3d2e 0%, #8b5e3c 100%)",
-                color: "#fff8f0",
-                fontSize: 11,
-                fontWeight: 700,
-                cursor: "pointer",
-                boxShadow: "0 2px 10px rgba(92, 61, 46, 0.3)",
-                transition: "transform 150ms ease, box-shadow 150ms ease",
-                "&:hover": {
-                  transform: "scale(1.05)",
-                  boxShadow: "0 4px 16px rgba(92, 61, 46, 0.4)",
-                },
-              }}
-            >
-              📷 {imageEntries.length}
-            </Box>
-
-            {/* Hover panel with thumbnails */}
-            <Box
-              sx={{
-                position: "absolute",
-                bottom: "100%",
-                right: 0,
-                mb: 1,
-                p: 1,
-                borderRadius: 3,
-                bgcolor: "#fdf8f1",
-                border: "1px solid #ddd0c0",
-                boxShadow: "0 8px 32px rgba(58, 46, 34, 0.18)",
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 1,
-                maxWidth: 280,
-                opacity: showImages ? 1 : 0,
-                transform: showImages ? "translateY(0)" : "translateY(8px)",
-                transition: "opacity 180ms ease, transform 180ms ease",
-                pointerEvents: showImages ? "auto" : "none",
-              }}
-            >
-              {imageEntries.map(([id, url]) => (
-                <Box
-                  key={id}
-                  component="img"
-                  src={url}
-                  alt="Attached"
-                  onClick={() => window.open(url, "_blank")}
-                  sx={{
-                    width: 60,
-                    height: 60,
-                    objectFit: "cover",
-                    borderRadius: 2,
-                    border: "1px solid #e6ddd3",
-                    cursor: "pointer",
-                    transition: "transform 120ms ease",
-                    "&:hover": { transform: "scale(1.08)" },
-                  }}
-                />
-              ))}
-            </Box>
-          </Box>
-        )}
       </Box>
     </Box>
   );

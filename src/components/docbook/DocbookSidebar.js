@@ -13,6 +13,8 @@ import RestoreRoundedIcon from "@mui/icons-material/RestoreRounded";
 import DeleteForeverRoundedIcon from "@mui/icons-material/DeleteForeverRounded";
 import TextFieldsRoundedIcon from "@mui/icons-material/TextFieldsRounded";
 import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
+import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
+import CloudSyncRoundedIcon from "@mui/icons-material/CloudSyncRounded";
 import {
   Badge,
   Box,
@@ -26,19 +28,6 @@ import {
 import { alpha } from "@mui/material/styles";
 import { HeartIcon } from "@/assets/icon";
 import { formatEditedAt, plainTextFromHtml, timeAgoLabel, tooltipSlotProps } from "./shared";
-
-const productLinks = [
-  { label: "Melody Avatars", icon: <PersonRoundedIcon sx={{ fontSize: 18 }} /> },
-  { label: "Text to Speech", icon: <TextFieldsRoundedIcon sx={{ fontSize: 18 }} />, active: true },
-  { label: "Speech to text", icon: <RecordVoiceOverRoundedIcon sx={{ fontSize: 18 }} /> },
-  { label: "Background Generator", icon: <MusicNoteRoundedIcon sx={{ fontSize: 18 }} /> },
-];
-
-const personalizationLinks = [
-  { label: "Personal Voice", icon: <MicRoundedIcon sx={{ fontSize: 18 }} /> },
-  { label: "Brand Kit Template", icon: <PaletteOutlinedIcon sx={{ fontSize: 18 }} /> },
-  { label: "Voice Type", icon: <TuneRoundedIcon sx={{ fontSize: 18 }} /> },
-];
 
 function SectionLabel({ children }) {
   return (
@@ -182,6 +171,7 @@ export default function DocbookSidebar({
   onDeleteNote,
   onRestoreNote,
   onPermanentlyDelete,
+  onOpenSettings,
 }) {
   return (
     <Box sx={{ order: { xs: 2, lg: 1 }, borderRight: { lg: "1px solid #e6ddd3" }, borderTop: { xs: "1px solid #e6ddd3", lg: 0 }, bgcolor: "#faf7f3", p: 2.2, display: "flex", flexDirection: "column", gap: 1.5, minHeight: 0 }}>
@@ -264,6 +254,11 @@ export default function DocbookSidebar({
       <Box sx={{ flex: 1 }} />
 
       <Stack spacing={0.2}>
+        <SidebarLink
+          label="Cloud Sync"
+          icon={<CloudSyncRoundedIcon sx={{ fontSize: 18 }} />}
+          onClick={onOpenSettings}
+        />
         <SidebarLink label="Download App" icon={<DownloadRoundedIcon sx={{ fontSize: 18 }} />} />
         <SidebarLink label="Feedback" icon={<FeedbackOutlinedIcon sx={{ fontSize: 18 }} />} />
       </Stack>

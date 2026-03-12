@@ -7,6 +7,7 @@ import HighlightRoundedIcon from "@mui/icons-material/HighlightRounded";
 import ImageRoundedIcon from "@mui/icons-material/ImageRounded";
 import LinkRoundedIcon from "@mui/icons-material/LinkRounded";
 import StickyNote2RoundedIcon from "@mui/icons-material/StickyNote2Rounded";
+import ViewSidebarRoundedIcon from "@mui/icons-material/ViewSidebarRounded";
 import {
   Box,
   Button,
@@ -25,7 +26,7 @@ import {
 import { alpha } from "@mui/material/styles";
 import { colorOptions, normalizeUrl, tooltipSlotProps } from "./shared";
 
-function SelectionToolbar({ visible, x, y, onBold, onColor, onHighlight, onList, onLink, onImage, onNote, onClear }) {
+function SelectionToolbar({ visible, x, y, onBold, onColor, onHighlight, onList, onLink, onImage, onNote, onClear, onViewSelection }) {
   const iconSx = { color: "#352f29", "&:hover": { bgcolor: alpha("#8f7d66", 0.12) } };
 
   return (
@@ -39,6 +40,11 @@ function SelectionToolbar({ visible, x, y, onBold, onColor, onHighlight, onList,
           <Tooltip title="Add Link" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onLink} size="small" sx={iconSx}><LinkRoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
           <Tooltip title="Attach Image" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onImage} size="small" sx={iconSx}><ImageRoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
           <Tooltip title="Attach Note" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onNote} size="small" sx={iconSx}><StickyNote2RoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
+
+          {/* Divider dot */}
+          <Box sx={{ width: 3, height: 3, borderRadius: "50%", bgcolor: alpha("#8f7d66", 0.3), mx: 0.3 }} />
+
+          <Tooltip title="View Selection & Images" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onViewSelection} size="small" sx={iconSx}><ViewSidebarRoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
           <Tooltip title="Clear Format" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onClear} size="small" sx={iconSx}><FormatClearRoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
         </Stack>
       </Paper>
@@ -74,6 +80,7 @@ export default function DocbookOverlays({
   buildId,
   attachImageToSelection,
   hoverPreview,
+  onOpenSelectionPanel,
 }) {
   return (
     <>
@@ -104,6 +111,10 @@ export default function DocbookOverlays({
           setNoteAnchorEl(event.currentTarget);
         }}
         onClear={onClear}
+        onViewSelection={() => {
+          captureSelectionRange();
+          if (onOpenSelectionPanel) onOpenSelectionPanel();
+        }}
       />
 
       <Popover open={Boolean(colorAnchorEl)} anchorEl={colorAnchorEl} onClose={() => setColorAnchorEl(null)} anchorOrigin={{ vertical: "bottom", horizontal: "center" }} transformOrigin={{ vertical: "top", horizontal: "center" }} PaperProps={{ sx: { borderRadius: 2.2, p: 1, border: "1px solid #ddd0c0", bgcolor: "#f6eee3" } }}>
@@ -168,7 +179,7 @@ export default function DocbookOverlays({
       <Popover open={Boolean(imageAnchorEl)} anchorEl={imageAnchorEl} onClose={() => setImageAnchorEl(null)} anchorOrigin={{ vertical: "bottom", horizontal: "center" }} transformOrigin={{ vertical: "top", horizontal: "center" }} PaperProps={{ sx: { borderRadius: 2.2, p: 1.2, border: "1px solid #ddd0c0", bgcolor: "#f6eee3", minWidth: 300 } }}>
         <Stack spacing={1}>
           <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: "#3b342d" }}>Attach Image</Typography>
-          <Typography sx={{ fontSize: 11.5, color: "#6a6054" }}>Select text first to bind image preview to that text. Hover text to preview. You can also drag and drop images directly into the editor.</Typography>
+          <Typography sx={{ fontSize: 11.5, color: "#6a6054" }}>Select text first to bind image preview to that text. You can also drag and drop images directly into the editor.</Typography>
           <Stack direction="row" spacing={0.8}>
             <Button size="small" variant="outlined" onClick={() => { setImageMode("attach"); fileInputRef.current?.click(); }}>Attach To Selection</Button>
             <Button size="small" variant="contained" onClick={() => { setImageMode("insert"); fileInputRef.current?.click(); }}>Insert Token</Button>

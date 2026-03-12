@@ -5,6 +5,8 @@ import { Box, Paper } from "@mui/material";
 import DocbookEditorSurface from "@/components/docbook/DocbookEditorSurface";
 import DocbookOverlays from "@/components/docbook/DocbookOverlays";
 import DocbookSidebar from "@/components/docbook/DocbookSidebar";
+import SettingsPanel from "@/components/docbook/SettingsPanel";
+import SelectionPanel from "@/components/docbook/SelectionPanel";
 import { buildId, createNote, isExpiredDelete } from "@/components/docbook/shared";
 import { docbookDb } from "../lib/docbookDb";
 
@@ -13,6 +15,7 @@ export default function Home() {
   const fileInputRef = useRef(null);
   const savedSelectionRangeRef = useRef(null);
   const objectUrlMapRef = useRef({});
+  const autoSyncTimerRef = useRef(null);
 
   const [notes, setNotes] = useState([]);
   const [activeNoteId, setActiveNoteId] = useState("");
@@ -29,6 +32,11 @@ export default function Home() {
   const [imageMode, setImageMode] = useState("attach");
   const [imageUrlMap, setImageUrlMap] = useState({});
   const [hoverPreview, setHoverPreview] = useState({ visible: false, x: 0, y: 0, url: "", label: "" });
+
+  /* Settings & Selection Panel state */
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [selectionPanelOpen, setSelectionPanelOpen] = useState(false);
+  const [selectionContent, setSelectionContent] = useState("");
 
   const activeNotes = useMemo(() => notes.filter((note) => !note.deletedAt), [notes]);
   const deletedNotes = useMemo(() => notes.filter((note) => note.deletedAt && !isExpiredDelete(note.deletedAt)), [notes]);
@@ -272,15 +280,26 @@ export default function Home() {
 
       const hasSelection = !selection.isCollapsed;
       const label = hasSelection ? range.toString().trim() : file.name || "image";
+
       const token = document.createElement("span");
       token.setAttribute("data-img-ref", imageId);
       token.setAttribute("data-img-label", label || "image");
-      token.textContent = hasSelection ? (label || "📷") : "📷";
 
-      if (imageMode === "insert" || !hasSelection) range.collapse(false);
-      else range.deleteContents();
-
-      range.insertNode(token);
+      if (imageMode === "insert" || !hasSelection) {
+        /* Insert mode or no selection — put a 📷 token at cursor */
+        token.textContent = "📷";
+        range.collapse(false);
+        range.insertNode(token);
+      } else {
+        /* Attach mode with selection — WRAP the text, keep it visible with green dot */
+        try {
+          range.surroundContents(token);
+        } catch {
+          const fragment = range.extractContents();
+          token.appendChild(fragment);
+          range.insertNode(token);
+        }
+      }
 
       const after = document.createRange();
       after.setStartAfter(token);
@@ -324,24 +343,9 @@ export default function Home() {
     [hideHoverPreview, syncEditorHtml]
   );
 
+  /* Removed hover image preview per user request - handle only note refs on move */
   const handleEditorMouseMove = useCallback(
     (event) => {
-      const imageTarget = event.target.closest?.("[data-img-ref]");
-      if (imageTarget) {
-        const imageId = imageTarget.getAttribute("data-img-ref");
-        const preview = imageUrlMap[imageId];
-        if (preview) {
-          setHoverPreview({
-            visible: true,
-            x: event.clientX + 18,
-            y: event.clientY + 18,
-            url: preview,
-            label: imageTarget.getAttribute("data-img-label") || "Image preview",
-          });
-          return;
-        }
-      }
-
       const noteTarget = event.target.closest?.("[data-note-ref]");
       if (noteTarget) {
         const noteText = noteTarget.getAttribute("data-note-text") || "";
@@ -351,7 +355,7 @@ export default function Home() {
 
       hideHoverPreview();
     },
-    [hideHoverPreview, imageUrlMap]
+    [hideHoverPreview]
   );
 
   const handleEditorDragOver = useCallback((event) => {
@@ -392,7 +396,6 @@ export default function Home() {
       if (files && files.length > 0) {
         for (const file of files) {
           if (file.type.startsWith("image/")) {
-            /* Store the image blob silently — no token inserted into content */
             const imageId = buildId();
             await docbookDb.images.put({
               id: imageId,
@@ -439,7 +442,7 @@ export default function Home() {
         syncEditorHtml();
       }
     },
-    [activeNoteId, attachImageToSelection, captureSelectionRange, syncEditorHtml]
+    [activeNoteId, syncEditorHtml]
   );
 
   const handleHighlight = useCallback(() => {
@@ -503,6 +506,120 @@ export default function Home() {
     runCommand("removeFormat");
   }, [runCommand]);
 
+  /* Handle paste image from clipboard (PrtSc, Ctrl+V with image) */
+  const handlePasteImage = useCallback(
+    async (file) => {
+      if (!activeNoteId || !file) return;
+
+      const imageId = buildId();
+      const fileName = file.name || `screenshot-${Date.now()}.png`;
+
+      await docbookDb.images.put({
+        id: imageId,
+        noteId: activeNoteId,
+        blob: file,
+        name: fileName,
+        mimeType: file.type || "image/png",
+        createdAt: new Date().toISOString(),
+      });
+
+      const nextMap = { ...objectUrlMapRef.current, [imageId]: URL.createObjectURL(file) };
+      objectUrlMapRef.current = nextMap;
+      setImageUrlMap(nextMap);
+
+      const selection = window.getSelection();
+      const editor = editorRef.current;
+      if (!selection || !editor || selection.rangeCount === 0) return;
+
+      const range = selection.getRangeAt(0);
+      const commonNode =
+        range.commonAncestorContainer.nodeType === 3
+          ? range.commonAncestorContainer.parentNode
+          : range.commonAncestorContainer;
+
+      if (!commonNode || !editor.contains(commonNode)) return;
+
+      const hasSelection = !selection.isCollapsed;
+      const label = hasSelection ? range.toString().trim() : fileName;
+
+      const token = document.createElement("span");
+      token.setAttribute("data-img-ref", imageId);
+      token.setAttribute("data-img-label", label || "image");
+
+      if (hasSelection) {
+        /* WRAP the selected text — keep it visible, just add the img-ref span around it */
+        try {
+          range.surroundContents(token);
+        } catch {
+          /* If surroundContents fails (cross-element selection), extract and re-insert */
+          const fragment = range.extractContents();
+          token.appendChild(fragment);
+          range.insertNode(token);
+        }
+      } else {
+        /* No selection — insert a camera emoji token at cursor */
+        token.textContent = "📷";
+        range.collapse(false);
+        range.insertNode(token);
+      }
+
+      /* Move cursor after the token */
+      const after = document.createRange();
+      after.setStartAfter(token);
+      after.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(after);
+
+      syncEditorHtml();
+      window.requestAnimationFrame(updateSelectionMenuPosition);
+    },
+    [activeNoteId, syncEditorHtml, updateSelectionMenuPosition]
+  );
+
+  /* Open selection panel with current selection content */
+  const handleOpenSelectionPanel = useCallback(() => {
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const fragment = range.cloneContents();
+      const tempDiv = document.createElement("div");
+      tempDiv.appendChild(fragment);
+      setSelectionContent(tempDiv.innerHTML);
+    } else {
+      setSelectionContent("");
+    }
+    setSelectionPanelOpen(true);
+  }, []);
+
+  /* Import notes from cloud */
+  const handleImportNotes = useCallback(async (cloudNotes) => {
+    if (!cloudNotes || cloudNotes.length === 0) return;
+
+    setNotes((prev) => {
+      const existingIds = new Set(prev.map((n) => n.id));
+      const newNotes = [];
+      const updatedPrev = [...prev];
+
+      for (const cloudNote of cloudNotes) {
+        if (existingIds.has(cloudNote.id)) {
+          /* Update existing note if cloud version is newer */
+          const idx = updatedPrev.findIndex((n) => n.id === cloudNote.id);
+          if (idx !== -1 && new Date(cloudNote.updatedAt) > new Date(updatedPrev[idx].updatedAt)) {
+            updatedPrev[idx] = { ...updatedPrev[idx], ...cloudNote };
+          }
+        } else {
+          newNotes.push(cloudNote);
+        }
+      }
+
+      return [...newNotes, ...updatedPrev];
+    });
+
+    /* Persist to IndexedDB */
+    await docbookDb.notes.bulkPut(cloudNotes);
+  }, []);
+
+  /* ─── Bootstrap ─── */
   useEffect(() => {
     let cancelled = false;
 
@@ -596,17 +713,65 @@ export default function Home() {
     hideHoverPreview();
   }, [activeNoteId, hideSelectionMenu, hideHoverPreview]);
 
+  /* Keyboard shortcuts: Ctrl+S (save), Ctrl+H (settings) */
   useEffect(() => {
     const handler = (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
         void saveCurrentNote();
       }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "h") {
+        event.preventDefault();
+        setSettingsOpen((prev) => !prev);
+      }
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [saveCurrentNote]);
+
+  /* Auto-sync timer */
+  useEffect(() => {
+    if (autoSyncTimerRef.current) {
+      clearInterval(autoSyncTimerRef.current);
+      autoSyncTimerRef.current = null;
+    }
+
+    try {
+      const settings = JSON.parse(localStorage.getItem("docbook_sync_settings") || "{}");
+      if (settings.autoSyncEnabled && settings.autoSyncInterval > 0 && settings.pin) {
+        autoSyncTimerRef.current = setInterval(async () => {
+          try {
+            const notesToSync = notes.filter((n) => !n.deletedAt).map((n) => ({
+              id: n.id,
+              title: n.title,
+              content: n.content,
+              createdAt: n.createdAt,
+              updatedAt: n.updatedAt,
+              deletedAt: n.deletedAt || null,
+            }));
+
+            await fetch("/api/sync", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ pin: settings.pin, notes: notesToSync }),
+            });
+
+            const now = new Date().toISOString();
+            const updated = { ...settings, lastSyncAt: now };
+            localStorage.setItem("docbook_sync_settings", JSON.stringify(updated));
+          } catch { /* silent */ }
+        }, settings.autoSyncInterval * 1000);
+      }
+    } catch { /* silent */ }
+
+    return () => {
+      if (autoSyncTimerRef.current) {
+        clearInterval(autoSyncTimerRef.current);
+        autoSyncTimerRef.current = null;
+      }
+    };
+  }, [notes, settingsOpen]);
 
   return (
     <Box sx={{ height: "100vh", width: "100%", overflow: "hidden" }}>
@@ -634,6 +799,7 @@ export default function Home() {
             onPermanentlyDelete={(noteId) => {
               void permanentlyDeleteNote(noteId);
             }}
+            onOpenSettings={() => setSettingsOpen(true)}
           />
 
           <DocbookEditorSurface
@@ -650,6 +816,8 @@ export default function Home() {
             onEditorDragOver={handleEditorDragOver}
             onEditorDragLeave={handleEditorDragLeave}
             onEditorDrop={handleEditorDrop}
+            onOpenSelectionPanel={handleOpenSelectionPanel}
+            onPasteImage={handlePasteImage}
           />
         </Box>
 
@@ -681,8 +849,26 @@ export default function Home() {
           buildId={buildId}
           attachImageToSelection={attachImageToSelection}
           hoverPreview={hoverPreview}
+          onOpenSelectionPanel={handleOpenSelectionPanel}
         />
       </Paper>
+
+      {/* Settings Panel (Ctrl+H) */}
+      <SettingsPanel
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        notes={notes}
+        onImportNotes={handleImportNotes}
+      />
+
+      {/* Selection & Images Panel */}
+      <SelectionPanel
+        editorRef={editorRef}
+        imageUrlMap={imageUrlMap}
+        selectionContent={selectionContent}
+        visible={selectionPanelOpen}
+        onClose={() => setSelectionPanelOpen(false)}
+      />
     </Box>
   );
 }

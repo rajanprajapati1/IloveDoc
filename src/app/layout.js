@@ -17,12 +17,21 @@ export const metadata = {
   title: "DocBook",
   description: "Secure, beautiful note-taking with cloud sync.",
   manifest: "/manifest.json",
-  themeColor: "#5c3d2e",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "DocBook",
   },
+  icons: {
+    icon: "/favicon.png",
+    apple: "/icons/icon-192x192.png",
+  },
+};
+
+export const viewport = {
+  themeColor: "#5c3d2e",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({ children }) {

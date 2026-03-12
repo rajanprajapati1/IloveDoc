@@ -39,16 +39,16 @@ function SectionLabel({ children, isDrawer }) {
   );
 }
 
-function SidebarLink({ icon, label, active = false, onClick, badge }) {
+function SidebarLink({ icon, label, active = false, onClick, badge, isDrawer }) {
   return (
     <ButtonBase
       onClick={onClick}
       sx={{
         width: "100%",
-        justifyContent: { xs: "center", md: "flex-start" },
+        justifyContent: isDrawer ? "flex-start" : { xs: "center", md: "flex-start" },
         gap: 1.1,
         borderRadius: 2.5,
-        px: { xs: 0, md: 1 },
+        px: isDrawer ? 1.5 : { xs: 0, md: 1 },
         py: 0.9,
         color: active ? "#1d1a17" : "#605951",
         bgcolor: active ? "#ece7e0" : "transparent",
@@ -56,7 +56,7 @@ function SidebarLink({ icon, label, active = false, onClick, badge }) {
       }}
     >
       <Box sx={{ display: "grid", placeItems: "center", color: active ? "#1d1a17" : "#6a645d", minWidth: 20 }}>{icon}</Box>
-      <Typography sx={{ fontSize: 13.5, fontWeight: active ? 800 : 600, lineHeight: 1.2, textAlign: "left", flex: 1, display: { xs: "none", md: "block" } }}>{label}</Typography>
+      <Typography sx={{ fontSize: 13.5, fontWeight: active ? 800 : 600, lineHeight: 1.2, textAlign: "left", flex: 1, display: isDrawer ? "block" : { xs: "none", md: "block" } }}>{label}</Typography>
       {badge > 0 && (
         <Badge
           badgeContent={badge}
@@ -210,7 +210,16 @@ export default function DocbookSidebar({
       <Paper sx={{ border: "1px solid #e7dfd5", borderRadius: 3, bgcolor: "#fffdfa", px: 1.2, py: 1 }}>
         <Stack direction="row" alignItems="center" justifyContent="center">
           <Stack direction="row" spacing={1} alignItems="center">
-            <Box sx={{ width: 22, height: 22, borderRadius: "50%", display: "grid", placeItems: "center", color: "#fffdf8" }}><HeartIcon fontsize={14} /></Box>
+            <Box
+              component="img"
+              src="/favicon.png"
+              sx={{
+                width: 24,
+                height: 24,
+                borderRadius: "50%",
+                objectFit: "contain",
+              }}
+            />
           </Stack>
           <Typography sx={{ fontWeight: 800, fontSize: 14, color: "#2e261f", ml: 1 }}>DocBook</Typography>
         </Stack>
@@ -296,6 +305,12 @@ export default function DocbookSidebar({
           onClick={onOpenSettings}
           isDrawer={isDrawer}
         />
+        {/* <SidebarLink
+          label="Upgrade Plan"
+          icon={<PaletteOutlinedIcon sx={{ fontSize: 18 }} />}
+          onClick={onOpenPricing}
+          isDrawer={isDrawer}
+        /> */}
         <SidebarLink
           label="Download App"
           icon={<DownloadRoundedIcon sx={{ fontSize: 18 }} />}

@@ -1,13 +1,28 @@
-import { useState, useCallback } from "react";
-import { Box, IconButton, Tooltip } from "@mui/material";
+import { useState, useCallback, useEffect } from "react";
+import { Box, IconButton, Tooltip, Stack, Paper, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
+import CloudDoneRoundedIcon from "@mui/icons-material/CloudDoneRounded";
+import CloudOffRoundedIcon from "@mui/icons-material/CloudOffRounded";
 import ViewSidebarRoundedIcon from "@mui/icons-material/ViewSidebarRounded";
-import { tooltipSlotProps } from "./shared";
+import TextDecreaseRoundedIcon from "@mui/icons-material/TextDecreaseRounded";
+import StickyNote2RoundedIcon from "@mui/icons-material/StickyNote2Rounded";
+import { noteColorOptions, tooltipSlotProps, uncheckedIconSvg } from "./shared";
+import TextIncreaseRoundedIcon from "@mui/icons-material/TextIncreaseRounded";
+import StickyNoteBoard from "./StickyNoteBoard";
+import ViewCarouselRoundedIcon from '@mui/icons-material/ViewCarouselRounded';
+import KeyboardOptionKeyRoundedIcon from '@mui/icons-material/KeyboardOptionKeyRounded';
+import WorkspacesRoundedIcon from '@mui/icons-material/WorkspacesRounded';
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
 
 export default function DocbookEditorSurface({
   activeNote,
   editorRef,
   imageUrlMap = {},
+  stickyNotes = [],
+  activeStickyNoteId,
   onTitleChange,
   onEditorInput,
   onEditorBlur,
@@ -20,10 +35,170 @@ export default function DocbookEditorSurface({
   onEditorDrop,
   onOpenSelectionPanel,
   onPasteImage,
+  onFontSizeDecrease,
+  onAddStickyNote,
+  onOpenStickyNote,
+  onUpdateStickyNote,
+  onMoveStickyNote,
+  onStickyDragStateChange,
+  onDeleteStickyNote,
+  onNoteColorChange,
+  onFontSizeIncrease,
+  syncBadgeState,
+  collapseSidebar
 }) {
   const [dropCaret, setDropCaret] = useState({ visible: false, x: 0, y: 0, height: 0 });
+  const [slashMenu, setSlashMenu] = useState({ visible: false, x: 0, y: 0, query: "", selectedIndex: 0, token: "" });
+  const [stickyNotesVisible, setStickyNotesVisible] = useState(true);
+  const [editorScrollState, setEditorScrollState] = useState({
+    scrollTop: 0,
+    viewportHeight: 0,
+    contentHeight: 0,
+  });
+  const activeNoteTint = activeNote?.color || noteColorOptions[0].value;
+  const editorFontScale = activeNote?.fontScale || 1;
 
   const imageEntries = Object.entries(imageUrlMap);
+  const showSyncBadge = Boolean(syncBadgeState?.enabled && syncBadgeState?.hasPin && syncBadgeState?.interval > 0);
+  const lastSyncTime = syncBadgeState?.lastSyncAt ? new Date(syncBadgeState.lastSyncAt).getTime() : 0;
+  const lastLocalChangeTime = syncBadgeState?.lastLocalChangeAt ? new Date(syncBadgeState.lastLocalChangeAt).getTime() : 0;
+  const syncIsCurrent = showSyncBadge && lastSyncTime > 0 && lastSyncTime >= lastLocalChangeTime;
+
+  const getRelativeSyncLabel = () => {
+    if (!showSyncBadge) return "";
+    if (!lastSyncTime) return "Not synced";
+    if (!syncIsCurrent) return "Not synced";
+
+    const diffMs = Math.max(0, Date.now() - lastSyncTime);
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 1) return "Synced just now";
+    if (diffMins < 60) return `Synced ${diffMins}m ago`;
+
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `Synced ${diffHours}h ago`;
+
+    const diffDays = Math.floor(diffHours / 24);
+    return `Synced ${diffDays}d ago`;
+  };
+
+  const refreshEditorScrollState = useCallback(() => {
+    const editor = editorRef?.current;
+    if (!editor) return;
+
+    setEditorScrollState((prev) => {
+      const next = {
+        scrollTop: editor.scrollTop,
+        viewportHeight: editor.clientHeight,
+        contentHeight: Math.max(editor.scrollHeight, editor.clientHeight),
+      };
+
+      if (
+        prev.scrollTop === next.scrollTop &&
+        prev.viewportHeight === next.viewportHeight &&
+        prev.contentHeight === next.contentHeight
+      ) {
+        return prev;
+      }
+
+      return next;
+    });
+  }, [editorRef]);
+  const stickySuggestions =
+    slashMenu.query && "note".includes(slashMenu.query.toLowerCase().replace("/", ""))
+      ? [
+        { id: "create-sticky-note", kind: "create", label: "Create sticky note", description: "Open a new sticky note for this page" },
+        ...stickyNotes
+          .filter((note) => note.noteId === activeNote?.id)
+          .map((note) => ({
+            id: note.id,
+            kind: "existing",
+            label: note.title?.trim() || "Untitled sticky note",
+            description: "Open existing sticky note",
+          })),
+      ]
+      : [];
+
+  const closeSlashMenu = useCallback(() => {
+    setSlashMenu((prev) => (prev.visible ? { ...prev, visible: false, selectedIndex: 0 } : prev));
+  }, []);
+
+  const getSlashCommandContext = useCallback(() => {
+    const sel = window.getSelection();
+    if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return null;
+
+    const node = sel.anchorNode;
+    if (!node || node.nodeType !== 3) return null;
+
+    const beforeText = node.textContent?.slice(0, sel.anchorOffset) || "";
+    const match = beforeText.match(/(?:^|\s)(\/[a-z]*)$/i);
+    if (!match) return null;
+
+    const caretRange = sel.getRangeAt(0).cloneRange();
+    caretRange.collapse(true);
+    const rect = caretRange.getBoundingClientRect();
+    const token = match[1];
+    const startIndex = beforeText.lastIndexOf(token);
+
+    return {
+      textNode: node,
+      token,
+      startIndex,
+      endIndex: startIndex + token.length,
+      rect,
+    };
+  }, []);
+
+  const refreshSlashMenu = useCallback(() => {
+    const context = getSlashCommandContext();
+    if (!context) {
+      closeSlashMenu();
+      return;
+    }
+
+    const query = context.token.toLowerCase();
+    if (!"note".includes(query.replace("/", ""))) {
+      closeSlashMenu();
+      return;
+    }
+
+    setSlashMenu((prev) => ({
+      visible: true,
+      x: context.rect.left,
+      y: context.rect.bottom + 10,
+      query,
+      token: context.token,
+      selectedIndex: prev.token === context.token ? Math.min(prev.selectedIndex, Math.max(stickySuggestions.length - 1, 0)) : 0,
+    }));
+  }, [closeSlashMenu, getSlashCommandContext, stickySuggestions.length]);
+
+  const applySlashSuggestion = useCallback(
+    (item) => {
+      const context = getSlashCommandContext();
+      if (context?.textNode) {
+        const currentText = context.textNode.textContent || "";
+        context.textNode.textContent = `${currentText.slice(0, context.startIndex)}${currentText.slice(context.endIndex)}`;
+
+        const nextRange = document.createRange();
+        const nextSelection = window.getSelection();
+        nextRange.setStart(context.textNode, Math.min(context.startIndex, context.textNode.textContent.length));
+        nextRange.collapse(true);
+        nextSelection?.removeAllRanges();
+        nextSelection?.addRange(nextRange);
+      }
+
+      if (onEditorInput) onEditorInput();
+      closeSlashMenu();
+
+      if (item.kind === "create") {
+        onAddStickyNote?.();
+        return;
+      }
+
+      onOpenStickyNote?.(item.id);
+    },
+    [closeSlashMenu, getSlashCommandContext, onAddStickyNote, onEditorInput, onOpenStickyNote]
+  );
 
   const handleDragOver = useCallback(
     (event) => {
@@ -69,6 +244,20 @@ export default function DocbookEditorSurface({
     },
     [onEditorDrop]
   );
+
+  const handleEditorScroll = useCallback(() => {
+    refreshEditorScrollState();
+  }, [refreshEditorScrollState]);
+
+  const toggleStickyNotesVisibility = useCallback(() => {
+    setStickyNotesVisible((prev) => {
+      const next = !prev;
+      if (!next) {
+        onStickyDragStateChange?.({ stickyId: "", targetNoteId: "" });
+      }
+      return next;
+    });
+  }, [onStickyDragStateChange]);
 
   /* ── Handle paste: intercept image pastes from clipboard (PrtSc, Ctrl+V) ── */
   const handlePaste = useCallback(
@@ -145,14 +334,88 @@ export default function DocbookEditorSurface({
 
       /* Delegate to parent handler */
       if (onEditorClick) onEditorClick(event);
+      window.requestAnimationFrame(refreshSlashMenu);
     },
-    [editorRef, onEditorClick]
+    [editorRef, onEditorClick, refreshSlashMenu]
   );
+
+  const handleInput = useCallback(
+    (event) => {
+      if (onEditorInput) onEditorInput(event);
+      window.requestAnimationFrame(refreshEditorScrollState);
+      window.requestAnimationFrame(refreshSlashMenu);
+    },
+    [onEditorInput, refreshEditorScrollState, refreshSlashMenu]
+  );
+
+  const handleKeyUp = useCallback(
+    (event) => {
+      if (onEditorSelectionChange) onEditorSelectionChange(event);
+      window.requestAnimationFrame(refreshEditorScrollState);
+      window.requestAnimationFrame(refreshSlashMenu);
+    },
+    [onEditorSelectionChange, refreshEditorScrollState, refreshSlashMenu]
+  );
+
+  const handleMouseUp = useCallback(
+    (event) => {
+      if (onEditorSelectionChange) onEditorSelectionChange(event);
+      window.requestAnimationFrame(refreshEditorScrollState);
+      window.requestAnimationFrame(refreshSlashMenu);
+    },
+    [onEditorSelectionChange, refreshEditorScrollState, refreshSlashMenu]
+  );
+
+  const handleBlur = useCallback(
+    (event) => {
+      closeSlashMenu();
+      if (onEditorBlur) onEditorBlur(event);
+      window.requestAnimationFrame(refreshEditorScrollState);
+    },
+    [closeSlashMenu, onEditorBlur, refreshEditorScrollState]
+  );
+
+  useEffect(() => {
+    const editor = editorRef?.current;
+    if (!editor) return undefined;
+
+    refreshEditorScrollState();
+
+    const handleResize = () => refreshEditorScrollState();
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [activeNote?.id, activeNote?.content, editorFontScale, editorRef, refreshEditorScrollState]);
 
   /* ── Escape highlight/img-ref spans when typing at their boundary ── */
   const handleEditorKeyDown = useCallback(
     (event) => {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      if (slashMenu.visible && stickySuggestions.length > 0) {
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          setSlashMenu((prev) => ({ ...prev, selectedIndex: (prev.selectedIndex + 1) % stickySuggestions.length }));
+          return;
+        }
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          setSlashMenu((prev) => ({ ...prev, selectedIndex: (prev.selectedIndex - 1 + stickySuggestions.length) % stickySuggestions.length }));
+          return;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeSlashMenu();
+          return;
+        }
+        if (event.key === "Enter" || event.key === "Tab") {
+          event.preventDefault();
+          applySlashSuggestion(stickySuggestions[slashMenu.selectedIndex] || stickySuggestions[0]);
+          return;
+        }
+      }
 
       const sel = window.getSelection();
       if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return;
@@ -160,13 +423,111 @@ export default function DocbookEditorSurface({
       const node = sel.anchorNode;
       if (!node) return;
 
+      const isEnter = event.key === "Enter";
+
+      /* ── Escape Table on Enter or add new line inside td/th ── */
+      if (isEnter) {
+        const cellNode = node.nodeType === 3 ? node.parentElement : node;
+        const cell = cellNode?.closest?.("td, th");
+        if (cell) {
+          event.preventDefault();
+          const tr = cell.closest("tr");
+          const table = cell.closest("table");
+          const tbody = tr.parentNode;
+
+          // If the row is completely empty, consider it a "double enter" and exit table
+          const isRowEmpty = Array.from(tr.cells).every(c => c.textContent.trim() === "" && !c.querySelector('img'));
+
+          if (isRowEmpty) {
+            const p = document.createElement("p");
+            p.innerHTML = "<br>";
+            table.parentNode.insertBefore(p, table.nextSibling);
+
+            tr.parentNode.removeChild(tr);
+            if (tbody.children.length === 0) {
+              table.parentNode.removeChild(table);
+            }
+
+            const newRange = document.createRange();
+            newRange.setStart(p, 0);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          } else {
+            const isLastColumn = cell === tr.lastElementChild;
+            if (isLastColumn) {
+              const newTr = document.createElement("tr");
+              const numCols = tr.cells.length;
+              for (let i = 0; i < numCols; i++) {
+                const newTd = document.createElement("td");
+                newTd.style.border = "1px solid #d9cab7";
+                newTd.style.padding = "6px";
+                newTd.style.minWidth = "50px";
+                newTd.innerHTML = "<br>";
+                newTr.appendChild(newTd);
+              }
+              tr.parentNode.insertBefore(newTr, tr.nextSibling);
+
+              const newRange = document.createRange();
+              newRange.setStart(newTr.firstElementChild, 0);
+              newRange.collapse(true);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            } else {
+              document.execCommand("insertLineBreak", false, null);
+            }
+          }
+
+          if (onEditorInput) onEditorInput();
+          return;
+        }
+      }
+
+      /* ── Escape Todo list on Enter or add new ── */
+      if (isEnter) {
+        const todoNode = node.nodeType === 3 ? node.parentElement : node;
+        const todoDiv = todoNode?.closest?.("[data-todo]");
+        if (todoDiv) {
+          event.preventDefault();
+          const textContainer = todoDiv.querySelector("div[style*='flex: 1']");
+          const textContent = textContainer ? textContainer.innerText.trim() : "";
+
+          if (!textContent) {
+            /* Empty todo -> remove it and insert <p><br></p> */
+            const p = document.createElement("p");
+            p.innerHTML = "<br>";
+            todoDiv.parentNode.insertBefore(p, todoDiv.nextSibling);
+            todoDiv.parentNode.removeChild(todoDiv);
+
+            const newRange = document.createRange();
+            newRange.setStart(p, 0);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          } else {
+            /* Insert new empty todo after the current one */
+            const newTodoHtml = `<div data-todo="false" style="display: flex; align-items: flex-start; gap: 8px; margin: 4px 0;"><span data-todo-checkbox="true" style="cursor: pointer; color: #8b5e3c; display: flex; align-items: center; justify-content: center; user-select: none;" contenteditable="false">${uncheckedIconSvg}</span><div style="flex: 1; outline: none; min-width: 50px;"><br></div></div>`;
+            todoDiv.insertAdjacentHTML("afterend", newTodoHtml);
+            const newTodo = todoDiv.nextElementSibling;
+            const newTextContainer = newTodo.querySelector("div[style*='flex: 1']");
+
+            const newRange = document.createRange();
+            newRange.setStart(newTextContainer, 0);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          }
+          if (onEditorInput) onEditorInput();
+          return;
+        }
+      }
+
       const el = node.nodeType === 3 ? node.parentElement : node;
       const span = el?.closest?.("[data-highlight], [data-img-ref]");
       if (!span) return;
 
       /* Handle Space, Enter, and all printable characters */
       const isPrintable = event.key.length === 1;
-      const isEnter = event.key === "Enter";
       const isSpace = event.key === " ";
       const isArrowRight = event.key === "ArrowRight";
       const isArrowLeft = event.key === "ArrowLeft";
@@ -249,7 +610,7 @@ export default function DocbookEditorSurface({
 
       if (onEditorInput) onEditorInput();
     },
-    [onEditorInput]
+    [applySlashSuggestion, closeSlashMenu, onEditorInput, slashMenu.selectedIndex, slashMenu.visible, stickySuggestions]
   );
 
   return (
@@ -258,68 +619,276 @@ export default function DocbookEditorSurface({
         order: { xs: 1, lg: 2 },
         minWidth: 0,
         width: "100%",
+        height: "100%",
         minHeight: 0,
-        p: { xs: 2, md: 3.2 },
+        p: "10px",
         display: "flex",
         flexDirection: "column",
-        gap: 2.2,
+        gap: 0,
         overflow: "hidden",
-        background: "linear-gradient(180deg, rgba(255,253,248,0.85) 0%, rgba(248,243,235,0.98) 100%)",
+        background: `linear-gradient(180deg, ${alpha(activeNoteTint, 0.18)} 0%, rgba(255,250,244,0.92) 14%, rgba(248,243,235,0.98) 100%)`,
       }}
     >
-      {/* Title input + panel toggle */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-        <Box
-          component="input"
-          value={activeNote?.title ?? ""}
-          placeholder="Untitled"
-          onChange={onTitleChange}
-          sx={{
-            flex: 1,
-            border: 0,
-            borderBottom: "1.5px solid transparent",
-            outline: 0,
-            bgcolor: "transparent",
-            fontFamily: "inherit",
-            fontSize: 17,
-            lineHeight: 1.35,
-            fontWeight: 700,
-            color: "#2e261f",
-            pb: 0.6,
-            transition: "border-color 200ms ease",
-            "&::placeholder": { color: alpha("#2e261f", 0.38), fontWeight: 500 },
-          }}
-        />
-        {imageEntries.length > 0 && (
-          <Tooltip title="View images & selection" arrow slotProps={tooltipSlotProps}>
+      {/* Editor wrapper */}
+      <Box
+        sx={{
+          position: "relative",
+          flex: 1,
+          minHeight: { xs: 360, lg: 0 },
+          width: "100%",
+          overflow: "hidden",
+          borderRadius: 5,
+          background: `linear-gradient(160deg, ${alpha(activeNoteTint, 0.18)} 0%, rgba(255,251,245,0.9) 32%, rgba(246,239,229,0.9) 100%)`,
+          border: `1px solid ${alpha(activeNoteTint, 0.16)}`,
+          boxShadow: `inset 0 1px 0 rgba(255,255,255,0.62), 0 18px 40px ${alpha("#7b5f39", 0.08)}`,
+        }}
+      >
+
+        <Tooltip
+          arrow
+          placement="bottom-start"
+          slotProps={tooltipSlotProps}
+          title={activeNote?.title?.trim() || "Untitled"}
+        >
+          <Box
+            sx={{
+              position: "absolute",
+              top: 10,
+              left: 10,
+              zIndex: 22,
+              maxWidth: { xs: "calc(100% - 140px)", md: 460 },
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1
+            }}
+          >
             <IconButton
-              onClick={onOpenSelectionPanel}
-              size="small"
               sx={{
-                background: "linear-gradient(135deg, #5c3d2e 0%, #8b5e3c 100%)",
-                color: "#fff8f0",
-                width: 32,
-                height: 32,
-                fontSize: 12,
-                fontWeight: 700,
-                boxShadow: "0 2px 10px rgba(92, 61, 46, 0.3)",
+                bgcolor: alpha("#fffdf8", 0.78),
+                border: `1px solid ${alpha(activeNoteTint, 0.22)}`,
                 "&:hover": {
-                  background: "linear-gradient(135deg, #7a5240 0%, #a87350 100%)",
-                  boxShadow: "0 4px 16px rgba(92, 61, 46, 0.4)",
-                },
+                  bgcolor: alpha("#fffdf8", 0.78),
+                }
+              }}
+              onClick={collapseSidebar}
+            >
+              <ViewCarouselRoundedIcon sx={{ fontSize: 17 }} />
+            </IconButton>
+            <Box
+              sx={{
+                borderRadius: 999,
+                bgcolor: alpha("#fffdf8", 0.78),
+                border: `1px solid ${alpha(activeNoteTint, 0.22)}`,
+                boxShadow: `0 10px 24px ${alpha(activeNoteTint, 0.12)}`,
+                backdropFilter: "blur(8px)",
+                display: 'flex',
+                px: 1.1,
+                py: 0.65,
               }}
             >
-              <ViewSidebarRoundedIcon sx={{ fontSize: 18 }} />
+              <Box
+                component="input"
+                value={activeNote?.title ?? ""}
+                placeholder="Untitled"
+                onChange={onTitleChange}
+                sx={{
+                  width: "100%",
+                  border: 0,
+                  outline: 0,
+                  bgcolor: "transparent",
+                  fontFamily: "inherit",
+                  fontSize: 16,
+                  lineHeight: 1.25,
+                  fontWeight: 800,
+                  color: "#2e261f",
+                  textOverflow: "ellipsis",
+                  "&::placeholder": { color: alpha("#2e261f", 0.4), fontWeight: 600 },
+                }}
+              />
+            </Box>
+          </Box>
+        </Tooltip>
+
+        <Stack
+          direction="row"
+          spacing={0.75}
+          alignItems="center"
+          sx={{
+            position: "absolute",
+            top: 10,
+            right: 10,
+            zIndex: 22,
+            flexWrap: "wrap",
+            justifyContent: "flex-end",
+            maxWidth: { xs: "calc(100% - 160px)", md: "calc(100% - 520px)" },
+            rowGap: 0.75,
+          }}
+        >
+          {showSyncBadge && (
+            <Tooltip
+              title={syncBadgeState?.lastSyncAt ? `Last synced: ${new Date(syncBadgeState.lastSyncAt).toLocaleString()}` : "Auto-sync is enabled"}
+              arrow
+              slotProps={tooltipSlotProps}
+            >
+              <Stack
+                direction="row"
+                spacing={0.7}
+                alignItems="center"
+                sx={{
+                  px: 1,
+                  py: 0.55,
+                  mr: 0.1,
+                  borderRadius: 999,
+                  bgcolor: syncIsCurrent ? alpha("#eef9f1", 0.94) : alpha("#fff4e7", 0.96),
+                  border: syncIsCurrent ? "1px solid rgba(104, 181, 124, 0.28)" : "1px solid rgba(217, 145, 73, 0.22)",
+                  boxShadow: syncIsCurrent
+                    ? "0 6px 18px rgba(76, 175, 80, 0.10)"
+                    : "0 6px 18px rgba(217, 145, 73, 0.10)",
+                  backdropFilter: "blur(8px)",
+                }}
+              >
+                {syncIsCurrent ? (
+                  <CloudDoneRoundedIcon sx={{ fontSize: 17, color: "#4b8d5a" }} />
+                ) : (
+                  <CloudOffRoundedIcon sx={{ fontSize: 17, color: "#c9823c" }} />
+                )}
+                <Typography
+                  sx={{
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    lineHeight: 1,
+                    color: syncIsCurrent ? "#2f6d43" : "#9a5a24",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {getRelativeSyncLabel()}
+                </Typography>
+              </Stack>
+            </Tooltip>
+          )}
+
+          <Stack
+            direction="row"
+            spacing={0.5}
+            alignItems="center"
+            sx={{
+              px: 0.7,
+              py: 0.5,
+              borderRadius: 999,
+              bgcolor: alpha("#fffdf8", 0.78),
+              border: `1px solid ${alpha(activeNoteTint, 0.28)}`,
+              boxShadow: `0 6px 18px ${alpha(activeNoteTint, 0.12)}`,
+              backdropFilter: "blur(8px)",
+            }}
+          >
+            {noteColorOptions.map((option) => {
+              const selected = option.value === activeNote?.color;
+
+              return (
+                <Box
+                  key={option.value}
+                  component="button"
+                  type="button"
+                  aria-label={`Set note color to ${option.label}`}
+                  onClick={() => onNoteColorChange?.(option.value)}
+                  sx={{
+                    width: 16,
+                    height: 16,
+                    borderRadius: "50%",
+                    border: 0,
+                    bgcolor: option.value,
+                    boxShadow: selected
+                      ? `0 0 0 2px ${alpha("#fffdf8", 0.96)}, 0 0 0 4px ${alpha(option.value, 0.44)}`
+                      : `0 0 0 1px ${alpha("#2e261f", 0.08)}`,
+                    cursor: "pointer",
+                    transition: "transform 150ms ease, box-shadow 150ms ease",
+                    "&:hover": { transform: "translateY(-1px) scale(1.05)" },
+                  }}
+                />
+              );
+            })}
+          </Stack>
+          <Tooltip title="Decrease Font Size" arrow slotProps={tooltipSlotProps}>
+            <IconButton onClick={onFontSizeDecrease} size="small" sx={{ color: "#8b5e3c", bgcolor: alpha("#fffdf8", 0.76), border: "1px solid rgba(139,94,60,0.12)", boxShadow: "0 6px 18px rgba(93,62,40,0.08)", "&:hover": { bgcolor: alpha("#8b5e3c", 0.1) } }}>
+              <TextDecreaseRoundedIcon sx={{ fontSize: 20 }} />
             </IconButton>
           </Tooltip>
-        )}
-      </Box>
+          <Tooltip title="Increase Font Size" arrow slotProps={tooltipSlotProps}>
+            <IconButton onClick={onFontSizeIncrease} size="small" sx={{ color: "#8b5e3c", bgcolor: alpha("#fffdf8", 0.76), border: "1px solid rgba(139,94,60,0.12)", boxShadow: "0 6px 18px rgba(93,62,40,0.08)", "&:hover": { bgcolor: alpha("#8b5e3c", 0.1) } }}>
+              <TextIncreaseRoundedIcon sx={{ fontSize: 20 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={stickyNotesVisible ? "Hide Sticky Notes" : "Show Sticky Notes"} arrow slotProps={tooltipSlotProps}>
+            <IconButton
+              onClick={toggleStickyNotesVisibility}
+              size="small"
+              sx={{
+                color: stickyNotesVisible ? "#d97706" : "#9a7653",
+                bgcolor: stickyNotesVisible ? alpha("#fff2d8", 0.92) : alpha("#fff8ef", 0.92),
+                border: "1px solid rgba(217,119,6,0.12)",
+                boxShadow: "0 6px 18px rgba(217,119,6,0.08)",
+                "&:hover": { bgcolor: alpha("#f59e0b", 0.2) },
+              }}
+            >
+              <WorkspacesRoundedIcon
+                sx={{
+                  fontSize: 20,
+                  transition: "transform 200ms ease",
+                  transform: stickyNotesVisible ? "rotate(0deg)" : "rotate(180deg)",
+                }}
+              />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Add Sticky Note" arrow slotProps={tooltipSlotProps}>
+            <IconButton onClick={onAddStickyNote} size="small" sx={{ color: "#d97706", bgcolor: alpha("#fff2d8", 0.92), border: "1px solid rgba(217,119,6,0.12)", boxShadow: "0 6px 18px rgba(217,119,6,0.08)", "&:hover": { bgcolor: alpha("#f59e0b", 0.2) } }}>
+              <StickyNote2RoundedIcon sx={{ fontSize: 20 }} />
+            </IconButton>
+          </Tooltip>
+          {imageEntries.length > 0 && (
+            <Tooltip title="View images & selection" arrow slotProps={tooltipSlotProps}>
+              <IconButton
+                onClick={onOpenSelectionPanel}
+                size="small"
+                sx={{
+                  background: "linear-gradient(135deg, #5c3d2e 0%, #8b5e3c 100%)",
+                  color: "#fff8f0",
+                  width: 32,
+                  height: 32,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  boxShadow: "0 6px 18px rgba(92, 61, 46, 0.22)",
+                  "&:hover": {
+                    background: "linear-gradient(135deg, #7a5240 0%, #a87350 100%)",
+                    boxShadow: "0 8px 20px rgba(92, 61, 46, 0.26)",
+                  },
+                }}
+              >
+                <ViewSidebarRoundedIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Stack>
 
-      {/* Editor wrapper */}
-      <Box sx={{ position: "relative", flex: 1, minHeight: { xs: 360, lg: 0 }, width: "100%", overflow: "hidden", borderRadius: 5 }}>
         {/* Decorative blurs */}
         <Box sx={{ position: "absolute", left: -80, top: 40, width: "100%", height: 240, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,253,248,0.95) 0%, rgba(255,253,248,0) 72%)", filter: "blur(8px)" }} />
-        <Box sx={{ position: "absolute", right: -60, bottom: 24, width: 260, height: 200, borderRadius: "50%", background: "radial-gradient(circle, rgba(240,230,215,0.7) 0%, rgba(240,230,215,0) 72%)", filter: "blur(18px)" }} />
+        <Box sx={{ position: "absolute", right: -60, bottom: 24, width: 260, height: 200, borderRadius: "50%", background: `radial-gradient(circle, ${alpha(activeNoteTint, 0.26)} 0%, rgba(240,230,215,0) 72%)`, filter: "blur(18px)" }} />
+
+        {stickyNotesVisible && (
+          <StickyNoteBoard
+            notes={stickyNotes}
+            activeNoteId={activeNote?.id}
+            activeStickyNoteId={activeStickyNoteId}
+            editorScrollRef={editorRef}
+            scrollTop={editorScrollState.scrollTop}
+            viewportHeight={editorScrollState.viewportHeight}
+            contentHeight={editorScrollState.contentHeight}
+            onSelectLink={onOpenStickyNote}
+            onUpdateLink={onUpdateStickyNote}
+            onMoveLinkToNote={onMoveStickyNote}
+            onDragStateChange={onStickyDragStateChange}
+            onDeleteLink={onDeleteStickyNote}
+          />
+        )}
 
         {/* Drop caret indicator */}
         <Box
@@ -347,16 +916,17 @@ export default function DocbookEditorSurface({
           spellCheck
           data-placeholder="Start writing your note..."
           onKeyDown={handleEditorKeyDown}
-          onInput={onEditorInput}
-          onBlur={onEditorBlur}
-          onMouseUp={onEditorSelectionChange}
-          onKeyUp={onEditorSelectionChange}
+          onInput={handleInput}
+          onBlur={handleBlur}
+          onMouseUp={handleMouseUp}
+          onKeyUp={handleKeyUp}
           onClick={handleClick}
           onMouseMove={onEditorMouseMove}
           onMouseLeave={onEditorMouseLeave}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
+          onScroll={handleEditorScroll}
           onPaste={handlePaste}
           sx={{
             position: "relative",
@@ -366,13 +936,21 @@ export default function DocbookEditorSurface({
             minHeight: "100%",
             overflowY: "auto",
             outline: 0,
-            p: { xs: 1.4, md: 2.4 },
+            p: "10px",
+            pt: { xs: "56px", md: "62px" },
+            background: "transparent",
             fontFamily: "inherit",
-            fontSize: { xs: 34, md: 52 },
-            lineHeight: { xs: 1.18, md: 1.22 },
+            fontSize: {
+              xs: `${34 * editorFontScale}px`,
+              md: `${52 * editorFontScale}px`,
+            },
+            lineHeight: {
+              xs: clamp(1.18 - (editorFontScale - 1) * 0.08, 1.02, 1.26),
+              md: clamp(1.22 - (editorFontScale - 1) * 0.08, 1.06, 1.3),
+            },
             fontWeight: 500,
             letterSpacing: "-0.045em",
-            color: alpha("#221f1a", 0.34),
+            color: alpha("#221f1a", 0.85),
             scrollbarWidth: "none",
             msOverflowStyle: "none",
             "&::-webkit-scrollbar": { display: "none" },
@@ -460,19 +1038,16 @@ export default function DocbookEditorSurface({
 
             /* Note ref token */
             "& span[data-note-ref]": {
-              borderRadius: "10px",
-              paddingInline: "0.24em",
-              paddingBlock: "0.05em",
-              backgroundColor: "#f5e6d0",
-              color: "#4a3526",
               boxDecorationBreak: "clone",
               WebkitBoxDecorationBreak: "clone",
               cursor: "help",
-              borderBottom: "2px dashed #d4a574",
-              transition: "background-color 200ms ease",
+              borderBottom: "2px dashed #9fa590",
+              transition: "border-color 200ms ease, background-color 200ms ease",
+              paddingBottom: "1px",
             },
             "& span[data-note-ref]:hover": {
-              backgroundColor: "#eed9be",
+              borderBottomColor: "#5c6248",
+              backgroundColor: alpha("#5c6248", 0.08),
             },
 
             /* Links */
@@ -481,8 +1056,72 @@ export default function DocbookEditorSurface({
 
             /* Images */
             "& img": { maxWidth: "100%", height: "auto", borderRadius: 10, display: "block", marginTop: 12, marginBottom: 12 },
+
+            /* Tables */
+            "& table": { tableLayout: "fixed" },
+            "& td, & th": { wordWrap: "break-word", whiteSpace: "normal" }
           }}
         />
+
+        <Box
+          sx={{
+            position: "fixed",
+            left: slashMenu.x,
+            top: slashMenu.y,
+            opacity: slashMenu.visible && stickySuggestions.length > 0 ? 1 : 0,
+            transform: slashMenu.visible && stickySuggestions.length > 0 ? "translateY(0)" : "translateY(6px)",
+            transition: "opacity 140ms ease, transform 140ms ease",
+            pointerEvents: slashMenu.visible && stickySuggestions.length > 0 ? "auto" : "none",
+            zIndex: 1600,
+          }}
+        >
+          <Paper
+            elevation={8}
+            sx={{
+              minWidth: 260,
+              maxWidth: 320,
+              borderRadius: 3,
+              overflow: "hidden",
+              border: "1px solid #ddd0c0",
+              bgcolor: "#fdf8f1",
+              boxShadow: "0 16px 34px rgba(58, 46, 34, 0.18)",
+            }}
+          >
+            <Box sx={{
+              px: 1.4, py: 1, borderBottom: "1px solid #ebe1d4", background: "linear-gradient(180deg, #fbf3e8 0%, #f7ecde 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}>
+              <Typography sx={{ fontSize: 11, fontWeight: 800, color: "#6a5a49", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                Commands
+              </Typography>
+              <KeyboardOptionKeyRoundedIcon sx={{ color: "#6a5a49", fontSize: 16 }} />
+            </Box>
+            <Stack spacing={0} sx={{ py: 0.5 }}>
+              {stickySuggestions.map((item, index) => (
+                <Box
+                  key={item.id}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    applySlashSuggestion(item);
+                  }}
+                  sx={{
+                    px: 1.4,
+                    py: 1,
+                    cursor: "pointer",
+                    bgcolor: index === slashMenu.selectedIndex ? alpha("#c4956a", 0.12) : "transparent",
+                    transition: "background-color 120ms ease",
+                    "&:hover": { bgcolor: alpha("#c4956a", 0.12) },
+                  }}
+                >
+                  <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#352f29" }}>{item.label}</Typography>
+                  <Typography sx={{ fontSize: 11.5, color: "#7b6c5c" }}>{item.description}</Typography>
+                </Box>
+              ))}
+            </Stack>
+          </Paper>
+        </Box>
       </Box>
     </Box>
   );

@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Box, Paper, Drawer } from "@mui/material";
+import { Box, Paper, Drawer, IconButton, Typography } from "@mui/material";
+import { alpha } from "@mui/material/styles";
+import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
+import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
+import FavoriteRoundedIcon from "@mui/icons-material/FavoriteRounded";
 import DocbookEditorSurface from "@/components/docbook/DocbookEditorSurface";
 import DocbookOverlays from "@/components/docbook/DocbookOverlays";
 import DocbookSidebar from "@/components/docbook/DocbookSidebar";
@@ -9,8 +13,22 @@ import SettingsPanel from "@/components/docbook/SettingsPanel";
 import SelectionPanel from "@/components/docbook/SelectionPanel";
 import FeedbackModal from "@/components/docbook/FeedbackModal";
 import PricingPanel from "@/components/docbook/PricingPanel";
-import { buildId, createNote, isExpiredDelete } from "@/components/docbook/shared";
+import WelcomeIntroModal from "@/components/docbook/WelcomeIntroModal";
+import {
+  buildId,
+  createNote,
+  createStickyNote,
+  defaultNoteContent,
+  isExpiredDelete,
+  stickyColorOptions,
+  uncheckedIconSvg,
+  checkedIconSvg,
+} from "@/components/docbook/shared";
 import { docbookDb } from "../lib/docbookDb";
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
 
 export default function Home() {
   const editorRef = useRef(null);
@@ -18,14 +36,19 @@ export default function Home() {
   const savedSelectionRangeRef = useRef(null);
   const objectUrlMapRef = useRef({});
   const autoSyncTimerRef = useRef(null);
+  const hasHydratedChangeTrackerRef = useRef(false);
 
   const [notes, setNotes] = useState([]);
+  const [stickyNotes, setStickyNotes] = useState([]);
   const [activeNoteId, setActiveNoteId] = useState("");
+  const [activeStickyNoteId, setActiveStickyNoteId] = useState("");
+  const [stickyDragState, setStickyDragState] = useState({ stickyId: "", targetNoteId: "" });
   const [ready, setReady] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
   const [selectionMenu, setSelectionMenu] = useState({ visible: false, x: 0, y: 0 });
   const [colorAnchorEl, setColorAnchorEl] = useState(null);
   const [linkAnchorEl, setLinkAnchorEl] = useState(null);
+  const [fontFamilyAnchorEl, setFontFamilyAnchorEl] = useState(null);
   const [imageAnchorEl, setImageAnchorEl] = useState(null);
   const [listMenuAnchorEl, setListMenuAnchorEl] = useState(null);
   const [noteAnchorEl, setNoteAnchorEl] = useState(null);
@@ -41,11 +64,44 @@ export default function Home() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [welcomeIntroOpen, setWelcomeIntroOpen] = useState(false);
   const [selectionContent, setSelectionContent] = useState("");
+  const [syncBadgeState, setSyncBadgeState] = useState({
+    enabled: false,
+    hasPin: false,
+    interval: 0,
+    lastSyncAt: "",
+    lastLocalChangeAt: "",
+  });
 
   const activeNotes = useMemo(() => notes.filter((note) => !note.deletedAt), [notes]);
   const deletedNotes = useMemo(() => notes.filter((note) => note.deletedAt && !isExpiredDelete(note.deletedAt)), [notes]);
   const activeNote = useMemo(() => activeNotes.find((note) => note.id === activeNoteId) || activeNotes[0] || null, [activeNotes, activeNoteId]);
+  const activeNoteStickyNotes = useMemo(() => stickyNotes.filter((note) => note.noteId === activeNoteId), [stickyNotes, activeNoteId]);
+  const activeNoteTint = activeNote?.color || "#F7E36D";
+
+  const refreshSyncBadgeState = useCallback((overrides = {}) => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("docbook_sync_settings") || "{}");
+      setSyncBadgeState((prev) => ({
+        enabled: Boolean(stored.autoSyncEnabled),
+        hasPin: Boolean(stored.pin),
+        interval: Number(stored.autoSyncInterval) || 0,
+        lastSyncAt: stored.lastSyncAt || prev.lastSyncAt || "",
+        lastLocalChangeAt: prev.lastLocalChangeAt,
+        ...overrides,
+      }));
+    } catch {
+      setSyncBadgeState((prev) => ({
+        ...prev,
+        enabled: false,
+        hasPin: false,
+        interval: 0,
+        ...overrides,
+      }));
+    }
+  }, []);
 
   const hideSelectionMenu = useCallback(() => {
     setSelectionMenu((prev) => (prev.visible ? { ...prev, visible: false } : prev));
@@ -122,7 +178,14 @@ export default function Home() {
         prev.map((note) => {
           if (note.id !== activeNoteId) return note;
           const next = updater(note);
-          if (next.title === note.title && next.content === note.content) return note;
+          if (
+            next.title === note.title &&
+            next.content === note.content &&
+            next.color === note.color &&
+            next.fontScale === note.fontScale
+          ) {
+            return note;
+          }
           return next;
         })
       );
@@ -153,7 +216,7 @@ export default function Home() {
       orphanedIds.forEach((id) => {
         URL.revokeObjectURL(currentMap[id]);
         delete currentMap[id];
-        docbookDb.images.delete(id).catch(() => {});
+        docbookDb.images.delete(id).catch(() => { });
       });
       objectUrlMapRef.current = { ...currentMap };
       setImageUrlMap({ ...currentMap });
@@ -231,6 +294,49 @@ export default function Home() {
     await docbookDb.meta.put({ key: "activeNoteId", value: fresh.id });
   }, [hideSelectionMenu]);
 
+  const createNewStickyNote = useCallback(async () => {
+    if (!activeNoteId) return null;
+
+    const offset = activeNoteStickyNotes.length;
+    const fresh = createStickyNote(activeNoteId, {
+      x: 150 + (offset % 3) * 18,
+      y: 160 + (offset % 4) * 22,
+    });
+
+    setStickyNotes((prev) => [...prev, fresh]);
+    setActiveStickyNoteId(fresh.id);
+    await docbookDb.stickyNotes.put(fresh);
+    return fresh;
+  }, [activeNoteId, activeNoteStickyNotes.length]);
+
+  const openStickyNote = useCallback((stickyId) => {
+    setActiveStickyNoteId(stickyId);
+  }, []);
+
+  const updateStickyNote = useCallback(async (stickyId, updates) => {
+    setStickyNotes((prev) =>
+      prev.map((note) => (note.id === stickyId ? { ...note, ...updates } : note))
+    );
+    await docbookDb.stickyNotes.update(stickyId, updates);
+  }, []);
+
+  const moveStickyNoteToNote = useCallback(async (stickyId, noteId, updates = {}) => {
+    setStickyNotes((prev) =>
+      prev.map((note) => (note.id === stickyId ? { ...note, noteId, ...updates } : note))
+    );
+    setShowDeleted(false);
+    setActiveNoteId(noteId);
+    setActiveStickyNoteId(stickyId);
+    setStickyDragState({ stickyId: "", targetNoteId: "" });
+    await docbookDb.stickyNotes.update(stickyId, { noteId, ...updates });
+  }, []);
+
+  const deleteStickyNote = useCallback(async (stickyId) => {
+    setStickyNotes((prev) => prev.filter((note) => note.id !== stickyId));
+    setActiveStickyNoteId((prev) => (prev === stickyId ? "" : prev));
+    await docbookDb.stickyNotes.delete(stickyId);
+  }, []);
+
   const deleteNote = useCallback(
     async (noteId) => {
       if (activeNotes.length <= 1) return;
@@ -243,6 +349,10 @@ export default function Home() {
       if (noteId === activeNoteId) {
         const remaining = activeNotes.filter((n) => n.id !== noteId);
         setActiveNoteId(remaining[0]?.id || "");
+      }
+
+      if (activeNoteId === noteId) {
+        setActiveStickyNoteId("");
       }
 
       hideSelectionMenu();
@@ -266,12 +376,15 @@ export default function Home() {
   const permanentlyDeleteNote = useCallback(
     async (noteId) => {
       setNotes((prev) => prev.filter((note) => note.id !== noteId));
-      await docbookDb.transaction("rw", docbookDb.notes, docbookDb.images, async () => {
+      setStickyNotes((prev) => prev.filter((note) => note.noteId !== noteId));
+      setActiveStickyNoteId((prev) => (stickyNotes.some((note) => note.id === prev && note.noteId === noteId) ? "" : prev));
+      await docbookDb.transaction("rw", docbookDb.notes, docbookDb.images, docbookDb.stickyNotes, async () => {
         await docbookDb.notes.delete(noteId);
         await docbookDb.images.where("noteId").equals(noteId).delete();
+        await docbookDb.stickyNotes.where("noteId").equals(noteId).delete();
       });
     },
-    []
+    [stickyNotes]
   );
 
   const attachImageToSelection = useCallback(
@@ -358,6 +471,26 @@ export default function Home() {
           syncEditorHtml();
           return;
         }
+      }
+
+      /* Handle Todo checkbox click */
+      const todoCheckbox = event.target.closest?.("[data-todo-checkbox]");
+      if (todoCheckbox && editorRef.current?.contains(todoCheckbox)) {
+        event.preventDefault();
+        const todoDiv = todoCheckbox.closest("[data-todo]");
+        if (todoDiv) {
+          const isChecked = todoDiv.getAttribute("data-todo") === "true";
+          todoDiv.setAttribute("data-todo", isChecked ? "false" : "true");
+          todoCheckbox.innerHTML = isChecked ? uncheckedIconSvg : checkedIconSvg;
+
+          const textContainer = todoDiv.querySelector("div[style*='flex: 1']");
+          if (textContainer) {
+            textContainer.style.textDecoration = isChecked ? "none" : "line-through";
+            textContainer.style.opacity = isChecked ? "1" : "0.6";
+          }
+          syncEditorHtml();
+        }
+        return;
       }
 
       const noteSpan = event.target.closest?.("[data-note-ref]");
@@ -533,6 +666,91 @@ export default function Home() {
     runCommand("removeFormat");
   }, [runCommand]);
 
+  const handleInsertTodo = useCallback(() => {
+    restoreSelectionRange();
+    const selection = window.getSelection();
+    let contentHtml = "<br>";
+
+    if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const clone = range.cloneContents();
+      const div = document.createElement("div");
+      div.appendChild(clone);
+      contentHtml = div.innerHTML || "<br>";
+    }
+
+    const todoHtml = `<div data-todo="false" style="display: flex; align-items: flex-start; gap: 8px; margin: 4px 0;"><span data-todo-checkbox="true" style="cursor: pointer; color: #8b5e3c; display: flex; align-items: center; justify-content: center; user-select: none;" contenteditable="false">${uncheckedIconSvg}</span><div style="flex: 1; outline: none; min-width: 50px;">${contentHtml}</div></div><p><br></p>`;
+    document.execCommand("insertHTML", false, todoHtml);
+    syncEditorHtml();
+  }, [restoreSelectionRange, syncEditorHtml]);
+
+  const handleInsertTable = useCallback(() => {
+    restoreSelectionRange();
+    const tableHtml = `<table style="width: 100%; border-collapse: collapse; margin: 12px 0;"><tbody><tr><th style="border: 1px solid #d9cab7; padding: 10px 6px; min-width: 50px; background-color: #f1ebd8; font-weight: bold; text-align: left;"><br></th><th style="border: 1px solid #d9cab7; padding: 10px 6px; min-width: 50px; background-color: #f1ebd8; font-weight: bold; text-align: left;"><br></th><th style="border: 1px solid #d9cab7; padding: 10px 6px; min-width: 50px; background-color: #f1ebd8; font-weight: bold; text-align: left;"><br></th></tr><tr><td style="border: 1px solid #d9cab7; padding: 6px; min-width: 50px;"><br></td><td style="border: 1px solid #d9cab7; padding: 6px; min-width: 50px;"><br></td><td style="border: 1px solid #d9cab7; padding: 6px; min-width: 50px;"><br></td></tr></tbody></table><p><br></p>`;
+    document.execCommand("insertHTML", false, tableHtml);
+    syncEditorHtml();
+  }, [restoreSelectionRange, syncEditorHtml]);
+
+  const handleFontFamilyChange = useCallback((fontFamily) => {
+    restoreSelectionRange();
+    document.execCommand("fontName", false, fontFamily);
+    syncEditorHtml();
+  }, [restoreSelectionRange, syncEditorHtml]);
+
+  const handleFontSizeIncrease = useCallback(() => {
+    restoreSelectionRange();
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+      updateCurrentNote((note) => ({ ...note, fontScale: clamp((note.fontScale || 1) + 0.08, 0.72, 1.55) }));
+      return;
+    }
+
+    const range = sel.getRangeAt(0);
+    const span = document.createElement("span");
+    span.style.fontSize = "larger";
+    try {
+      range.surroundContents(span);
+    } catch {
+      const frag = range.extractContents();
+      span.appendChild(frag);
+      range.insertNode(span);
+    }
+    sel.removeAllRanges();
+    const after = document.createRange();
+    after.setStartAfter(span);
+    after.collapse(true);
+    sel.addRange(after);
+    syncEditorHtml();
+    window.requestAnimationFrame(updateSelectionMenuPosition);
+  }, [restoreSelectionRange, syncEditorHtml, updateCurrentNote, updateSelectionMenuPosition]);
+
+  const handleFontSizeDecrease = useCallback(() => {
+    restoreSelectionRange();
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+      updateCurrentNote((note) => ({ ...note, fontScale: clamp((note.fontScale || 1) - 0.08, 0.72, 1.55) }));
+      return;
+    }
+
+    const range = sel.getRangeAt(0);
+    const span = document.createElement("span");
+    span.style.fontSize = "smaller";
+    try {
+      range.surroundContents(span);
+    } catch {
+      const frag = range.extractContents();
+      span.appendChild(frag);
+      range.insertNode(span);
+    }
+    sel.removeAllRanges();
+    const after = document.createRange();
+    after.setStartAfter(span);
+    after.collapse(true);
+    sel.addRange(after);
+    syncEditorHtml();
+    window.requestAnimationFrame(updateSelectionMenuPosition);
+  }, [restoreSelectionRange, syncEditorHtml, updateCurrentNote, updateSelectionMenuPosition]);
+
   /* Handle paste image from clipboard (PrtSc, Ctrl+V with image) */
   const handlePasteImage = useCallback(
     async (file) => {
@@ -651,7 +869,9 @@ export default function Home() {
     let cancelled = false;
 
     const bootstrap = async () => {
+      let shouldShowWelcomeIntro = false;
       let storedNotes = await docbookDb.notes.orderBy("updatedAt").reverse().toArray();
+      let storedStickyNotes = await docbookDb.stickyNotes.toArray();
 
       /* Purge notes that were soft-deleted more than 7 days ago */
       const expiredIds = storedNotes.filter((n) => isExpiredDelete(n.deletedAt)).map((n) => n.id);
@@ -668,9 +888,49 @@ export default function Home() {
       /* Filter to only active notes for the initial view */
       const liveNotes = storedNotes.filter((n) => !n.deletedAt);
       if (liveNotes.length === 0) {
-        const first = createNote();
+        shouldShowWelcomeIntro = true;
+        const first = createNote({
+          title: "Welcome to DocBook",
+          content: defaultNoteContent,
+        });
+        const starterStickyNotes = [
+          createStickyNote(first.id, {
+            title: "Quick Ideas",
+            content: "Capture loose thoughts here before they disappear.",
+            color: stickyColorOptions[3].value,
+            x: 170,
+            y: 100,
+          }),
+
+          createStickyNote(first.id, {
+            title: "Today",
+            content: "Use this one for the one or two things you need to finish today.",
+            color: stickyColorOptions[4].value,
+            x: 1170,
+            y: 120,
+          }),
+
+          createStickyNote(first.id, {
+            title: "Keep Nearby",
+            content: "Pin reminders, links, or short reference notes next to your page.",
+            color: stickyColorOptions[2].value,
+            x: 220,
+            y: 300,
+          }),
+
+          createStickyNote(first.id, {
+            title: "Checklist",
+            content: "Add next steps, follow-ups, or small tasks you want in sight.",
+            color: stickyColorOptions[5].value,
+            x: 1300,
+            y: 250,
+          }),
+        ];
+
         await docbookDb.notes.put(first);
+        await docbookDb.stickyNotes.bulkPut(starterStickyNotes);
         storedNotes = [...storedNotes, first];
+        storedStickyNotes = starterStickyNotes;
       }
 
       const activeMeta = await docbookDb.meta.get("activeNoteId");
@@ -681,8 +941,10 @@ export default function Home() {
       if (cancelled) return;
 
       setNotes(storedNotes);
+      setStickyNotes(storedStickyNotes);
       setActiveNoteId(initialActiveId);
       setReady(true);
+      setWelcomeIntroOpen(shouldShowWelcomeIntro);
       await docbookDb.meta.put({ key: "activeNoteId", value: initialActiveId });
     };
 
@@ -701,6 +963,25 @@ export default function Home() {
   }, [ready, activeNoteId]);
 
   useEffect(() => {
+    refreshSyncBadgeState();
+
+    const handleSyncSettingsChanged = () => refreshSyncBadgeState();
+    const handleStorage = (event) => {
+      if (event.key === "docbook_sync_settings") {
+        refreshSyncBadgeState();
+      }
+    };
+
+    window.addEventListener("docbook-sync-settings-changed", handleSyncSettingsChanged);
+    window.addEventListener("storage", handleStorage);
+
+    return () => {
+      window.removeEventListener("docbook-sync-settings-changed", handleSyncSettingsChanged);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, [refreshSyncBadgeState]);
+
+  useEffect(() => {
     if (!ready || notes.length === 0) return;
     const timeoutId = setTimeout(() => {
       void docbookDb.notes.bulkPut(notes);
@@ -709,8 +990,46 @@ export default function Home() {
   }, [ready, notes]);
 
   useEffect(() => {
+    if (!ready) return;
+    const timeoutId = setTimeout(() => {
+      void docbookDb.stickyNotes.bulkPut(stickyNotes);
+    }, 250);
+    return () => clearTimeout(timeoutId);
+  }, [ready, stickyNotes]);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (!hasHydratedChangeTrackerRef.current) {
+      hasHydratedChangeTrackerRef.current = true;
+      return;
+    }
+
+    setSyncBadgeState((prev) => ({
+      ...prev,
+      lastLocalChangeAt: new Date().toISOString(),
+    }));
+  }, [ready, notes, stickyNotes]);
+
+  useEffect(() => {
     if (!activeNote && activeNotes.length > 0) setActiveNoteId(activeNotes[0].id);
   }, [activeNote, notes]);
+
+  useEffect(() => {
+    if (!activeNoteId) {
+      setActiveStickyNoteId("");
+      return;
+    }
+
+    const currentStickyNotes = stickyNotes.filter((note) => note.noteId === activeNoteId);
+    if (currentStickyNotes.length === 0) {
+      setActiveStickyNoteId("");
+      return;
+    }
+
+    if (!currentStickyNotes.some((note) => note.id === activeStickyNoteId)) {
+      setActiveStickyNoteId(currentStickyNotes[0].id);
+    }
+  }, [activeNoteId, activeStickyNoteId, stickyNotes]);
 
   useEffect(() => {
     if (!editorRef.current || !activeNote) return;
@@ -776,6 +1095,8 @@ export default function Home() {
               createdAt: n.createdAt,
               updatedAt: n.updatedAt,
               deletedAt: n.deletedAt || null,
+              color: n.color || null,
+              fontScale: n.fontScale || 1,
             }));
 
             await fetch("/api/sync", {
@@ -787,6 +1108,14 @@ export default function Home() {
             const now = new Date().toISOString();
             const updated = { ...settings, lastSyncAt: now };
             localStorage.setItem("docbook_sync_settings", JSON.stringify(updated));
+            window.dispatchEvent(new Event("docbook-sync-settings-changed"));
+            setSyncBadgeState((prev) => ({
+              ...prev,
+              enabled: Boolean(updated.autoSyncEnabled),
+              hasPin: Boolean(updated.pin),
+              interval: Number(updated.autoSyncInterval) || 0,
+              lastSyncAt: now,
+            }));
           } catch { /* silent */ }
         }, settings.autoSyncInterval * 1000);
       }
@@ -801,14 +1130,42 @@ export default function Home() {
   }, [notes, settingsOpen]);
 
   return (
-    <Box sx={{ height: "100vh", width: "100%", overflow: "hidden" }}>
-      <Paper sx={{ width: "100%", height: "100%", border: "1px solid #ddd4ca", bgcolor: "#f8f5f0", boxShadow: "0 30px 90px rgba(114, 94, 68, 0.12)", overflow: "hidden" }}>
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "240px minmax(0, 1fr)" }, height: "100%", alignItems: "stretch", minHeight: 0 }}>
+    <Box
+      sx={{
+        height: "100vh",
+        width: "100%",
+        overflow: "hidden",
+        background: `
+          radial-gradient(circle at 14% 10%, ${alpha(activeNoteTint, 0.22)} 0%, transparent 22%),
+          radial-gradient(circle at 84% 88%, ${alpha(activeNoteTint, 0.14)} 0%, transparent 18%),
+          linear-gradient(180deg, rgba(255,252,248,0.98) 0%, rgba(248,243,235,0.98) 100%)
+        `,
+      }}
+    >
+      <Paper
+        sx={{
+          position: "relative",
+          width: "100%",
+          height: "100%",
+          border: "1px solid #ddd4ca",
+          bgcolor: alpha("#f8f5f0", 0.76),
+          background: `linear-gradient(180deg, ${alpha(activeNoteTint, 0.08)} 0%, rgba(248,245,240,0.9) 14%, rgba(248,245,240,0.82) 100%)`,
+          boxShadow: "0 30px 90px rgba(114, 94, 68, 0.12)",
+          overflow: "hidden",
+          backdropFilter: "blur(10px)",
+        }}
+      >
+        <Box sx={{ position: "relative", display: "grid", gridTemplateColumns: { xs: "1fr", md: `${sidebarCollapsed ? 60 : 240}px minmax(0, 1fr)` }, height: "100%", alignItems: "stretch", minHeight: 0, transition: "grid-template-columns 250ms cubic-bezier(0.4, 0, 0.2, 1)" }}>
+          <WelcomeIntroModal open={welcomeIntroOpen} onClose={() => setWelcomeIntroOpen(false)} />
+
           <DocbookSidebar
             notes={activeNotes}
             deletedNotes={deletedNotes}
             activeNoteId={activeNote?.id}
+            sidebarTint={activeNoteTint}
             showDeleted={showDeleted}
+            stickyDragState={stickyDragState}
+            isCollapsed={sidebarCollapsed}
             onToggleDeleted={() => setShowDeleted((prev) => !prev)}
             onCreateNote={() => {
               void createNewNote();
@@ -846,7 +1203,9 @@ export default function Home() {
               notes={activeNotes}
               deletedNotes={deletedNotes}
               activeNoteId={activeNote?.id}
+              sidebarTint={activeNoteTint}
               showDeleted={showDeleted}
+              stickyDragState={stickyDragState}
               onToggleDeleted={() => setShowDeleted((prev) => !prev)}
               onCreateNote={() => {
                 void createNewNote();
@@ -884,10 +1243,14 @@ export default function Home() {
           </Drawer>
 
           <DocbookEditorSurface
+            collapseSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
             activeNote={activeNote}
             editorRef={editorRef}
             imageUrlMap={imageUrlMap}
+            stickyNotes={stickyNotes}
+            activeStickyNoteId={activeStickyNoteId}
             onTitleChange={(event) => updateCurrentNote((note) => ({ ...note, title: event.target.value }))}
+            onNoteColorChange={(color) => updateCurrentNote((note) => ({ ...note, color }))}
             onEditorInput={syncEditorHtml}
             onEditorBlur={syncEditorHtml}
             onEditorSelectionChange={handleEditorSelectionChange}
@@ -899,7 +1262,75 @@ export default function Home() {
             onEditorDrop={handleEditorDrop}
             onOpenSelectionPanel={handleOpenSelectionPanel}
             onPasteImage={handlePasteImage}
+            onAddStickyNote={() => {
+              void createNewStickyNote();
+            }}
+            onOpenStickyNote={openStickyNote}
+            onUpdateStickyNote={(stickyId, updates) => {
+              void updateStickyNote(stickyId, updates);
+            }}
+            onMoveStickyNote={(stickyId, noteId, updates) => {
+              void moveStickyNoteToNote(stickyId, noteId, updates);
+            }}
+            onStickyDragStateChange={setStickyDragState}
+            onDeleteStickyNote={(stickyId) => {
+              void deleteStickyNote(stickyId);
+            }}
+            onFontSizeIncrease={handleFontSizeIncrease}
+            onFontSizeDecrease={handleFontSizeDecrease}
+            syncBadgeState={syncBadgeState}
           />
+        </Box>
+
+        <Box
+          sx={{
+            position: "absolute",
+            right: { xs: 12, md: 22 },
+            bottom: { xs: 12, md: 18 },
+            zIndex: 24,
+            pointerEvents: "none",
+            px: 1.8,
+            py: 1.2,
+            textAlign: "center",
+          }}
+        >
+          <Typography
+            sx={{
+              fontSize: 10,
+              fontWeight: 800,
+              letterSpacing: "0.22em",
+              textTransform: "uppercase",
+              color: "#8d7868",
+              mb: 0.15,
+            }}
+          >
+            Made with
+          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1, mb: -0.15 }}>
+            <Typography
+              sx={{
+                fontSize: { xs: 34, md: 40 },
+                color: "#241c19",
+                fontFamily: "\"Segoe Script\", \"Brush Script MT\", cursive",
+              }}
+            >
+              l
+            </Typography>
+            <FavoriteRoundedIcon sx={{ fontSize: { xs: 25, md: 29 }, color: "#ff1458", mx: 0.1, mt: 0.15 }} />
+            <Typography
+              sx={{
+                fontSize: { xs: 34, md: 40 },
+                color: "#241c19",
+                fontFamily: "\"Segoe Script\", \"Brush Script MT\", cursive",
+                ml: -0.2,
+              }}
+            >
+              ve
+            </Typography>
+          </Box>
+          <Typography sx={{ fontSize: 11, fontWeight: 600, color: "#8a7464" }}>
+            by Rajan
+          </Typography>
         </Box>
 
         <DocbookOverlays
@@ -908,9 +1339,16 @@ export default function Home() {
           onHighlight={handleHighlight}
           onClear={handleClear}
           runCommand={runCommand}
+          onInsertTodo={handleInsertTodo}
+          onInsertTable={handleInsertTable}
           restoreSelectionRange={restoreSelectionRange}
           colorAnchorEl={colorAnchorEl}
           setColorAnchorEl={setColorAnchorEl}
+          fontFamilyAnchorEl={fontFamilyAnchorEl}
+          setFontFamilyAnchorEl={setFontFamilyAnchorEl}
+          changeFontFamily={handleFontFamilyChange}
+          onFontSizeIncrease={handleFontSizeIncrease}
+          onFontSizeDecrease={handleFontSizeDecrease}
           linkAnchorEl={linkAnchorEl}
           setLinkAnchorEl={setLinkAnchorEl}
           linkDraft={linkDraft}

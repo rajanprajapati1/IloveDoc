@@ -8,9 +8,10 @@ class DocBookDB extends Dexie {
       images: "id, noteId, createdAt",
       meta: "key",
     });
-    this.version(2).stores({
+    this.version(3).stores({
       notes: "id, updatedAt, createdAt, deletedAt",
       images: "id, noteId, createdAt",
+      stickyNotes: "id, noteId, createdAt",
       meta: "key",
     });
   }

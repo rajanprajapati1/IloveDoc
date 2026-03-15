@@ -88,6 +88,7 @@ export default function SettingsPanel({ open, onClose, notes, onImportNotes }) {
     const current = JSON.parse(localStorage.getItem("docbook_sync_settings") || "{}");
     const next = { ...current, ...updates };
     localStorage.setItem("docbook_sync_settings", JSON.stringify(next));
+    window.dispatchEvent(new Event("docbook-sync-settings-changed"));
   }, []);
 
   const handleGeneratePin = () => {
@@ -181,6 +182,8 @@ export default function SettingsPanel({ open, onClose, notes, onImportNotes }) {
         createdAt: n.createdAt,
         updatedAt: n.updatedAt,
         deletedAt: n.deletedAt || null,
+        color: n.color || null,
+        fontScale: n.fontScale || 1,
       }));
 
       const res = await fetch("/api/sync", {

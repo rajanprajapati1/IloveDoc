@@ -1,3 +1,4 @@
+import CheckBoxOutlinedIcon from "@mui/icons-material/CheckBoxOutlined";
 import ColorLensRoundedIcon from "@mui/icons-material/ColorLensRounded";
 import FormatBoldRoundedIcon from "@mui/icons-material/FormatBoldRounded";
 import FormatClearRoundedIcon from "@mui/icons-material/FormatClearRounded";
@@ -7,7 +8,11 @@ import HighlightRoundedIcon from "@mui/icons-material/HighlightRounded";
 import ImageRoundedIcon from "@mui/icons-material/ImageRounded";
 import LinkRoundedIcon from "@mui/icons-material/LinkRounded";
 import StickyNote2RoundedIcon from "@mui/icons-material/StickyNote2Rounded";
+import TableViewRoundedIcon from "@mui/icons-material/TableViewRounded";
 import ViewSidebarRoundedIcon from "@mui/icons-material/ViewSidebarRounded";
+import FontDownloadRoundedIcon from "@mui/icons-material/FontDownloadRounded";
+import TextIncreaseRoundedIcon from "@mui/icons-material/TextIncreaseRounded";
+import TextDecreaseRoundedIcon from "@mui/icons-material/TextDecreaseRounded";
 import {
   Box,
   Button,
@@ -24,9 +29,9 @@ import {
   Typography,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import { colorOptions, normalizeUrl, tooltipSlotProps } from "./shared";
+import { stickyColorOptions as colorOptions, normalizeUrl, tooltipSlotProps } from "./shared";
 
-function SelectionToolbar({ visible, x, y, onBold, onColor, onHighlight, onList, onLink, onImage, onNote, onClear, onViewSelection }) {
+function SelectionToolbar({ visible, x, y, onBold, onColor, onFontFamily, onFontSizeIncrease, onFontSizeDecrease, onHighlight, onList, onTodo, onTable, onLink, onImage, onNote, onClear, onViewSelection }) {
   const iconSx = { color: "#352f29", "&:hover": { bgcolor: alpha("#8f7d66", 0.12) } };
 
   return (
@@ -35,11 +40,18 @@ function SelectionToolbar({ visible, x, y, onBold, onColor, onHighlight, onList,
         <Stack direction="row" alignItems="center" spacing={0.2}>
           <Tooltip title="Bold" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onBold} size="small" sx={iconSx}><FormatBoldRoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
           <Tooltip title="Text Color" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onColor} size="small" sx={iconSx}><ColorLensRoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
+          <Tooltip title="Font Family" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onFontFamily} size="small" sx={iconSx}><FontDownloadRoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
+          <Tooltip title="Increase Font Size" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onFontSizeIncrease} size="small" sx={iconSx}><TextIncreaseRoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
+          <Tooltip title="Decrease Font Size" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onFontSizeDecrease} size="small" sx={iconSx}><TextDecreaseRoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
           <Tooltip title="Highlight" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onHighlight} size="small" sx={iconSx}><HighlightRoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
           <Tooltip title="List" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onList} size="small" sx={iconSx}><FormatListBulletedRoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
+          <Tooltip title="To-do List" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onTodo} size="small" sx={iconSx}><CheckBoxOutlinedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
+          <Tooltip title="Insert Table" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onTable} size="small" sx={iconSx}><TableViewRoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
+          {/* Divider dot */}
+          <Box sx={{ width: 3, height: 3, borderRadius: "50%", bgcolor: alpha("#8f7d66", 0.3), mx: 0.3 }} />
           <Tooltip title="Add Link" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onLink} size="small" sx={iconSx}><LinkRoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
           <Tooltip title="Attach Image" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onImage} size="small" sx={iconSx}><ImageRoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
-          <Tooltip title="Attach Note" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onNote} size="small" sx={iconSx}><StickyNote2RoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
+          {/* <Tooltip title="Attach Note" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onNote} size="small" sx={iconSx}><StickyNote2RoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip> */}
 
           {/* Divider dot */}
           <Box sx={{ width: 3, height: 3, borderRadius: "50%", bgcolor: alpha("#8f7d66", 0.3), mx: 0.3 }} />
@@ -58,9 +70,16 @@ export default function DocbookOverlays({
   onHighlight,
   onClear,
   runCommand,
+  onInsertTodo,
+  onInsertTable,
   restoreSelectionRange,
   colorAnchorEl,
   setColorAnchorEl,
+  fontFamilyAnchorEl,
+  setFontFamilyAnchorEl,
+  onFontSizeIncrease,
+  onFontSizeDecrease,
+  changeFontFamily,
   linkAnchorEl,
   setLinkAnchorEl,
   linkDraft,
@@ -93,10 +112,24 @@ export default function DocbookOverlays({
           captureSelectionRange();
           setColorAnchorEl(event.currentTarget);
         }}
+        onFontFamily={(event) => {
+          captureSelectionRange();
+          setFontFamilyAnchorEl(event.currentTarget);
+        }}
+        onFontSizeIncrease={onFontSizeIncrease}
+        onFontSizeDecrease={onFontSizeDecrease}
         onHighlight={onHighlight}
         onList={(event) => {
           captureSelectionRange();
           setListMenuAnchorEl(event.currentTarget);
+        }}
+        onTodo={() => {
+          captureSelectionRange();
+          if (onInsertTodo) onInsertTodo();
+        }}
+        onTable={() => {
+          captureSelectionRange();
+          if (onInsertTable) onInsertTable();
         }}
         onLink={(event) => {
           captureSelectionRange();
@@ -121,19 +154,42 @@ export default function DocbookOverlays({
         <Stack direction="row" spacing={0.7}>
           {colorOptions.map((color) => (
             <IconButton
-              key={color}
+              key={color.value}
               size="small"
               onClick={() => {
                 restoreSelectionRange();
                 document.execCommand("styleWithCSS", false, true);
-                runCommand("foreColor", color);
+                runCommand("foreColor", color.value);
                 setColorAnchorEl(null);
               }}
-              sx={{ width: 24, height: 24, bgcolor: color, border: "1px solid rgba(0,0,0,0.16)", "&:hover": { opacity: 0.85 } }}
+              sx={{ width: 24, height: 24, bgcolor: color.value, border: "1px solid rgba(0,0,0,0.16)", "&:hover": { opacity: 0.85 } }}
             />
           ))}
         </Stack>
       </Popover>
+
+      <Menu open={Boolean(fontFamilyAnchorEl)} anchorEl={fontFamilyAnchorEl} onClose={() => setFontFamilyAnchorEl(null)} PaperProps={{ sx: { borderRadius: 2.2, border: "1px solid #ddd0c0", bgcolor: "#f6eee3", minWidth: 150, boxShadow: "0 12px 30px rgba(58, 46, 34, 0.18)" } }}>
+        {[
+          { label: "Default", value: "inherit" },
+          { label: "Serif", value: "Georgia, serif" },
+          { label: "Monospace", value: "monospace" },
+          { label: "Arial", value: "Arial, sans-serif" },
+          { label: "Times New Roman", value: "'Times New Roman', serif" },
+          { label: "Courier New", value: "'Courier New', monospace" },
+          { label: "Verdana", value: "Verdana, sans-serif" }
+        ].map((font) => (
+          <MenuItem
+            key={font.label}
+            onClick={() => {
+              changeFontFamily(font.value);
+              setFontFamilyAnchorEl(null);
+            }}
+            sx={{ fontSize: 13, color: "#3b342d", fontFamily: font.value }}
+          >
+            {font.label}
+          </MenuItem>
+        ))}
+      </Menu>
 
       <Popover open={Boolean(linkAnchorEl)} anchorEl={linkAnchorEl} onClose={() => { setLinkAnchorEl(null); setLinkDraft(""); }} anchorOrigin={{ vertical: "bottom", horizontal: "center" }} transformOrigin={{ vertical: "top", horizontal: "center" }} PaperProps={{ sx: { borderRadius: 2.2, p: 1.2, border: "1px solid #ddd0c0", bgcolor: "#f6eee3", minWidth: 300 } }}>
         <Stack spacing={1}>

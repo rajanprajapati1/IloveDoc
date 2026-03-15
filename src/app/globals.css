@@ -27,3 +27,42 @@ select,
 textarea {
   font: inherit;
 }
+
+
+/* GLOBAL CUSTOM SCROLLBAR */
+
+/* Chrome, Edge, Safari */
+::-webkit-scrollbar {
+  width: 10px;
+  /* vertical scrollbar width */
+  height: 10px;
+  /* horizontal scrollbar height */
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 4px;
+  /* top & bottom spacing */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c9c4bc;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #b5afa7;
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: #a8a39c;
+}
+
+/* remove arrows */
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}

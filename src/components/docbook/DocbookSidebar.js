@@ -112,6 +112,7 @@ function SidebarLink({ icon, label, active = false, onClick, badge, isDrawer, is
 
 function NoteTitleLink({
   note,
+  stickyNotes = [],
   active,
   onOpen,
   onDelete,
@@ -123,6 +124,7 @@ function NoteTitleLink({
   const title = note.title?.trim() || "Untitled";
   const preview = plainTextFromHtml(note.content) || "Empty note";
   const noteColor = note.color || "#F7E36D";
+  const stickyNoteCount = stickyNotes.length;
 
   const linkContent = (
     <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
@@ -134,10 +136,88 @@ function NoteTitleLink({
         disableHoverListener={isStickyDragging}
         enterDelay={350}
         title={
-          <Box sx={{ maxWidth: 260 }}>
-            <Typography sx={{ fontSize: 12.5, fontWeight: 800, lineHeight: 1.3, mb: 0.5 }}>{title}</Typography>
-            <Typography sx={{ fontSize: 12.5, lineHeight: 1.35 }}>{preview.slice(0, 140)}</Typography>
-            <Typography sx={{ fontSize: 10.5, mt: 0.6, opacity: 0.8 }}>{formatEditedAt(note.updatedAt)}</Typography>
+          <Box
+            sx={{
+              width: 290,
+              maxWidth: "100%",
+              borderRadius: 2.2,
+              overflow: "hidden",
+              bgcolor: "rgba(255, 249, 242, 0.96)",
+            }}
+          >
+            <Box
+              sx={{
+                px: 1.4,
+                py: 1.2,
+                background: `linear-gradient(135deg, ${alpha(noteColor, 0.4)} 0%, ${alpha("#fff7ef", 0.96)} 100%)`,
+                borderBottom: "1px solid rgba(138, 108, 76, 0.14)",
+              }}
+            >
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.6 }}>
+                <Box
+                  sx={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    bgcolor: noteColor,
+                    boxShadow: `0 0 0 3px ${alpha("#fffdf8", 0.92)}`,
+                  }}
+                />
+                <Typography sx={{ fontSize: 12.8, fontWeight: 800, lineHeight: 1.3, color: "#2f261f" }}>{title}</Typography>
+              </Stack>
+              <Typography sx={{ fontSize: 12, lineHeight: 1.45, color: "#53483f" }}>{preview.slice(0, 150)}</Typography>
+              <Typography sx={{ fontSize: 10.5, mt: 0.75, color: "#8a7664", fontWeight: 600 }}>{formatEditedAt(note.updatedAt)}</Typography>
+            </Box>
+
+            <Box sx={{ px: 1.4, py: 1.15 }}>
+              <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: stickyNoteCount ? 0.95 : 0 }}>
+                <Box
+                  sx={{
+                    display: "grid",
+                    placeItems: "center",
+                    width: 22,
+                    height: 22,
+                    borderRadius: 1.2,
+                    bgcolor: alpha("#d97706", 0.12),
+                    color: "#b86616",
+                  }}
+                >
+                  <ListAltRoundedIcon sx={{ fontSize: 15 }} />
+                </Box>
+                <Typography sx={{ fontSize: 11.8, fontWeight: 800, color: "#4b3d33", letterSpacing: "0.03em", textTransform: "uppercase" }}>
+                  Sticky Notes {stickyNoteCount ? `(${stickyNoteCount})` : ""}
+                </Typography>
+              </Stack>
+
+              {stickyNoteCount ? (
+                <Stack spacing={0.7} sx={{ maxHeight: 190, overflowY: "auto", pr: 0.35 }}>
+                  {stickyNotes.map((sticky) => (
+                    <Box
+                      key={sticky.id}
+                      sx={{
+                        px: 1,
+                        py: 0.9,
+                        borderRadius: 1.6,
+                        background: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(250,241,231,0.94) 100%)",
+                        border: "1px solid rgba(153, 119, 83, 0.12)",
+                        boxShadow: "0 8px 18px rgba(93, 62, 40, 0.06)",
+                      }}
+                    >
+                      <Typography sx={{ fontSize: 11.8, fontWeight: 700, color: "#382f28", lineHeight: 1.3 }}>
+                        {(sticky.title || "Untitled sticky note").trim()}
+                      </Typography>
+                      <Typography sx={{ fontSize: 11, mt: 0.35, color: "#6d6055", lineHeight: 1.4 }}>
+                        {(sticky.content || "Empty sticky note").trim().slice(0, 90)}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              ) : (
+                <Typography sx={{ fontSize: 11.5, color: "#8b7968", lineHeight: 1.45 }}>
+                  No sticky notes linked to this note yet.
+                </Typography>
+              )}
+            </Box>
           </Box>
         }
       >
@@ -268,6 +348,7 @@ function DeletedNoteItem({ note, onRestore, onPermanentlyDelete, isDrawer }) {
 export default function DocbookSidebar({
   notes,
   deletedNotes = [],
+  stickyNotes = [],
   activeNoteId,
   sidebarTint = "#F7E36D",
   showDeleted,
@@ -517,6 +598,7 @@ export default function DocbookSidebar({
                 <NoteTitleLink
                   key={note.id}
                   note={note}
+                  stickyNotes={stickyNotes.filter((stickyNote) => stickyNote.noteId === note.id)}
                   active={note.id === activeNoteId}
                   isStickyDragging={Boolean(stickyDragState?.stickyId)}
                   isStickyDropTarget={stickyDragState?.targetNoteId === note.id}

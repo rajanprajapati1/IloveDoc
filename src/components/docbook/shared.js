@@ -1,4 +1,5 @@
 export const stickyColorOptions = [
+  { value: "#FFFFFF", label: "White", ink: "#2d2d2d", shade: "#e8e8e8", edge: "#ffffff", pin: "#d4d4d4" },
   { value: "#F7E36D", label: "Butter", ink: "#3C2B12", shade: "#DEBF49", edge: "#FFF6B5", pin: "#C98B11" },
   { value: "#FFB56A", label: "Apricot", ink: "#482713", shade: "#E98B43", edge: "#FFD6A8", pin: "#D96A1D" },
   { value: "#FF7E73", label: "Coral", ink: "#4B1F1B", shade: "#E35D52", edge: "#FFC0B7", pin: "#C83F34" },

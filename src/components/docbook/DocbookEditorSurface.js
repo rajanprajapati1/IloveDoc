@@ -28,6 +28,7 @@ export default function DocbookEditorSurface({
   onEditorBlur,
   onEditorSelectionChange,
   onEditorClick,
+  onEditorDoubleClick,
   onEditorMouseMove,
   onEditorMouseLeave,
   onEditorDragOver,
@@ -35,6 +36,7 @@ export default function DocbookEditorSurface({
   onEditorDrop,
   onOpenSelectionPanel,
   onPasteImage,
+  onNoteFontSizeDecrease,
   onFontSizeDecrease,
   onAddStickyNote,
   onOpenStickyNote,
@@ -43,6 +45,7 @@ export default function DocbookEditorSurface({
   onStickyDragStateChange,
   onDeleteStickyNote,
   onNoteColorChange,
+  onNoteFontSizeIncrease,
   onFontSizeIncrease,
   syncBadgeState,
   collapseSidebar
@@ -82,6 +85,9 @@ export default function DocbookEditorSurface({
     return `Synced ${diffDays}d ago`;
   };
 
+  const handleTopFontDecrease = onNoteFontSizeDecrease || onFontSizeDecrease;
+  const handleTopFontIncrease = onNoteFontSizeIncrease || onFontSizeIncrease;
+
   const refreshEditorScrollState = useCallback(() => {
     const editor = editorRef?.current;
     if (!editor) return;
@@ -104,9 +110,70 @@ export default function DocbookEditorSurface({
       return next;
     });
   }, [editorRef]);
-  const stickySuggestions =
-    slashMenu.query && "note".includes(slashMenu.query.toLowerCase().replace("/", ""))
-      ? [
+  // -- Date Suggestions Logic --
+  const getDateSuggestions = useCallback((query) => {
+    const today = new Date();
+    
+    // Helper to format date in different ways
+    const getFormatsForDate = (date) => {
+      return [
+        date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), // Mar 16, 2026
+        date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }), // Monday, March 16, 2026
+        `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`, // 3/16/2026
+        `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` // 2026-03-16
+      ];
+    };
+
+    let targetDate = new Date(today);
+    let dateLabelPrefix = "";
+    let isRelativeQuery = false;
+
+    // Handle relative queries or default to today
+    const lowerQuery = query.toLowerCase();
+    if (lowerQuery.includes('tom')) {
+      targetDate.setDate(today.getDate() + 1);
+      dateLabelPrefix = "Tomorrow";
+      isRelativeQuery = true;
+    } else if (lowerQuery.includes('yes')) {
+      targetDate.setDate(today.getDate() - 1);
+      dateLabelPrefix = "Yesterday";
+      isRelativeQuery = true;
+    } else {
+      // Check for 'X days ago' or 'in X days'
+      let match = lowerQuery.match(/(\d+)\s*d(?:ay(?:s)?)?\s*ago/);
+      if (match) {
+        targetDate.setDate(today.getDate() - parseInt(match[1], 10));
+        dateLabelPrefix = `${match[1]} Days Ago`;
+        isRelativeQuery = true;
+      } else {
+        match = lowerQuery.match(/in\s*(\d+)\s*d(?:ay(?:s)?)?/);
+        if (match) {
+           targetDate.setDate(today.getDate() + parseInt(match[1], 10));
+           dateLabelPrefix = `In ${match[1]} Days`;
+           isRelativeQuery = true;
+        } else if (!lowerQuery.replace(/[\/date\s]/g, "")) {
+           dateLabelPrefix = "Today";
+        }
+      }
+    }
+
+    const formats = getFormatsForDate(targetDate);
+    return formats.map((format, index) => ({
+      id: `date-${index}`,
+      kind: "date",
+      label: format,
+      description: dateLabelPrefix ? `${dateLabelPrefix} (${format})` : format,
+      value: format
+    }));
+  }, []);
+
+  const activeSuggestions = (() => {
+    // Determine which suggestions to show based on the token/query
+    let results = [];
+    const cleanQuery = slashMenu.query.toLowerCase().replace("/", "");
+    
+    if (slashMenu.query.startsWith("/note") || "note".includes(cleanQuery)) {
+      results.push(
         { id: "create-sticky-note", kind: "create", label: "Create sticky note", description: "Open a new sticky note for this page" },
         ...stickyNotes
           .filter((note) => note.noteId === activeNote?.id)
@@ -115,9 +182,16 @@ export default function DocbookEditorSurface({
             kind: "existing",
             label: note.title?.trim() || "Untitled sticky note",
             description: "Open existing sticky note",
-          })),
-      ]
-      : [];
+          }))
+      );
+    }
+    
+    if (slashMenu.query.startsWith("/date") || "date".includes(cleanQuery)) {
+       results.push(...getDateSuggestions(cleanQuery.replace("date", "").trim()));
+    }
+
+    return results;
+  })();
 
   const closeSlashMenu = useCallback(() => {
     setSlashMenu((prev) => (prev.visible ? { ...prev, visible: false, selectedIndex: 0 } : prev));
@@ -157,7 +231,8 @@ export default function DocbookEditorSurface({
     }
 
     const query = context.token.toLowerCase();
-    if (!"note".includes(query.replace("/", ""))) {
+    const noSlash = query.replace("/", "");
+    if (!"note".includes(noSlash) && !"date".includes(noSlash)) {
       closeSlashMenu();
       return;
     }
@@ -168,20 +243,35 @@ export default function DocbookEditorSurface({
       y: context.rect.bottom + 10,
       query,
       token: context.token,
-      selectedIndex: prev.token === context.token ? Math.min(prev.selectedIndex, Math.max(stickySuggestions.length - 1, 0)) : 0,
+      // Reset selectedIndex if the token changed, otherwise keep it but clamp it to the activeSuggestions length
+      selectedIndex: prev.token === context.token ? Math.min(prev.selectedIndex, Math.max(0, 10)) : 0, 
     }));
-  }, [closeSlashMenu, getSlashCommandContext, stickySuggestions.length]);
+  }, [closeSlashMenu, getSlashCommandContext]); // NOTE: activeSuggestions length handling moved to render/apply time constraints since it's derived now
 
   const applySlashSuggestion = useCallback(
     (item) => {
       const context = getSlashCommandContext();
       if (context?.textNode) {
         const currentText = context.textNode.textContent || "";
-        context.textNode.textContent = `${currentText.slice(0, context.startIndex)}${currentText.slice(context.endIndex)}`;
+        let newTextContent = "";
+
+        if (item.kind === "date") {
+           newTextContent = `${currentText.slice(0, context.startIndex)}${item.value}${currentText.slice(context.endIndex)}`;
+        } else {
+           newTextContent = `${currentText.slice(0, context.startIndex)}${currentText.slice(context.endIndex)}`;
+        }
+
+        context.textNode.textContent = newTextContent;
 
         const nextRange = document.createRange();
         const nextSelection = window.getSelection();
-        nextRange.setStart(context.textNode, Math.min(context.startIndex, context.textNode.textContent.length));
+        
+        let cursorOffset = context.startIndex;
+        if (item.kind === "date") {
+            cursorOffset += item.value.length;
+        }
+
+        nextRange.setStart(context.textNode, Math.min(cursorOffset, context.textNode.textContent.length));
         nextRange.collapse(true);
         nextSelection?.removeAllRanges();
         nextSelection?.addRange(nextRange);
@@ -195,7 +285,9 @@ export default function DocbookEditorSurface({
         return;
       }
 
-      onOpenStickyNote?.(item.id);
+      if (item.kind === "existing") {
+        onOpenStickyNote?.(item.id);
+      }
     },
     [closeSlashMenu, getSlashCommandContext, onAddStickyNote, onEditorInput, onOpenStickyNote]
   );
@@ -394,15 +486,15 @@ export default function DocbookEditorSurface({
     (event) => {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
 
-      if (slashMenu.visible && stickySuggestions.length > 0) {
+      if (slashMenu.visible && activeSuggestions.length > 0) {
         if (event.key === "ArrowDown") {
           event.preventDefault();
-          setSlashMenu((prev) => ({ ...prev, selectedIndex: (prev.selectedIndex + 1) % stickySuggestions.length }));
+          setSlashMenu((prev) => ({ ...prev, selectedIndex: (prev.selectedIndex + 1) % activeSuggestions.length }));
           return;
         }
         if (event.key === "ArrowUp") {
           event.preventDefault();
-          setSlashMenu((prev) => ({ ...prev, selectedIndex: (prev.selectedIndex - 1 + stickySuggestions.length) % stickySuggestions.length }));
+          setSlashMenu((prev) => ({ ...prev, selectedIndex: (prev.selectedIndex - 1 + activeSuggestions.length) % activeSuggestions.length }));
           return;
         }
         if (event.key === "Escape") {
@@ -412,7 +504,7 @@ export default function DocbookEditorSurface({
         }
         if (event.key === "Enter" || event.key === "Tab") {
           event.preventDefault();
-          applySlashSuggestion(stickySuggestions[slashMenu.selectedIndex] || stickySuggestions[0]);
+          applySlashSuggestion(activeSuggestions[slashMenu.selectedIndex] || activeSuggestions[0]);
           return;
         }
       }
@@ -424,6 +516,48 @@ export default function DocbookEditorSurface({
       if (!node) return;
 
       const isEnter = event.key === "Enter";
+
+      /* ── Escape standard lists (ul/ol) on Enter if empty ── */
+      if (isEnter) {
+        const liNode = node.nodeType === 3 ? node.parentElement : node;
+        const li = liNode?.closest?.("li");
+        if (li) {
+          const list = li.closest("ul, ol");
+          // If the list item is effectively empty (just whitespace or zero width space or empty br)
+          const isEmpty = !li.textContent.trim() || li.textContent === "\u200B";
+          
+          if (isEmpty) {
+            event.preventDefault();
+            
+            // Create a new paragraph to place cursor
+            const p = document.createElement("p");
+            p.innerHTML = "<br>";
+            
+            // Insert it after the entire list
+            if (list && list.parentNode) {
+                list.parentNode.insertBefore(p, list.nextSibling);
+            }
+            
+            // Remove the empty list item
+            li.parentNode.removeChild(li);
+            
+            // If the list is now empty, remove the whole list element
+            if (list && list.children.length === 0 && list.parentNode) {
+                list.parentNode.removeChild(list);
+            }
+            
+            // Move cursor to the new paragraph
+            const newRange = document.createRange();
+            newRange.setStart(p, 0);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+            
+            if (onEditorInput) onEditorInput();
+            return;
+          }
+        }
+      }
 
       /* ── Escape Table on Enter or add new line inside td/th ── */
       if (isEnter) {
@@ -548,7 +682,7 @@ export default function DocbookEditorSurface({
         const newRange = document.createRange();
         if (span.nextSibling) {
           if (span.nextSibling.nodeType === 3) {
-            newRange.setStart(span.nextSibling, Math.min(1, span.nextSibling.length));
+            newRange.setStart(span.nextSibling, 0);
           } else {
             newRange.setStartAfter(span);
           }
@@ -568,7 +702,7 @@ export default function DocbookEditorSurface({
         const newRange = document.createRange();
         if (span.previousSibling) {
           if (span.previousSibling.nodeType === 3) {
-            newRange.setStart(span.previousSibling, Math.max(0, span.previousSibling.length - 1));
+            newRange.setStart(span.previousSibling, span.previousSibling.length);
           } else {
             newRange.setStartBefore(span);
           }
@@ -588,8 +722,23 @@ export default function DocbookEditorSurface({
 
       event.preventDefault();
 
+      if (isEnter) {
+        const newRange = document.createRange();
+        if (isAtEnd) {
+          newRange.setStartAfter(span);
+        } else {
+          newRange.setStartBefore(span);
+        }
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        document.execCommand("insertLineBreak", false, null);
+        if (onEditorInput) onEditorInput();
+        return;
+      }
+
       /* Create text node outside the span */
-      const content = isEnter ? "\n" : event.key;
+      const content = event.key;
       const textNode = document.createTextNode(content);
 
       if (isAtEnd) {
@@ -610,7 +759,7 @@ export default function DocbookEditorSurface({
 
       if (onEditorInput) onEditorInput();
     },
-    [applySlashSuggestion, closeSlashMenu, onEditorInput, slashMenu.selectedIndex, slashMenu.visible, stickySuggestions]
+    [applySlashSuggestion, closeSlashMenu, onEditorInput, slashMenu.selectedIndex, slashMenu.visible, activeSuggestions]
   );
 
   return (
@@ -808,13 +957,13 @@ export default function DocbookEditorSurface({
               );
             })}
           </Stack>
-          <Tooltip title="Decrease Font Size" arrow slotProps={tooltipSlotProps}>
-            <IconButton onClick={onFontSizeDecrease} size="small" sx={{ color: "#8b5e3c", bgcolor: alpha("#fffdf8", 0.76), border: "1px solid rgba(139,94,60,0.12)", boxShadow: "0 6px 18px rgba(93,62,40,0.08)", "&:hover": { bgcolor: alpha("#8b5e3c", 0.1) } }}>
+          <Tooltip title="Decrease Note Size" arrow slotProps={tooltipSlotProps}>
+            <IconButton onMouseDown={(event) => event.preventDefault()} onClick={handleTopFontDecrease} size="small" sx={{ color: "#8b5e3c", bgcolor: alpha("#fffdf8", 0.76), border: "1px solid rgba(139,94,60,0.12)", boxShadow: "0 6px 18px rgba(93,62,40,0.08)", "&:hover": { bgcolor: alpha("#8b5e3c", 0.1) } }}>
               <TextDecreaseRoundedIcon sx={{ fontSize: 20 }} />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Increase Font Size" arrow slotProps={tooltipSlotProps}>
-            <IconButton onClick={onFontSizeIncrease} size="small" sx={{ color: "#8b5e3c", bgcolor: alpha("#fffdf8", 0.76), border: "1px solid rgba(139,94,60,0.12)", boxShadow: "0 6px 18px rgba(93,62,40,0.08)", "&:hover": { bgcolor: alpha("#8b5e3c", 0.1) } }}>
+          <Tooltip title="Increase Note Size" arrow slotProps={tooltipSlotProps}>
+            <IconButton onMouseDown={(event) => event.preventDefault()} onClick={handleTopFontIncrease} size="small" sx={{ color: "#8b5e3c", bgcolor: alpha("#fffdf8", 0.76), border: "1px solid rgba(139,94,60,0.12)", boxShadow: "0 6px 18px rgba(93,62,40,0.08)", "&:hover": { bgcolor: alpha("#8b5e3c", 0.1) } }}>
               <TextIncreaseRoundedIcon sx={{ fontSize: 20 }} />
             </IconButton>
           </Tooltip>
@@ -847,6 +996,7 @@ export default function DocbookEditorSurface({
           {imageEntries.length > 0 && (
             <Tooltip title="View images & selection" arrow slotProps={tooltipSlotProps}>
               <IconButton
+                onMouseDown={(event) => event.preventDefault()}
                 onClick={onOpenSelectionPanel}
                 size="small"
                 sx={{
@@ -921,6 +1071,7 @@ export default function DocbookEditorSurface({
           onMouseUp={handleMouseUp}
           onKeyUp={handleKeyUp}
           onClick={handleClick}
+          onDoubleClick={onEditorDoubleClick}
           onMouseMove={onEditorMouseMove}
           onMouseLeave={onEditorMouseLeave}
           onDragOver={handleDragOver}
@@ -983,11 +1134,13 @@ export default function DocbookEditorSurface({
 
             /* Highlight (warm gradient pill) */
             "& span[data-highlight]": {
+              display: "inline",
               borderRadius: "10px",
               paddingInline: "0.24em",
-              paddingBlock: "0.05em",
+              paddingBlock: 0,
               background: "linear-gradient(135deg, #5c3d2e 0%, #8b5e3c 100%)",
               color: "#fff8f0",
+              lineHeight: "inherit",
               boxDecorationBreak: "clone",
               WebkitBoxDecorationBreak: "clone",
               cursor: "pointer",
@@ -1068,10 +1221,10 @@ export default function DocbookEditorSurface({
             position: "fixed",
             left: slashMenu.x,
             top: slashMenu.y,
-            opacity: slashMenu.visible && stickySuggestions.length > 0 ? 1 : 0,
-            transform: slashMenu.visible && stickySuggestions.length > 0 ? "translateY(0)" : "translateY(6px)",
+            opacity: slashMenu.visible && activeSuggestions.length > 0 ? 1 : 0,
+            transform: slashMenu.visible && activeSuggestions.length > 0 ? "translateY(0)" : "translateY(6px)",
             transition: "opacity 140ms ease, transform 140ms ease",
-            pointerEvents: slashMenu.visible && stickySuggestions.length > 0 ? "auto" : "none",
+            pointerEvents: slashMenu.visible && activeSuggestions.length > 0 ? "auto" : "none",
             zIndex: 1600,
           }}
         >
@@ -1099,7 +1252,7 @@ export default function DocbookEditorSurface({
               <KeyboardOptionKeyRoundedIcon sx={{ color: "#6a5a49", fontSize: 16 }} />
             </Box>
             <Stack spacing={0} sx={{ py: 0.5 }}>
-              {stickySuggestions.map((item, index) => (
+              {activeSuggestions.map((item, index) => (
                 <Box
                   key={item.id}
                   onMouseDown={(event) => {

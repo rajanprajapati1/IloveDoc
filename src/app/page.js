@@ -20,6 +20,7 @@ import {
   createStickyNote,
   defaultNoteContent,
   isExpiredDelete,
+  plainTextFromHtml,
   stickyColorOptions,
   uncheckedIconSvg,
   checkedIconSvg,
@@ -30,6 +31,8 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+const highlightBlockSelector = "li, p, div, td, th, blockquote, h1, h2, h3, h4, h5, h6";
+
 export default function Home() {
   const editorRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -37,6 +40,7 @@ export default function Home() {
   const objectUrlMapRef = useRef({});
   const autoSyncTimerRef = useRef(null);
   const hasHydratedChangeTrackerRef = useRef(false);
+  const commandSearchInputRef = useRef(null);
 
   const [notes, setNotes] = useState([]);
   const [stickyNotes, setStickyNotes] = useState([]);
@@ -74,12 +78,28 @@ export default function Home() {
     lastSyncAt: "",
     lastLocalChangeAt: "",
   });
+  const [commandSearchOpen, setCommandSearchOpen] = useState(false);
+  const [commandSearchQuery, setCommandSearchQuery] = useState("");
+  const [commandSearchIndex, setCommandSearchIndex] = useState(0);
 
   const activeNotes = useMemo(() => notes.filter((note) => !note.deletedAt), [notes]);
   const deletedNotes = useMemo(() => notes.filter((note) => note.deletedAt && !isExpiredDelete(note.deletedAt)), [notes]);
   const activeNote = useMemo(() => activeNotes.find((note) => note.id === activeNoteId) || activeNotes[0] || null, [activeNotes, activeNoteId]);
   const activeNoteStickyNotes = useMemo(() => stickyNotes.filter((note) => note.noteId === activeNoteId), [stickyNotes, activeNoteId]);
   const activeNoteTint = activeNote?.color || "#F7E36D";
+  const commandSearchResults = useMemo(() => {
+    const normalized = commandSearchQuery.trim().toLowerCase();
+    const sorted = [...activeNotes].sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+    if (!normalized) return sorted.slice(0, 10);
+
+    return sorted
+      .filter((note) => {
+        const title = (note.title || "").toLowerCase();
+        const contentText = plainTextFromHtml(note.content || "").toLowerCase();
+        return title.includes(normalized) || contentText.includes(normalized);
+      })
+      .slice(0, 30);
+  }, [activeNotes, commandSearchQuery]);
 
   const refreshSyncBadgeState = useCallback((overrides = {}) => {
     try {
@@ -137,6 +157,194 @@ export default function Home() {
     selection.addRange(range);
     return true;
   }, []);
+
+  const unwrapHighlightSpan = useCallback((highlightSpan) => {
+    if (!highlightSpan?.parentNode) return false;
+
+    const parent = highlightSpan.parentNode;
+    while (highlightSpan.firstChild) {
+      parent.insertBefore(highlightSpan.firstChild, highlightSpan);
+    }
+    parent.removeChild(highlightSpan);
+    parent.normalize();
+    return true;
+  }, []);
+
+  const getSelectionBlock = useCallback((node, editor) => {
+    const element = node?.nodeType === 3 ? node.parentElement : node;
+    return element?.closest?.(highlightBlockSelector) || editor;
+  }, []);
+
+  const isRangeInsideSingleBlock = useCallback(
+    (range) => {
+      const editor = editorRef.current;
+      if (!editor || !range) return false;
+
+      const startBlock = getSelectionBlock(range.startContainer, editor);
+      const endBlock = getSelectionBlock(range.endContainer, editor);
+      return Boolean(startBlock && endBlock && startBlock === endBlock);
+    },
+    [getSelectionBlock]
+  );
+
+  const isRangeInsideEditor = useCallback((range) => {
+    const editor = editorRef.current;
+    if (!editor || !range) return false;
+
+    const commonNode =
+      range.commonAncestorContainer.nodeType === 3
+        ? range.commonAncestorContainer.parentNode
+        : range.commonAncestorContainer;
+
+    return Boolean(commonNode && editor.contains(commonNode));
+  }, []);
+
+  const getLiveEditorRange = useCallback(
+    (allowCollapsed = true) => {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return null;
+
+      const range = selection.getRangeAt(0);
+      if (!allowCollapsed && range.collapsed) return null;
+      return isRangeInsideEditor(range) ? range.cloneRange() : null;
+    },
+    [isRangeInsideEditor]
+  );
+
+  const getSavedEditorRange = useCallback(
+    (allowCollapsed = true) => {
+      const range = savedSelectionRangeRef.current;
+      if (!range) return null;
+      if (!allowCollapsed && range.collapsed) return null;
+      return isRangeInsideEditor(range) ? range.cloneRange() : null;
+    },
+    [isRangeInsideEditor]
+  );
+
+  const getPreferredEditorRange = useCallback(
+    ({ allowCollapsed = true, preferSaved = false, explicitRange = null } = {}) => {
+      if (explicitRange) {
+        if (!allowCollapsed && explicitRange.collapsed) return null;
+        return isRangeInsideEditor(explicitRange) ? explicitRange.cloneRange() : null;
+      }
+
+      const getters = preferSaved ? [getSavedEditorRange, getLiveEditorRange] : [getLiveEditorRange, getSavedEditorRange];
+      for (const getRange of getters) {
+        const range = getRange(allowCollapsed);
+        if (range) return range;
+      }
+
+      return null;
+    },
+    [getLiveEditorRange, getSavedEditorRange, isRangeInsideEditor]
+  );
+
+  const selectEditorRange = useCallback(
+    (range) => {
+      const selection = window.getSelection();
+      if (!selection || !range || !isRangeInsideEditor(range)) return null;
+
+      const nextRange = range.cloneRange();
+      selection.removeAllRanges();
+      selection.addRange(nextRange);
+      return nextRange;
+    },
+    [isRangeInsideEditor]
+  );
+
+  const persistImageFile = useCallback(
+    async (file, fallbackType = "image/*") => {
+      const imageId = buildId();
+      const fileName = file.name || `image-${Date.now()}.png`;
+
+      await docbookDb.images.put({
+        id: imageId,
+        noteId: activeNoteId,
+        blob: file,
+        name: fileName,
+        mimeType: file.type || fallbackType,
+        createdAt: new Date().toISOString(),
+      });
+
+      const nextMap = { ...objectUrlMapRef.current, [imageId]: URL.createObjectURL(file) };
+      objectUrlMapRef.current = nextMap;
+      setImageUrlMap(nextMap);
+
+      return { imageId, fileName };
+    },
+    [activeNoteId]
+  );
+
+  const removeStoredImage = useCallback(async (imageId) => {
+    const currentMap = objectUrlMapRef.current;
+    const currentUrl = currentMap[imageId];
+    if (currentUrl) {
+      URL.revokeObjectURL(currentUrl);
+      const nextMap = { ...currentMap };
+      delete nextMap[imageId];
+      objectUrlMapRef.current = nextMap;
+      setImageUrlMap(nextMap);
+    }
+
+    await docbookDb.images.delete(imageId).catch(() => { });
+  }, []);
+
+  const insertImageTokenAtRange = useCallback(
+    ({ range, imageId, label, mode }) => {
+      const selection = window.getSelection();
+      const activeRange = selectEditorRange(range);
+      if (!selection || !activeRange) return false;
+
+      const token = document.createElement("span");
+      token.setAttribute("data-img-ref", imageId);
+      token.setAttribute("data-img-label", label || "image");
+
+      if (mode === "insert" || activeRange.collapsed) {
+        token.textContent = "📷";
+        activeRange.collapse(false);
+        activeRange.insertNode(token);
+      } else {
+        try {
+          activeRange.surroundContents(token);
+        } catch {
+          const fragment = activeRange.extractContents();
+          token.appendChild(fragment);
+          activeRange.insertNode(token);
+        }
+      }
+
+      const afterRange = document.createRange();
+      afterRange.setStartAfter(token);
+      afterRange.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(afterRange);
+      savedSelectionRangeRef.current = afterRange.cloneRange();
+      return true;
+    },
+    [selectEditorRange]
+  );
+
+  const addImageToEditor = useCallback(
+    async (file, { mode = "attach", preferSaved = false, explicitRange = null, fallbackType = "image/*", fallbackLabel = "" } = {}) => {
+      if (!activeNoteId || !file) return false;
+
+      const range = getPreferredEditorRange({ allowCollapsed: true, preferSaved, explicitRange });
+      if (!range) return false;
+
+      const label = range.toString().trim() || fallbackLabel || file.name || "image";
+      const { imageId } = await persistImageFile(file, fallbackType);
+
+      if (!insertImageTokenAtRange({ range, imageId, label, mode })) {
+        await removeStoredImage(imageId);
+        return false;
+      }
+
+      syncEditorHtml();
+      window.requestAnimationFrame(updateSelectionMenuPosition);
+      return true;
+    },
+    [activeNoteId, getPreferredEditorRange, insertImageTokenAtRange, persistImageFile, removeStoredImage]
+  );
 
   const updateSelectionMenuPosition = useCallback(() => {
     const editor = editorRef.current;
@@ -389,6 +597,10 @@ export default function Home() {
 
   const attachImageToSelection = useCallback(
     async (file) => {
+      restoreSelectionRange();
+      await addImageToEditor(file, { mode: imageMode, preferSaved: true });
+      return;
+
       if (!activeNoteId || !file) return;
 
       const imageId = buildId();
@@ -450,7 +662,7 @@ export default function Home() {
       syncEditorHtml();
       window.requestAnimationFrame(updateSelectionMenuPosition);
     },
-    [activeNoteId, imageMode, restoreSelectionRange, syncEditorHtml, updateSelectionMenuPosition]
+    [activeNoteId, addImageToEditor, imageMode, restoreSelectionRange, syncEditorHtml, updateSelectionMenuPosition]
   );
 
   const handleEditorSelectionChange = useCallback(() => {
@@ -461,18 +673,6 @@ export default function Home() {
   const handleEditorClick = useCallback(
     (event) => {
       /* Double-click on highlight → remove the highlight */
-      if (event.detail === 2) {
-        const highlightSpan = event.target.closest?.("[data-highlight]");
-        if (highlightSpan && editorRef.current?.contains(highlightSpan)) {
-          const parent = highlightSpan.parentNode;
-          while (highlightSpan.firstChild) parent.insertBefore(highlightSpan.firstChild, highlightSpan);
-          parent.removeChild(highlightSpan);
-          parent.normalize();
-          syncEditorHtml();
-          return;
-        }
-      }
-
       /* Handle Todo checkbox click */
       const todoCheckbox = event.target.closest?.("[data-todo-checkbox]");
       if (todoCheckbox && editorRef.current?.contains(todoCheckbox)) {
@@ -501,6 +701,23 @@ export default function Home() {
       }
     },
     [hideHoverPreview, syncEditorHtml]
+  );
+
+  const handleEditorDoubleClick = useCallback(
+    (event) => {
+      const highlightSpan = event.target.closest?.("[data-highlight]");
+      if (!highlightSpan || !editorRef.current?.contains(highlightSpan)) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      window.getSelection()?.removeAllRanges();
+
+      if (unwrapHighlightSpan(highlightSpan)) {
+        hideSelectionMenu();
+        syncEditorHtml();
+      }
+    },
+    [hideSelectionMenu, syncEditorHtml, unwrapHighlightSpan]
   );
 
   /* Removed hover image preview per user request - handle only note refs on move */
@@ -554,6 +771,26 @@ export default function Home() {
 
       const files = event.dataTransfer.files;
       if (files && files.length > 0) {
+        let nextRange = range ? range.cloneRange() : getPreferredEditorRange({ allowCollapsed: true });
+        let handledImageDrop = false;
+
+        for (const file of files) {
+          if (!file.type.startsWith("image/")) continue;
+
+          handledImageDrop = true;
+          const inserted = await addImageToEditor(file, {
+            mode: "insert",
+            explicitRange: nextRange,
+            fallbackLabel: file.name || "image",
+          });
+
+          if (inserted) {
+            nextRange = getPreferredEditorRange({ allowCollapsed: true });
+          }
+        }
+
+        if (handledImageDrop) return;
+
         for (const file of files) {
           if (file.type.startsWith("image/")) {
             const imageId = buildId();
@@ -602,24 +839,29 @@ export default function Home() {
         syncEditorHtml();
       }
     },
-    [activeNoteId, syncEditorHtml]
+    [activeNoteId, addImageToEditor, getPreferredEditorRange, syncEditorHtml]
   );
 
   const handleHighlight = useCallback(() => {
     const selection = window.getSelection();
-    if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
+    const editor = editorRef.current;
+    if (!selection || !editor || selection.isCollapsed || selection.rangeCount === 0) return;
 
     const range = selection.getRangeAt(0);
+    const commonNode =
+      range.commonAncestorContainer.nodeType === 3
+        ? range.commonAncestorContainer.parentNode
+        : range.commonAncestorContainer;
+
+    if (!commonNode || !editor.contains(commonNode) || !isRangeInsideSingleBlock(range)) return;
+
     const parentHighlight =
       range.startContainer.nodeType === 3
         ? range.startContainer.parentElement?.closest("[data-highlight]")
         : range.startContainer.closest?.("[data-highlight]");
 
-    if (parentHighlight && editorRef.current?.contains(parentHighlight)) {
-      const parent = parentHighlight.parentNode;
-      while (parentHighlight.firstChild) parent.insertBefore(parentHighlight.firstChild, parentHighlight);
-      parent.removeChild(parentHighlight);
-      parent.normalize();
+    if (parentHighlight && editor.contains(parentHighlight)) {
+      unwrapHighlightSpan(parentHighlight);
       syncEditorHtml();
       return;
     }
@@ -644,7 +886,7 @@ export default function Home() {
 
     syncEditorHtml();
     window.requestAnimationFrame(updateSelectionMenuPosition);
-  }, [syncEditorHtml, updateSelectionMenuPosition]);
+  }, [isRangeInsideSingleBlock, syncEditorHtml, unwrapHighlightSpan, updateSelectionMenuPosition]);
 
   const handleClear = useCallback(() => {
     const editor = editorRef.current;
@@ -751,9 +993,25 @@ export default function Home() {
     window.requestAnimationFrame(updateSelectionMenuPosition);
   }, [restoreSelectionRange, syncEditorHtml, updateCurrentNote, updateSelectionMenuPosition]);
 
+  const handleNoteFontScaleIncrease = useCallback(() => {
+    updateCurrentNote((note) => ({ ...note, fontScale: clamp((note.fontScale || 1) + 0.08, 0.72, 1.55) }));
+  }, [updateCurrentNote]);
+
+  const handleNoteFontScaleDecrease = useCallback(() => {
+    updateCurrentNote((note) => ({ ...note, fontScale: clamp((note.fontScale || 1) - 0.08, 0.72, 1.55) }));
+  }, [updateCurrentNote]);
+
   /* Handle paste image from clipboard (PrtSc, Ctrl+V with image) */
   const handlePasteImage = useCallback(
     async (file) => {
+      const fallbackImageLabel = file?.name || `screenshot-${Date.now()}.png`;
+      await addImageToEditor(file, {
+        mode: "attach",
+        fallbackType: "image/png",
+        fallbackLabel: fallbackImageLabel,
+      });
+      return;
+
       if (!activeNoteId || !file) return;
 
       const imageId = buildId();
@@ -818,14 +1076,13 @@ export default function Home() {
       syncEditorHtml();
       window.requestAnimationFrame(updateSelectionMenuPosition);
     },
-    [activeNoteId, syncEditorHtml, updateSelectionMenuPosition]
+    [activeNoteId, addImageToEditor, syncEditorHtml, updateSelectionMenuPosition]
   );
 
   /* Open selection panel with current selection content */
   const handleOpenSelectionPanel = useCallback(() => {
-    const selection = window.getSelection();
-    if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
+    const range = getPreferredEditorRange({ allowCollapsed: false, preferSaved: true });
+    if (range) {
       const fragment = range.cloneContents();
       const tempDiv = document.createElement("div");
       tempDiv.appendChild(fragment);
@@ -834,7 +1091,7 @@ export default function Home() {
       setSelectionContent("");
     }
     setSelectionPanelOpen(true);
-  }, []);
+  }, [getPreferredEditorRange]);
 
   /* Import notes from cloud */
   const handleImportNotes = useCallback(async (cloudNotes) => {
@@ -1059,7 +1316,39 @@ export default function Home() {
     hideHoverPreview();
   }, [activeNoteId, hideSelectionMenu, hideHoverPreview]);
 
-  /* Keyboard shortcuts: Ctrl+S (save), Ctrl+H (settings) */
+  useEffect(() => {
+    setCommandSearchIndex(0);
+  }, [commandSearchQuery, commandSearchOpen]);
+
+  useEffect(() => {
+    if (!commandSearchOpen) return;
+    const timer = window.setTimeout(() => {
+      commandSearchInputRef.current?.focus();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [commandSearchOpen]);
+
+  const openCommandSearch = useCallback(() => {
+    setCommandSearchOpen(true);
+  }, []);
+
+  const closeCommandSearch = useCallback(() => {
+    setCommandSearchOpen(false);
+    setCommandSearchQuery("");
+    setCommandSearchIndex(0);
+  }, []);
+
+  const activateSearchResult = useCallback(
+    (noteId) => {
+      if (!noteId) return;
+      setShowDeleted(false);
+      setActiveNoteId(noteId);
+      closeCommandSearch();
+    },
+    [closeCommandSearch]
+  );
+
+  /* Keyboard shortcuts: Ctrl+S (save), Ctrl+H (settings), Ctrl+K (command search) */
   useEffect(() => {
     const handler = (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
@@ -1070,11 +1359,23 @@ export default function Home() {
         event.preventDefault();
         setSettingsOpen((prev) => !prev);
       }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        openCommandSearch();
+      }
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        openCommandSearch();
+      }
+      if (event.key === "Escape" && commandSearchOpen) {
+        event.preventDefault();
+        closeCommandSearch();
+      }
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [saveCurrentNote]);
+  }, [closeCommandSearch, commandSearchOpen, openCommandSearch, saveCurrentNote]);
 
   /* Auto-sync timer */
   useEffect(() => {
@@ -1161,6 +1462,7 @@ export default function Home() {
           <DocbookSidebar
             notes={activeNotes}
             deletedNotes={deletedNotes}
+            stickyNotes={stickyNotes}
             activeNoteId={activeNote?.id}
             sidebarTint={activeNoteTint}
             showDeleted={showDeleted}
@@ -1202,6 +1504,7 @@ export default function Home() {
             <DocbookSidebar
               notes={activeNotes}
               deletedNotes={deletedNotes}
+              stickyNotes={stickyNotes}
               activeNoteId={activeNote?.id}
               sidebarTint={activeNoteTint}
               showDeleted={showDeleted}
@@ -1255,6 +1558,7 @@ export default function Home() {
             onEditorBlur={syncEditorHtml}
             onEditorSelectionChange={handleEditorSelectionChange}
             onEditorClick={handleEditorClick}
+            onEditorDoubleClick={handleEditorDoubleClick}
             onEditorMouseMove={handleEditorMouseMove}
             onEditorMouseLeave={hideHoverPreview}
             onEditorDragOver={handleEditorDragOver}
@@ -1276,6 +1580,8 @@ export default function Home() {
             onDeleteStickyNote={(stickyId) => {
               void deleteStickyNote(stickyId);
             }}
+            onNoteFontSizeIncrease={handleNoteFontScaleIncrease}
+            onNoteFontSizeDecrease={handleNoteFontScaleDecrease}
             onFontSizeIncrease={handleFontSizeIncrease}
             onFontSizeDecrease={handleFontSizeDecrease}
             syncBadgeState={syncBadgeState}
@@ -1371,6 +1677,115 @@ export default function Home() {
           onOpenSelectionPanel={handleOpenSelectionPanel}
         />
       </Paper>
+
+      {commandSearchOpen && (
+        <Box
+          onClick={closeCommandSearch}
+          sx={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 2400,
+            background: "rgba(14, 20, 30, 0.08)",
+            backdropFilter: "blur(8px)",
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "center",
+            px: 2,
+            pt: { xs: "10vh", md: "12vh" },
+          }}
+        >
+          <Box
+            onClick={(event) => event.stopPropagation()}
+            sx={{
+              width: "100%",
+              maxWidth: 980,
+              px: { xs: 0.4, md: 1.2 },
+            }}
+          >
+            <Box sx={{ px: 1.2, py: 0.4 }}>
+              <Box
+                ref={commandSearchInputRef}
+                component="input"
+                value={commandSearchQuery}
+                onChange={(event) => setCommandSearchQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setCommandSearchIndex((prev) => Math.min(prev + 1, Math.max(commandSearchResults.length - 1, 0)));
+                  } else if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setCommandSearchIndex((prev) => Math.max(prev - 1, 0));
+                  } else if (event.key === "Enter") {
+                    event.preventDefault();
+                    const target = commandSearchResults[commandSearchIndex] || commandSearchResults[0];
+                    if (target) activateSearchResult(target.id);
+                  } else if (event.key === "Escape") {
+                    event.preventDefault();
+                    closeCommandSearch();
+                  }
+                }}
+                placeholder="Search all notes by title or content..."
+                sx={{
+                  width: "100%",
+                  border: 0,
+                  background: "transparent",
+                  color: "#111827",
+                  borderRadius: 0,
+                  px: 0,
+                  py: 0.2,
+                  fontSize: { xs: 28, md: 32 },
+                  fontWeight: 700,
+                  lineHeight: 1.2,
+                  letterSpacing: "-0.02em",
+                  outline: "none",
+                  boxShadow: "none",
+                  "&::placeholder": { color: "#8a93a4", opacity: 0.9 },
+                }}
+              />
+              <Typography sx={{ mt: 0.25, fontSize: 11, color: "#6f7b8f" }}>
+                Use <strong>Ctrl/Cmd + K</strong> or <strong>Ctrl/Cmd + Shift + F</strong>. Press Enter to open selected note.
+              </Typography>
+            </Box>
+
+            <Box sx={{ maxHeight: "56vh", overflowY: "auto", py: 0.5 }}>
+              {commandSearchResults.length === 0 ? (
+                <Box sx={{ px: 1.2, py: 1.4 }}>
+                  <Typography sx={{ fontSize: 20, color: "#7d8798", fontWeight: 500 }}>No matching notes found.</Typography>
+                </Box>
+              ) : (
+                commandSearchResults.map((note, index) => {
+                  const title = note.title?.trim() || "Untitled";
+                  const snippet = plainTextFromHtml(note.content || "");
+                  const isSelected = index === commandSearchIndex;
+
+                  return (
+                    <Box
+                      key={note.id}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => activateSearchResult(note.id)}
+                      sx={{
+                        px: 1.2,
+                        py: 0.7,
+                        cursor: "pointer",
+                        opacity: isSelected ? 1 : 0.76,
+                        transition: "opacity 120ms ease",
+                        "&:hover": { opacity: 1 },
+                      }}
+                    >
+                      <Typography sx={{ fontSize: { xs: 24, md: 32 }, fontWeight: 700, color: "#162133", lineHeight: 1.18, letterSpacing: "-0.02em" }}>
+                        {title}
+                      </Typography>
+                      <Typography sx={{ fontSize: 15, color: "#5f6d82", mt: 0.22, lineHeight: 1.25 }}>
+                        {(snippet || "Empty note").slice(0, 170)}
+                      </Typography>
+                    </Box>
+                  );
+                })
+              )}
+            </Box>
+          </Box>
+        </Box>
+      )}
 
       {/* Settings Panel (Ctrl+H) */}
       <SettingsPanel

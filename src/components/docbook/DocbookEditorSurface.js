@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Box, IconButton, Tooltip, Stack, Paper, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import CloudDoneRoundedIcon from "@mui/icons-material/CloudDoneRounded";
@@ -9,13 +9,30 @@ import StickyNote2RoundedIcon from "@mui/icons-material/StickyNote2Rounded";
 import { noteColorOptions, tooltipSlotProps, uncheckedIconSvg } from "./shared";
 import TextIncreaseRoundedIcon from "@mui/icons-material/TextIncreaseRounded";
 import StickyNoteBoard from "./StickyNoteBoard";
-import ViewCarouselRoundedIcon from '@mui/icons-material/ViewCarouselRounded';
-import KeyboardOptionKeyRoundedIcon from '@mui/icons-material/KeyboardOptionKeyRounded';
-import WorkspacesRoundedIcon from '@mui/icons-material/WorkspacesRounded';
+import ViewCarouselRoundedIcon from "@mui/icons-material/ViewCarouselRounded";
+import KeyboardOptionKeyRoundedIcon from "@mui/icons-material/KeyboardOptionKeyRounded";
+import WorkspacesRoundedIcon from "@mui/icons-material/WorkspacesRounded";
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
+
+const richTokenBoundarySelector = "[data-highlight], [data-img-ref], [data-user-mention], [data-folder-ref]";
+
+const mentionDirectory = [
+  { id: "user-1", name: "Aarav Shah", handle: "aarav", role: "Product owner", accent: "#f97316" },
+  { id: "user-2", name: "Nina Kapoor", handle: "nina", role: "Design lead", accent: "#ef4444" },
+  { id: "user-3", name: "Rohan Mehta", handle: "rohan", role: "Frontend engineer", accent: "#2563eb" },
+  { id: "user-4", name: "Sara Iyer", handle: "sara", role: "QA reviewer", accent: "#14b8a6" },
+];
+
+const folderDirectory = [
+  { id: "folder-1", name: "src", path: "src", description: "Main source files", accent: "#8b5cf6" },
+  { id: "folder-2", name: "src/components/docbook", path: "src/components/docbook", description: "Editor and sidebar UI", accent: "#0f766e" },
+  { id: "folder-3", name: "src/app", path: "src/app", description: "Routes and app shell", accent: "#b45309" },
+  { id: "folder-4", name: "docs", path: "docs", description: "Project documentation", accent: "#1d4ed8" },
+  { id: "folder-5", name: "public", path: "public", description: "Static assets", accent: "#be185d" },
+];
 
 export default function DocbookEditorSurface({
   activeNote,
@@ -52,6 +69,10 @@ export default function DocbookEditorSurface({
 }) {
   const [dropCaret, setDropCaret] = useState({ visible: false, x: 0, y: 0, height: 0 });
   const [slashMenu, setSlashMenu] = useState({ visible: false, x: 0, y: 0, query: "", selectedIndex: 0, token: "" });
+  const [tokenMenu, setTokenMenu] = useState({ visible: false, x: 0, y: 0, query: "", selectedIndex: 0, token: "", tokenType: "" });
+  const [titleSlashMenu, setTitleSlashMenu] = useState({ visible: false, query: "", selectedIndex: 0 });
+  const [showReferenceHelp, setShowReferenceHelp] = useState(false);
+  const titleInputRef = useRef(null);
   const [stickyNotesVisible, setStickyNotesVisible] = useState(true);
   const [editorScrollState, setEditorScrollState] = useState({
     scrollTop: 0,
@@ -113,7 +134,7 @@ export default function DocbookEditorSurface({
   // -- Date Suggestions Logic --
   const getDateSuggestions = useCallback((query) => {
     const today = new Date();
-    
+
     // Helper to format date in different ways
     const getFormatsForDate = (date) => {
       return [
@@ -148,11 +169,11 @@ export default function DocbookEditorSurface({
       } else {
         match = lowerQuery.match(/in\s*(\d+)\s*d(?:ay(?:s)?)?/);
         if (match) {
-           targetDate.setDate(today.getDate() + parseInt(match[1], 10));
-           dateLabelPrefix = `In ${match[1]} Days`;
-           isRelativeQuery = true;
+          targetDate.setDate(today.getDate() + parseInt(match[1], 10));
+          dateLabelPrefix = `In ${match[1]} Days`;
+          isRelativeQuery = true;
         } else if (!lowerQuery.replace(/[\/date\s]/g, "")) {
-           dateLabelPrefix = "Today";
+          dateLabelPrefix = "Today";
         }
       }
     }
@@ -171,7 +192,7 @@ export default function DocbookEditorSurface({
     // Determine which suggestions to show based on the token/query
     let results = [];
     const cleanQuery = slashMenu.query.toLowerCase().replace("/", "");
-    
+
     if (slashMenu.query.startsWith("/note") || "note".includes(cleanQuery)) {
       results.push(
         { id: "create-sticky-note", kind: "create", label: "Create sticky note", description: "Open a new sticky note for this page" },
@@ -185,17 +206,142 @@ export default function DocbookEditorSurface({
           }))
       );
     }
-    
+
     if (slashMenu.query.startsWith("/date") || "date".includes(cleanQuery)) {
-       results.push(...getDateSuggestions(cleanQuery.replace("date", "").trim()));
+      results.push(...getDateSuggestions(cleanQuery.replace("date", "").trim()));
+    }
+
+    if (slashMenu.query.startsWith("/todo") || "todo".includes(cleanQuery)) {
+      results.push(
+        { id: "todo-1", kind: "todo", label: "Insert 1 Todo", description: "Add a single todo checkbox", count: 1 },
+        { id: "todo-3", kind: "todo", label: "Insert 3 Todos", description: "Add three todo checkboxes", count: 3 },
+        { id: "todo-5", kind: "todo", label: "Insert 5 Todos", description: "Add five todo checkboxes", count: 5 }
+      );
     }
 
     return results;
   })();
 
+  const activeTokenSuggestions = (() => {
+    if (!tokenMenu.visible) return [];
+
+    const normalizedQuery = tokenMenu.query.toLowerCase().trim();
+
+    if (tokenMenu.tokenType === "mention") {
+      return mentionDirectory.filter((person) => {
+        if (!normalizedQuery) return true;
+        return (
+          person.name.toLowerCase().includes(normalizedQuery) ||
+          person.handle.toLowerCase().includes(normalizedQuery) ||
+          person.role.toLowerCase().includes(normalizedQuery)
+        );
+      });
+    }
+
+    if (tokenMenu.tokenType === "folder") {
+      return folderDirectory.filter((folder) => {
+        if (!normalizedQuery) return true;
+        return (
+          folder.name.toLowerCase().includes(normalizedQuery) ||
+          folder.path.toLowerCase().includes(normalizedQuery) ||
+          folder.description.toLowerCase().includes(normalizedQuery)
+        );
+      });
+    }
+
+    return [];
+  })();
+
   const closeSlashMenu = useCallback(() => {
     setSlashMenu((prev) => (prev.visible ? { ...prev, visible: false, selectedIndex: 0 } : prev));
   }, []);
+
+  const closeTokenMenu = useCallback(() => {
+    setTokenMenu((prev) => (prev.visible ? { ...prev, visible: false, selectedIndex: 0 } : prev));
+  }, []);
+
+  // -- Title Slash Menu Logic --
+  const titleActiveSuggestions = (() => {
+    if (!titleSlashMenu.visible) return [];
+    const cleanQuery = titleSlashMenu.query.toLowerCase().replace("/", "");
+    if ("date".includes(cleanQuery.split(/\s/)[0] || "")) {
+      return getDateSuggestions(cleanQuery.replace(/^date\s*/, "").trim());
+    }
+    return [];
+  })();
+
+  const closeTitleSlashMenu = useCallback(() => {
+    setTitleSlashMenu((prev) => (prev.visible ? { visible: false, query: "", selectedIndex: 0 } : prev));
+  }, []);
+
+  const handleTitleChange = useCallback(
+    (event) => {
+      if (onTitleChange) onTitleChange(event);
+
+      const value = event.target.value;
+      const match = value.match(/(\/[a-z][a-z0-9 ]*)$/i);
+      if (match) {
+        const token = match[1].toLowerCase();
+        const command = token.replace("/", "").split(/\s/)[0];
+        if ("date".startsWith(command) || command === "date") {
+          setTitleSlashMenu({ visible: true, query: token, selectedIndex: 0 });
+          return;
+        }
+      }
+      closeTitleSlashMenu();
+    },
+    [onTitleChange, closeTitleSlashMenu]
+  );
+
+  const applyTitleSlashSuggestion = useCallback(
+    (item) => {
+      const currentTitle = activeNote?.title ?? "";
+      const match = currentTitle.match(/(\/[a-z][a-z0-9 ]*)$/i);
+      if (!match) return;
+
+      const newTitle = currentTitle.slice(0, match.index) + item.value;
+      // Synthesize an event-like object for onTitleChange
+      if (onTitleChange) onTitleChange({ target: { value: newTitle } });
+      closeTitleSlashMenu();
+
+      // Refocus and move cursor to end
+      requestAnimationFrame(() => {
+        const input = titleInputRef.current;
+        if (input) {
+          input.focus();
+          input.setSelectionRange(newTitle.length, newTitle.length);
+        }
+      });
+    },
+    [activeNote?.title, onTitleChange, closeTitleSlashMenu]
+  );
+
+  const handleTitleKeyDown = useCallback(
+    (event) => {
+      if (!titleSlashMenu.visible || titleActiveSuggestions.length === 0) return;
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setTitleSlashMenu((prev) => ({ ...prev, selectedIndex: (prev.selectedIndex + 1) % titleActiveSuggestions.length }));
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setTitleSlashMenu((prev) => ({ ...prev, selectedIndex: (prev.selectedIndex - 1 + titleActiveSuggestions.length) % titleActiveSuggestions.length }));
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeTitleSlashMenu();
+        return;
+      }
+      if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        applyTitleSlashSuggestion(titleActiveSuggestions[titleSlashMenu.selectedIndex] || titleActiveSuggestions[0]);
+      }
+    },
+    [titleSlashMenu.visible, titleSlashMenu.selectedIndex, titleActiveSuggestions, closeTitleSlashMenu, applyTitleSlashSuggestion]
+  );
 
   const getSlashCommandContext = useCallback(() => {
     const sel = window.getSelection();
@@ -223,6 +369,37 @@ export default function DocbookEditorSurface({
     };
   }, []);
 
+  const getTokenContext = useCallback(() => {
+    const sel = window.getSelection();
+    if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return null;
+
+    const node = sel.anchorNode;
+    if (!node || node.nodeType !== 3) return null;
+
+    const beforeText = node.textContent?.slice(0, sel.anchorOffset) || "";
+    const match = beforeText.match(/(^|\s)([@#])([a-z0-9_./-]*)$/i);
+    if (!match) return null;
+
+    const prefix = match[2];
+    const query = match[3] || "";
+    const token = `${prefix}${query}`;
+    const startIndex = beforeText.length - token.length;
+
+    const caretRange = sel.getRangeAt(0).cloneRange();
+    caretRange.collapse(true);
+    const rect = caretRange.getBoundingClientRect();
+
+    return {
+      textNode: node,
+      prefix,
+      query,
+      token,
+      startIndex,
+      endIndex: startIndex + token.length,
+      rect,
+    };
+  }, []);
+
   const refreshSlashMenu = useCallback(() => {
     const context = getSlashCommandContext();
     if (!context) {
@@ -232,7 +409,7 @@ export default function DocbookEditorSurface({
 
     const query = context.token.toLowerCase();
     const noSlash = query.replace("/", "");
-    if (!"note".includes(noSlash) && !"date".includes(noSlash)) {
+    if (!"note".includes(noSlash) && !"date".includes(noSlash) && !"todo".includes(noSlash)) {
       closeSlashMenu();
       return;
     }
@@ -244,9 +421,33 @@ export default function DocbookEditorSurface({
       query,
       token: context.token,
       // Reset selectedIndex if the token changed, otherwise keep it but clamp it to the activeSuggestions length
-      selectedIndex: prev.token === context.token ? Math.min(prev.selectedIndex, Math.max(0, 10)) : 0, 
+      selectedIndex: prev.token === context.token ? Math.min(prev.selectedIndex, Math.max(0, 10)) : 0,
     }));
   }, [closeSlashMenu, getSlashCommandContext]); // NOTE: activeSuggestions length handling moved to render/apply time constraints since it's derived now
+
+  const refreshTokenMenu = useCallback(() => {
+    const context = getTokenContext();
+    if (!context) {
+      closeTokenMenu();
+      return;
+    }
+
+    const tokenType = context.prefix === "@" ? "mention" : context.prefix === "#" ? "folder" : "";
+    if (!tokenType) {
+      closeTokenMenu();
+      return;
+    }
+
+    setTokenMenu((prev) => ({
+      visible: true,
+      x: context.rect.left,
+      y: context.rect.bottom + 10,
+      query: context.query,
+      token: context.token,
+      tokenType,
+      selectedIndex: prev.token === context.token && prev.tokenType === tokenType ? prev.selectedIndex : 0,
+    }));
+  }, [closeTokenMenu, getTokenContext]);
 
   const applySlashSuggestion = useCallback(
     (item) => {
@@ -256,19 +457,19 @@ export default function DocbookEditorSurface({
         let newTextContent = "";
 
         if (item.kind === "date") {
-           newTextContent = `${currentText.slice(0, context.startIndex)}${item.value}${currentText.slice(context.endIndex)}`;
+          newTextContent = `${currentText.slice(0, context.startIndex)}${item.value}${currentText.slice(context.endIndex)}`;
         } else {
-           newTextContent = `${currentText.slice(0, context.startIndex)}${currentText.slice(context.endIndex)}`;
+          newTextContent = `${currentText.slice(0, context.startIndex)}${currentText.slice(context.endIndex)}`;
         }
 
         context.textNode.textContent = newTextContent;
 
         const nextRange = document.createRange();
         const nextSelection = window.getSelection();
-        
+
         let cursorOffset = context.startIndex;
         if (item.kind === "date") {
-            cursorOffset += item.value.length;
+          cursorOffset += item.value.length;
         }
 
         nextRange.setStart(context.textNode, Math.min(cursorOffset, context.textNode.textContent.length));
@@ -280,6 +481,16 @@ export default function DocbookEditorSurface({
       if (onEditorInput) onEditorInput();
       closeSlashMenu();
 
+      if (item.kind === "todo") {
+        // Insert N todo items at cursor position
+        const count = item.count || 1;
+        const singleTodo = `<div data-todo="false" style="display: flex; align-items: flex-start; gap: 8px; margin: 4px 0;"><span data-todo-checkbox="true" style="cursor: pointer; color: #8b5e3c; display: flex; align-items: center; justify-content: center; user-select: none;" contenteditable="false">${uncheckedIconSvg}</span><div style="flex: 1; outline: none; min-width: 50px;"><br></div></div>`;
+        const todosHtml = singleTodo.repeat(count);
+        document.execCommand("insertHTML", false, todosHtml);
+        if (onEditorInput) onEditorInput();
+        return;
+      }
+
       if (item.kind === "create") {
         onAddStickyNote?.();
         return;
@@ -290,6 +501,91 @@ export default function DocbookEditorSurface({
       }
     },
     [closeSlashMenu, getSlashCommandContext, onAddStickyNote, onEditorInput, onOpenStickyNote]
+  );
+
+  const applyTokenSuggestion = useCallback(
+    (item) => {
+      const context = getTokenContext();
+      if (!context?.textNode) return;
+
+      const selection = window.getSelection();
+      const replaceRange = document.createRange();
+      replaceRange.setStart(context.textNode, context.startIndex);
+      replaceRange.setEnd(context.textNode, context.endIndex);
+
+      const chip = document.createElement("span");
+      chip.contentEditable = "false";
+
+      if (tokenMenu.tokenType === "mention") {
+        chip.setAttribute("data-user-mention", item.id);
+        chip.setAttribute("data-user-name", item.name);
+        chip.setAttribute("data-user-handle", item.handle);
+        chip.setAttribute("data-user-role", item.role);
+
+        const avatar = document.createElement("span");
+        avatar.setAttribute("data-chip-avatar", "true");
+        avatar.style.background = `linear-gradient(135deg, ${alpha(item.accent, 0.95)} 0%, ${alpha(item.accent, 0.72)} 100%)`;
+        avatar.textContent = item.name
+          .split(" ")
+          .map((part) => part[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase();
+
+        const content = document.createElement("span");
+        content.setAttribute("data-chip-content", "true");
+
+        const primary = document.createElement("span");
+        primary.setAttribute("data-chip-primary", "true");
+        primary.textContent = item.name;
+
+        const secondaryRow = document.createElement("span");
+        secondaryRow.setAttribute("data-chip-secondary-row", "true");
+
+        const secondary = document.createElement("span");
+        secondary.setAttribute("data-chip-secondary", "true");
+        secondary.textContent = `@${item.handle}`;
+
+        const dot = document.createElement("span");
+        dot.setAttribute("data-chip-dot", "true");
+
+        secondaryRow.append(secondary, dot);
+        content.append(primary, secondaryRow);
+
+        chip.append(avatar, content);
+      } else {
+        chip.setAttribute("data-folder-ref", item.id);
+        chip.setAttribute("data-folder-name", item.name);
+        chip.setAttribute("data-folder-path", item.path);
+        chip.setAttribute("data-folder-description", item.description);
+
+        const icon = document.createElement("span");
+        icon.setAttribute("data-chip-folder-icon", "true");
+        icon.textContent = "#";
+
+        const label = document.createElement("span");
+        label.setAttribute("data-chip-label", "true");
+        label.textContent = item.path;
+
+        chip.append(icon, label);
+      }
+
+      const spacer = document.createTextNode("\u00A0");
+      const fragment = document.createDocumentFragment();
+      fragment.append(chip, spacer);
+      replaceRange.deleteContents();
+      replaceRange.insertNode(fragment);
+
+      const nextRange = document.createRange();
+      nextRange.setStart(spacer, spacer.textContent.length);
+      nextRange.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(nextRange);
+
+      if (onEditorInput) onEditorInput();
+      closeTokenMenu();
+    },
+    [closeTokenMenu, getTokenContext, onEditorInput, tokenMenu.tokenType]
   );
 
   const handleDragOver = useCallback(
@@ -395,12 +691,12 @@ export default function DocbookEditorSurface({
       /* If click is NOT on a highlight/img-ref span, but cursor ended up inside one,
          move cursor outside */
       const clickTarget = event.target;
-      const isOnSpecialSpan = clickTarget.closest?.("[data-highlight], [data-img-ref]");
+      const isOnSpecialSpan = clickTarget.closest?.(richTokenBoundarySelector);
 
       if (!isOnSpecialSpan && sel.isCollapsed) {
         const node = sel.anchorNode;
         const el = node?.nodeType === 3 ? node.parentElement : node;
-        const enclosingSpan = el?.closest?.("[data-highlight], [data-img-ref]");
+        const enclosingSpan = el?.closest?.(richTokenBoundarySelector);
 
         if (enclosingSpan && editor.contains(enclosingSpan)) {
           /* Move cursor after the span */
@@ -427,8 +723,9 @@ export default function DocbookEditorSurface({
       /* Delegate to parent handler */
       if (onEditorClick) onEditorClick(event);
       window.requestAnimationFrame(refreshSlashMenu);
+      window.requestAnimationFrame(refreshTokenMenu);
     },
-    [editorRef, onEditorClick, refreshSlashMenu]
+    [editorRef, onEditorClick, refreshSlashMenu, refreshTokenMenu]
   );
 
   const handleInput = useCallback(
@@ -436,8 +733,9 @@ export default function DocbookEditorSurface({
       if (onEditorInput) onEditorInput(event);
       window.requestAnimationFrame(refreshEditorScrollState);
       window.requestAnimationFrame(refreshSlashMenu);
+      window.requestAnimationFrame(refreshTokenMenu);
     },
-    [onEditorInput, refreshEditorScrollState, refreshSlashMenu]
+    [onEditorInput, refreshEditorScrollState, refreshSlashMenu, refreshTokenMenu]
   );
 
   const handleKeyUp = useCallback(
@@ -445,8 +743,9 @@ export default function DocbookEditorSurface({
       if (onEditorSelectionChange) onEditorSelectionChange(event);
       window.requestAnimationFrame(refreshEditorScrollState);
       window.requestAnimationFrame(refreshSlashMenu);
+      window.requestAnimationFrame(refreshTokenMenu);
     },
-    [onEditorSelectionChange, refreshEditorScrollState, refreshSlashMenu]
+    [onEditorSelectionChange, refreshEditorScrollState, refreshSlashMenu, refreshTokenMenu]
   );
 
   const handleMouseUp = useCallback(
@@ -461,10 +760,11 @@ export default function DocbookEditorSurface({
   const handleBlur = useCallback(
     (event) => {
       closeSlashMenu();
+      closeTokenMenu();
       if (onEditorBlur) onEditorBlur(event);
       window.requestAnimationFrame(refreshEditorScrollState);
     },
-    [closeSlashMenu, onEditorBlur, refreshEditorScrollState]
+    [closeSlashMenu, closeTokenMenu, onEditorBlur, refreshEditorScrollState]
   );
 
   useEffect(() => {
@@ -509,6 +809,29 @@ export default function DocbookEditorSurface({
         }
       }
 
+      if (tokenMenu.visible && activeTokenSuggestions.length > 0) {
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          setTokenMenu((prev) => ({ ...prev, selectedIndex: (prev.selectedIndex + 1) % activeTokenSuggestions.length }));
+          return;
+        }
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          setTokenMenu((prev) => ({ ...prev, selectedIndex: (prev.selectedIndex - 1 + activeTokenSuggestions.length) % activeTokenSuggestions.length }));
+          return;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeTokenMenu();
+          return;
+        }
+        if (event.key === "Enter" || event.key === "Tab") {
+          event.preventDefault();
+          applyTokenSuggestion(activeTokenSuggestions[tokenMenu.selectedIndex] || activeTokenSuggestions[0]);
+          return;
+        }
+      }
+
       const sel = window.getSelection();
       if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return;
 
@@ -525,34 +848,34 @@ export default function DocbookEditorSurface({
           const list = li.closest("ul, ol");
           // If the list item is effectively empty (just whitespace or zero width space or empty br)
           const isEmpty = !li.textContent.trim() || li.textContent === "\u200B";
-          
+
           if (isEmpty) {
             event.preventDefault();
-            
+
             // Create a new paragraph to place cursor
             const p = document.createElement("p");
             p.innerHTML = "<br>";
-            
+
             // Insert it after the entire list
             if (list && list.parentNode) {
-                list.parentNode.insertBefore(p, list.nextSibling);
+              list.parentNode.insertBefore(p, list.nextSibling);
             }
-            
+
             // Remove the empty list item
             li.parentNode.removeChild(li);
-            
+
             // If the list is now empty, remove the whole list element
             if (list && list.children.length === 0 && list.parentNode) {
-                list.parentNode.removeChild(list);
+              list.parentNode.removeChild(list);
             }
-            
+
             // Move cursor to the new paragraph
             const newRange = document.createRange();
             newRange.setStart(p, 0);
             newRange.collapse(true);
             sel.removeAllRanges();
             sel.addRange(newRange);
-            
+
             if (onEditorInput) onEditorInput();
             return;
           }
@@ -657,7 +980,7 @@ export default function DocbookEditorSurface({
       }
 
       const el = node.nodeType === 3 ? node.parentElement : node;
-      const span = el?.closest?.("[data-highlight], [data-img-ref]");
+      const span = el?.closest?.(richTokenBoundarySelector);
       if (!span) return;
 
       /* Handle Space, Enter, and all printable characters */
@@ -759,7 +1082,19 @@ export default function DocbookEditorSurface({
 
       if (onEditorInput) onEditorInput();
     },
-    [applySlashSuggestion, closeSlashMenu, onEditorInput, slashMenu.selectedIndex, slashMenu.visible, activeSuggestions]
+    [
+      activeSuggestions,
+      activeTokenSuggestions,
+      applySlashSuggestion,
+      applyTokenSuggestion,
+      closeSlashMenu,
+      closeTokenMenu,
+      onEditorInput,
+      slashMenu.selectedIndex,
+      slashMenu.visible,
+      tokenMenu.selectedIndex,
+      tokenMenu.visible,
+    ]
   );
 
   return (
@@ -775,7 +1110,7 @@ export default function DocbookEditorSurface({
         flexDirection: "column",
         gap: 0,
         overflow: "hidden",
-        background: `linear-gradient(180deg, ${alpha(activeNoteTint, 0.18)} 0%, rgba(255,250,244,0.92) 14%, rgba(248,243,235,0.98) 100%)`,
+        background: "transparent",
       }}
     >
       {/* Editor wrapper */}
@@ -825,6 +1160,7 @@ export default function DocbookEditorSurface({
             </IconButton>
             <Box
               sx={{
+                position: 'relative',
                 borderRadius: 999,
                 bgcolor: alpha("#fffdf8", 0.78),
                 border: `1px solid ${alpha(activeNoteTint, 0.22)}`,
@@ -836,10 +1172,13 @@ export default function DocbookEditorSurface({
               }}
             >
               <Box
+                ref={titleInputRef}
                 component="input"
                 value={activeNote?.title ?? ""}
                 placeholder="Untitled"
-                onChange={onTitleChange}
+                onChange={handleTitleChange}
+                onKeyDown={handleTitleKeyDown}
+                onBlur={() => { setTimeout(closeTitleSlashMenu, 150); }}
                 sx={{
                   width: "100%",
                   border: 0,
@@ -854,9 +1193,65 @@ export default function DocbookEditorSurface({
                   "&::placeholder": { color: alpha("#2e261f", 0.4), fontWeight: 600 },
                 }}
               />
+
+              {/* Title Slash Command Dropdown */}
+              {titleSlashMenu.visible && titleActiveSuggestions.length > 0 && (
+                <Paper
+                  elevation={8}
+                  sx={{
+                    position: 'absolute',
+                    top: 'calc(100% + 8px)',
+                    left: 0,
+                    minWidth: 260,
+                    maxWidth: 320,
+                    borderRadius: 3,
+                    overflow: 'hidden',
+                    border: '1px solid #ddd0c0',
+                    bgcolor: '#fdf8f1',
+                    boxShadow: '0 16px 34px rgba(58, 46, 34, 0.18)',
+                    zIndex: 1600,
+                  }}
+                >
+                  <Box sx={{
+                    px: 1.4, py: 1, borderBottom: '1px solid #ebe1d4', background: 'linear-gradient(180deg, #fbf3e8 0%, #f7ecde 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}>
+                    <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#6a5a49', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                      Commands
+                    </Typography>
+                    <KeyboardOptionKeyRoundedIcon sx={{ color: '#6a5a49', fontSize: 16 }} />
+                  </Box>
+                  <Stack spacing={0} sx={{ py: 0.5 }}>
+                    {titleActiveSuggestions.map((item, index) => (
+                      <Box
+                        key={item.id}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          applyTitleSlashSuggestion(item);
+                        }}
+                        sx={{
+                          px: 1.4,
+                          py: 1,
+                          cursor: 'pointer',
+                          bgcolor: index === titleSlashMenu.selectedIndex ? alpha('#c4956a', 0.12) : 'transparent',
+                          transition: 'background-color 120ms ease',
+                          '&:hover': { bgcolor: alpha('#c4956a', 0.12) },
+                        }}
+                      >
+                        <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#352f29' }}>{item.label}</Typography>
+                        <Typography sx={{ fontSize: 11.5, color: '#7b6c5c' }}>{item.description}</Typography>
+                      </Box>
+                    ))}
+                  </Stack>
+                </Paper>
+              )}
             </Box>
           </Box>
         </Tooltip>
+
+
 
         <Stack
           direction="row"
@@ -993,6 +1388,69 @@ export default function DocbookEditorSurface({
               <StickyNote2RoundedIcon sx={{ fontSize: 20 }} />
             </IconButton>
           </Tooltip>
+          <Box sx={{ position: "relative" }}>
+            <Tooltip title="How mentions and folder refs work" arrow slotProps={tooltipSlotProps}>
+              <IconButton
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => setShowReferenceHelp((prev) => !prev)}
+                size="small"
+                sx={{
+                  color: "#5d4a3d",
+                  bgcolor: alpha("#fffdf8", 0.82),
+                  border: `1px solid ${alpha(activeNoteTint, 0.24)}`,
+                  boxShadow: `0 10px 24px ${alpha(activeNoteTint, 0.12)}`,
+                  backdropFilter: "blur(10px)",
+                  "&:hover": { bgcolor: alpha("#fff8ef", 0.92) },
+                }}
+              >
+                <Typography sx={{ fontSize: 20, fontWeight: 800, lineHeight: 1, color: "inherit" }}>i</Typography>
+              </IconButton>
+            </Tooltip>
+
+            {showReferenceHelp && (
+              <Paper
+                elevation={8}
+                sx={{
+                  position: "absolute",
+                  top: "calc(100% + 10px)",
+                  left: "50%",
+                  transform: "translateX(-100%)",
+                  width: 320,
+                  maxWidth: "calc(100vw - 32px)",
+                  px: 1.5,
+                  py: 1.35,
+                  borderRadius: 3,
+                  border: "1px solid #ddd0c0",
+                  bgcolor: "#fdf8f1",
+                  boxShadow: "0 18px 38px rgba(58, 46, 34, 0.18)",
+                }}
+              >
+                <Typography sx={{ fontSize: 12, fontWeight: 800, color: "#5b493c", letterSpacing: "0.08em", textTransform: "uppercase", mb: 0.8 }}>
+                  Quick refs
+                </Typography>
+                <Stack spacing={0.85}>
+                  <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
+                    <Box sx={{ fontSize: 18, lineHeight: 1, color: "#8b5e3c", mt: 0.05 }}>@</Box>
+                    <Box>
+                      <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#352f29" }}>Type `@` to mention a user</Typography>
+                      <Typography sx={{ fontSize: 11.5, color: "#7b6c5c" }}>Example: `@rohan` becomes an avatar chip.</Typography>
+                    </Box>
+                  </Box>
+                  <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
+                    <Box sx={{ fontSize: 18, lineHeight: 1, color: "#8b5e3c", mt: 0.05 }}>#</Box>
+                    <Box>
+                      <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#352f29" }}>Type `#` to reference a folder</Typography>
+                      <Typography sx={{ fontSize: 11.5, color: "#7b6c5c" }}>Example: `#src/components/docbook` becomes a rounded path chip.</Typography>
+                    </Box>
+                  </Box>
+                  <Typography sx={{ fontSize: 11.5, color: "#7b6c5c", pt: 0.3 }}>
+                    Use arrow keys to navigate suggestions, then press Enter or Tab to insert.
+                  </Typography>
+                </Stack>
+              </Paper>
+            )}
+          </Box>
+
           {imageEntries.length > 0 && (
             <Tooltip title="View images & selection" arrow slotProps={tooltipSlotProps}>
               <IconButton
@@ -1189,6 +1647,114 @@ export default function DocbookEditorSurface({
               boxShadow: "0 2px 10px rgba(139, 94, 60, 0.4)",
             },
 
+            "& span[data-user-mention], & span[data-folder-ref]": {
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.28em",
+              verticalAlign: "middle",
+              borderRadius: 999,
+              paddingInline: "0.22em 0.34em",
+              paddingBlock: "0.08em",
+              marginInline: "0.04em",
+              background: "rgba(255, 252, 247, 0.92)",
+              border: "1px solid rgba(139, 94, 60, 0.16)",
+              boxShadow: "0 8px 18px rgba(92, 61, 46, 0.12)",
+              color: "#3e2f24",
+              lineHeight: 1,
+              userSelect: "none",
+              WebkitUserSelect: "none",
+              transition: "transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease",
+            },
+            "& span[data-user-mention]:hover, & span[data-folder-ref]:hover": {
+              transform: "translateY(-1px)",
+              boxShadow: "0 12px 22px rgba(92, 61, 46, 0.16)",
+              borderColor: "rgba(139, 94, 60, 0.28)",
+            },
+            "& span[data-user-mention]": {
+              gap: "0.32em",
+              paddingInline: "0.2em 0.38em",
+              paddingBlock: "0.12em",
+              background: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(250,244,237,0.96) 100%)",
+              border: "1px solid rgba(223, 157, 108, 0.28)",
+              boxShadow: "0 10px 20px rgba(223, 157, 108, 0.16), inset 0 1px 0 rgba(255,255,255,0.88)",
+            },
+            "& span[data-user-mention]:hover": {
+              borderColor: "rgba(223, 157, 108, 0.42)",
+              boxShadow: "0 14px 24px rgba(223, 157, 108, 0.2), inset 0 1px 0 rgba(255,255,255,0.92)",
+            },
+            "& span[data-chip-avatar='true']": {
+              width: "1.26em",
+              height: "1.26em",
+              borderRadius: "50%",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#fffdf8",
+              fontSize: "0.4em",
+              fontWeight: 800,
+              letterSpacing: "0.02em",
+              boxShadow: "0 4px 10px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.26)",
+              flexShrink: 0,
+            },
+            "& span[data-chip-content='true']": {
+              display: "inline-flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              minWidth: 0,
+              lineHeight: 1,
+            },
+            "& span[data-chip-primary='true']": {
+              fontSize: "0.32em",
+              fontWeight: 800,
+              color: "#2f251e",
+              lineHeight: 1.05,
+              whiteSpace: "nowrap",
+              letterSpacing: "-0.02em",
+            },
+            "& span[data-chip-secondary-row='true']": {
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.18em",
+              minWidth: 0,
+            },
+            "& span[data-chip-secondary='true']": {
+              fontSize: "0.24em",
+              fontWeight: 700,
+              color: "rgba(106, 84, 67, 0.78)",
+              lineHeight: 1.1,
+              whiteSpace: "nowrap",
+              letterSpacing: "0.01em",
+            },
+            "& span[data-chip-dot='true']": {
+              width: "0.16em",
+              height: "0.16em",
+              borderRadius: "50%",
+              background: "#22c55e",
+              boxShadow: "0 0 0 0.05em rgba(34, 197, 94, 0.18)",
+              flexShrink: 0,
+            },
+            "& span[data-chip-folder-icon='true']": {
+              width: "1.18em",
+              height: "1.18em",
+              borderRadius: "50%",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#fffdf8",
+              background: "linear-gradient(135deg, #6d4c41 0%, #9c6b4c 100%)",
+              fontSize: "0.48em",
+              fontWeight: 800,
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.26)",
+              flexShrink: 0,
+            },
+            "& span[data-chip-label='true']": {
+              fontSize: "0.42em",
+              fontWeight: 700,
+              lineHeight: 1.2,
+              whiteSpace: "nowrap",
+              letterSpacing: "-0.02em",
+            },
+
             /* Note ref token */
             "& span[data-note-ref]": {
               boxDecorationBreak: "clone",
@@ -1270,6 +1836,142 @@ export default function DocbookEditorSurface({
                 >
                   <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#352f29" }}>{item.label}</Typography>
                   <Typography sx={{ fontSize: 11.5, color: "#7b6c5c" }}>{item.description}</Typography>
+                </Box>
+              ))}
+            </Stack>
+          </Paper>
+        </Box>
+
+        <Box
+          sx={{
+            position: "fixed",
+            left: tokenMenu.x,
+            top: tokenMenu.y,
+            opacity: tokenMenu.visible && activeTokenSuggestions.length > 0 ? 1 : 0,
+            transform: tokenMenu.visible && activeTokenSuggestions.length > 0 ? "translateY(0)" : "translateY(6px)",
+            transition: "opacity 140ms ease, transform 140ms ease",
+            pointerEvents: tokenMenu.visible && activeTokenSuggestions.length > 0 ? "auto" : "none",
+            zIndex: 1600,
+          }}
+        >
+          <Paper
+            elevation={8}
+            sx={{
+              minWidth: 280,
+              maxWidth: 340,
+              borderRadius: 3,
+              overflow: "hidden",
+              border: "1px solid #ddd0c0",
+              bgcolor: "#fdf8f1",
+              boxShadow: "0 16px 34px rgba(58, 46, 34, 0.18)",
+            }}
+          >
+            <Box
+              sx={{
+                px: 1.4,
+                py: 1,
+                borderBottom: "1px solid #ebe1d4",
+                background: "linear-gradient(180deg, #fbf3e8 0%, #f7ecde 100%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <Typography sx={{ fontSize: 11, fontWeight: 800, color: "#6a5a49", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                {tokenMenu.tokenType === "mention" ? "People" : "Folders"}
+              </Typography>
+              {tokenMenu.tokenType === "mention" ? (
+                <Typography sx={{ color: "#6a5a49", fontSize: 14, fontWeight: 800, lineHeight: 1 }}>@</Typography>
+              ) : (
+                <Typography sx={{ color: "#6a5a49", fontSize: 14, fontWeight: 800, lineHeight: 1 }}>#</Typography>
+              )}
+            </Box>
+            <Stack spacing={0} sx={{ py: 0.5 }}>
+              {activeTokenSuggestions.map((item, index) => (
+                <Box
+                  key={item.id}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    applyTokenSuggestion(item);
+                  }}
+                  sx={{
+                    px: tokenMenu.tokenType === "mention" ? 1.6 : 1.4,
+                    py: tokenMenu.tokenType === "mention" ? 1.15 : 1,
+                    cursor: "pointer",
+                    bgcolor: index === tokenMenu.selectedIndex ? alpha("#c4956a", 0.12) : "transparent",
+                    transition: "background-color 120ms ease",
+                    "&:hover": { bgcolor: alpha("#c4956a", 0.12) },
+                  }}
+                >
+                  {tokenMenu.tokenType === "mention" ? (
+                    <Stack direction="row" spacing={1.1} alignItems="center">
+                      <Box
+                        sx={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: "50%",
+                          display: "grid",
+                          placeItems: "center",
+                          position: "relative",
+                          background: `linear-gradient(135deg, ${item.accent} 0%, ${alpha(item.accent, 0.68)} 100%)`,
+                          color: "#fffdf8",
+                          fontSize: 13,
+                          fontWeight: 800,
+                          letterSpacing: "0.04em",
+                          boxShadow: `0 10px 20px ${alpha(item.accent, 0.26)}, inset 0 1px 0 rgba(255,255,255,0.28)`,
+                          flexShrink: 0,
+                          "&::after": {
+                            content: '""',
+                            position: "absolute",
+                            right: 2,
+                            bottom: 2,
+                            width: 9,
+                            height: 9,
+                            borderRadius: "50%",
+                            background: "#22c55e",
+                            boxShadow: "0 0 0 2px rgba(253, 248, 241, 0.96)",
+                          },
+                        }}
+                      >
+                        {item.name
+                          .split(" ")
+                          .map((part) => part[0])
+                          .join("")
+                          .slice(0, 2)
+                          .toUpperCase()}
+                      </Box>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontSize: 14, fontWeight: 800, color: "#2f2721", lineHeight: 1.15, letterSpacing: "-0.02em" }}>
+                          {item.name}
+                        </Typography>
+                        <Stack direction="row" spacing={0.7} alignItems="center" sx={{ mt: 0.25, flexWrap: "wrap" }}>
+                          <Typography
+                            sx={{
+                              fontSize: 11,
+                              fontWeight: 800,
+                              color: item.accent,
+                              px: 0.7,
+                              py: 0.22,
+                              borderRadius: 999,
+                              bgcolor: alpha(item.accent, 0.1),
+                              lineHeight: 1,
+                              letterSpacing: "0.01em",
+                            }}
+                          >
+                            @{item.handle}
+                          </Typography>
+                          <Typography sx={{ fontSize: 11.5, color: "#7b6c5c", lineHeight: 1.2 }}>
+                            {item.role}
+                          </Typography>
+                        </Stack>
+                      </Box>
+                    </Stack>
+                  ) : (
+                    <>
+                      <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#352f29" }}>{item.path}</Typography>
+                      <Typography sx={{ fontSize: 11.5, color: "#7b6c5c" }}>{item.description}</Typography>
+                    </>
+                  )}
                 </Box>
               ))}
             </Stack>

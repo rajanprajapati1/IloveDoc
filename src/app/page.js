@@ -698,6 +698,37 @@ export default function Home() {
         const noteText = noteSpan.getAttribute("data-note-text") || "";
         setHoverPreview({ visible: true, x: event.clientX, y: event.clientY - 60, url: "", label: noteText });
         setTimeout(() => hideHoverPreview(), 3000);
+        return;
+      }
+
+      const mentionSpan = event.target.closest?.("[data-user-mention]");
+      if (mentionSpan && editorRef.current?.contains(mentionSpan)) {
+        const handle = mentionSpan.getAttribute("data-user-handle") || "";
+        const name = mentionSpan.getAttribute("data-user-name") || "";
+        const role = mentionSpan.getAttribute("data-user-role") || "";
+        setHoverPreview({
+          visible: true,
+          x: event.clientX,
+          y: event.clientY - 60,
+          url: "",
+          label: `${name}${handle ? ` (@${handle})` : ""}${role ? `\n${role}` : ""}`,
+        });
+        setTimeout(() => hideHoverPreview(), 3000);
+        return;
+      }
+
+      const folderSpan = event.target.closest?.("[data-folder-ref]");
+      if (folderSpan && editorRef.current?.contains(folderSpan)) {
+        const path = folderSpan.getAttribute("data-folder-path") || "";
+        const description = folderSpan.getAttribute("data-folder-description") || "";
+        setHoverPreview({
+          visible: true,
+          x: event.clientX,
+          y: event.clientY - 60,
+          url: "",
+          label: `${path}${description ? `\n${description}` : ""}`,
+        });
+        setTimeout(() => hideHoverPreview(), 3000);
       }
     },
     [hideHoverPreview, syncEditorHtml]
@@ -727,6 +758,35 @@ export default function Home() {
       if (noteTarget) {
         const noteText = noteTarget.getAttribute("data-note-text") || "";
         setHoverPreview({ visible: true, x: event.clientX + 18, y: event.clientY + 18, url: "", label: `Note: ${noteText}` });
+        return;
+      }
+
+      const mentionTarget = event.target.closest?.("[data-user-mention]");
+      if (mentionTarget) {
+        const handle = mentionTarget.getAttribute("data-user-handle") || "";
+        const name = mentionTarget.getAttribute("data-user-name") || "";
+        const role = mentionTarget.getAttribute("data-user-role") || "";
+        setHoverPreview({
+          visible: true,
+          x: event.clientX + 18,
+          y: event.clientY + 18,
+          url: "",
+          label: `${name}${handle ? ` (@${handle})` : ""}${role ? `\n${role}` : ""}`,
+        });
+        return;
+      }
+
+      const folderTarget = event.target.closest?.("[data-folder-ref]");
+      if (folderTarget) {
+        const path = folderTarget.getAttribute("data-folder-path") || "";
+        const description = folderTarget.getAttribute("data-folder-description") || "";
+        setHoverPreview({
+          visible: true,
+          x: event.clientX + 18,
+          y: event.clientY + 18,
+          url: "",
+          label: `${path}${description ? `\n${description}` : ""}`,
+        });
         return;
       }
 
@@ -891,13 +951,27 @@ export default function Home() {
   const handleClear = useCallback(() => {
     const editor = editorRef.current;
     if (editor) {
-      editor.querySelectorAll("[data-highlight], [data-note-ref]").forEach((element) => {
+      editor.querySelectorAll("[data-highlight], [data-note-ref], [data-user-mention], [data-folder-ref]").forEach((element) => {
         const selection = window.getSelection();
         if (!selection || selection.rangeCount === 0) return;
 
         const range = selection.getRangeAt(0);
         if (range.intersectsNode(element)) {
           const parent = element.parentNode;
+          if (element.hasAttribute("data-user-mention")) {
+            const handle = element.getAttribute("data-user-handle") || "";
+            parent.insertBefore(document.createTextNode(handle ? `@${handle}` : ""), element);
+            parent.removeChild(element);
+            parent.normalize();
+            return;
+          }
+          if (element.hasAttribute("data-folder-ref")) {
+            const path = element.getAttribute("data-folder-path") || "";
+            parent.insertBefore(document.createTextNode(path ? `#${path}` : ""), element);
+            parent.removeChild(element);
+            parent.normalize();
+            return;
+          }
           while (element.firstChild) parent.insertBefore(element.firstChild, element);
           parent.removeChild(element);
           parent.normalize();
@@ -1685,103 +1759,261 @@ export default function Home() {
             position: "fixed",
             inset: 0,
             zIndex: 2400,
-            background: "rgba(14, 20, 30, 0.08)",
-            backdropFilter: "blur(8px)",
+            background: `linear-gradient(180deg, ${alpha(activeNoteTint, 0.08)} 0%, rgba(10, 12, 14, 0.28) 100%)`,
+            backdropFilter: "blur(18px) saturate(1.4)",
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "center",
             px: 2,
-            pt: { xs: "10vh", md: "12vh" },
+            pt: { xs: "8vh", md: "10vh" },
+            animation: "cmdFadeIn 200ms ease-out",
+            "@keyframes cmdFadeIn": {
+              "0%": { opacity: 0 },
+              "100%": { opacity: 1 },
+            },
           }}
         >
           <Box
             onClick={(event) => event.stopPropagation()}
             sx={{
               width: "100%",
-              maxWidth: 980,
-              px: { xs: 0.4, md: 1.2 },
+              maxWidth: 680,
+              borderRadius: 5,
+              overflow: "hidden",
+              background: `linear-gradient(168deg, rgba(255, 255, 255, 0.84) 0%, ${alpha(activeNoteTint, 0.06)} 40%, ${alpha(activeNoteTint, 0.03)} 100%)`,
+              backdropFilter: "blur(24px) saturate(1.6)",
+              border: `1px solid ${alpha(activeNoteTint, 0.22)}`,
+              boxShadow: `
+                0 0 0 1px rgba(255, 255, 255, 0.15),
+                0 24px 80px rgba(20, 20, 20, 0.16),
+                0 8px 32px ${alpha(activeNoteTint, 0.08)},
+                inset 0 1px 0 rgba(255, 255, 255, 0.55)
+              `,
+              animation: "cmdSlideUp 250ms cubic-bezier(0.16, 1, 0.3, 1)",
+              "@keyframes cmdSlideUp": {
+                "0%": { opacity: 0, transform: "translateY(16px) scale(0.98)" },
+                "100%": { opacity: 1, transform: "translateY(0) scale(1)" },
+              },
             }}
           >
-            <Box sx={{ px: 1.2, py: 0.4 }}>
+            {/* Search Input Area */}
+            <Box sx={{
+              px: 2.5,
+              py: 2,
+              display: "flex",
+              alignItems: "center",
+              gap: 1.5,
+              borderBottom: `1px solid ${alpha(activeNoteTint, 0.14)}`,
+            }}>
+              <Box sx={{
+                width: 36,
+                height: 36,
+                borderRadius: 2.5,
+                display: "grid",
+                placeItems: "center",
+                background: `linear-gradient(135deg, ${alpha(activeNoteTint, 0.18)} 0%, ${alpha(activeNoteTint, 0.08)} 100%)`,
+                border: `1px solid ${alpha(activeNoteTint, 0.22)}`,
+                flexShrink: 0,
+              }}>
+                <Box component="svg" viewBox="0 0 24 24" sx={{ width: 18, height: 18, fill: "none", stroke: alpha(activeNoteTint, 0.7), strokeWidth: 2.2, strokeLinecap: "round" }}>
+                  <circle cx="11" cy="11" r="7" />
+                  <line x1="16.5" y1="16.5" x2="21" y2="21" />
+                </Box>
+              </Box>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Box
+                  ref={commandSearchInputRef}
+                  component="input"
+                  value={commandSearchQuery}
+                  onChange={(event) => setCommandSearchQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowDown") {
+                      event.preventDefault();
+                      setCommandSearchIndex((prev) => Math.min(prev + 1, Math.max(commandSearchResults.length - 1, 0)));
+                    } else if (event.key === "ArrowUp") {
+                      event.preventDefault();
+                      setCommandSearchIndex((prev) => Math.max(prev - 1, 0));
+                    } else if (event.key === "Enter") {
+                      event.preventDefault();
+                      const target = commandSearchResults[commandSearchIndex] || commandSearchResults[0];
+                      if (target) activateSearchResult(target.id);
+                    } else if (event.key === "Escape") {
+                      event.preventDefault();
+                      closeCommandSearch();
+                    }
+                  }}
+                  placeholder="Search notes..."
+                  sx={{
+                    width: "100%",
+                    border: 0,
+                    background: "transparent",
+                    color: "#1e1e1e",
+                    borderRadius: 0,
+                    px: 0,
+                    py: 0,
+                    fontSize: { xs: 20, md: 22 },
+                    fontWeight: 600,
+                    lineHeight: 1.3,
+                    letterSpacing: "-0.01em",
+                    outline: "none",
+                    boxShadow: "none",
+                    fontFamily: "inherit",
+                    "&::placeholder": { color: alpha("#3a3a3a", 0.35), fontWeight: 500 },
+                  }}
+                />
+              </Box>
               <Box
-                ref={commandSearchInputRef}
-                component="input"
-                value={commandSearchQuery}
-                onChange={(event) => setCommandSearchQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "ArrowDown") {
-                    event.preventDefault();
-                    setCommandSearchIndex((prev) => Math.min(prev + 1, Math.max(commandSearchResults.length - 1, 0)));
-                  } else if (event.key === "ArrowUp") {
-                    event.preventDefault();
-                    setCommandSearchIndex((prev) => Math.max(prev - 1, 0));
-                  } else if (event.key === "Enter") {
-                    event.preventDefault();
-                    const target = commandSearchResults[commandSearchIndex] || commandSearchResults[0];
-                    if (target) activateSearchResult(target.id);
-                  } else if (event.key === "Escape") {
-                    event.preventDefault();
-                    closeCommandSearch();
-                  }
-                }}
-                placeholder="Search all notes by title or content..."
+                onClick={closeCommandSearch}
                 sx={{
-                  width: "100%",
-                  border: 0,
-                  background: "transparent",
-                  color: "#111827",
-                  borderRadius: 0,
-                  px: 0,
-                  py: 0.2,
-                  fontSize: { xs: 28, md: 32 },
-                  fontWeight: 700,
-                  lineHeight: 1.2,
-                  letterSpacing: "-0.02em",
-                  outline: "none",
-                  boxShadow: "none",
-                  "&::placeholder": { color: "#8a93a4", opacity: 0.9 },
+                  px: 0.9,
+                  py: 0.35,
+                  borderRadius: 1.5,
+                  bgcolor: alpha(activeNoteTint, 0.1),
+                  border: `1px solid ${alpha(activeNoteTint, 0.2)}`,
+                  cursor: "pointer",
+                  "&:hover": { bgcolor: alpha(activeNoteTint, 0.2) },
+                  transition: "background-color 150ms ease",
+                  flexShrink: 0,
                 }}
-              />
-              <Typography sx={{ mt: 0.25, fontSize: 11, color: "#6f7b8f" }}>
-                Use <strong>Ctrl/Cmd + K</strong> or <strong>Ctrl/Cmd + Shift + F</strong>. Press Enter to open selected note.
-              </Typography>
+              >
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: alpha(activeNoteTint, 0.8), letterSpacing: "0.04em" }}>ESC</Typography>
+              </Box>
             </Box>
 
-            <Box sx={{ maxHeight: "56vh", overflowY: "auto", py: 0.5 }}>
+            {/* Results Area */}
+            <Box sx={{
+              maxHeight: "52vh",
+              overflowY: "auto",
+              py: 0.8,
+              px: 0.8,
+              "&::-webkit-scrollbar": { width: 5 },
+              "&::-webkit-scrollbar-thumb": { bgcolor: alpha(activeNoteTint, 0.18), borderRadius: 3 },
+            }}>
               {commandSearchResults.length === 0 ? (
-                <Box sx={{ px: 1.2, py: 1.4 }}>
-                  <Typography sx={{ fontSize: 20, color: "#7d8798", fontWeight: 500 }}>No matching notes found.</Typography>
+                <Box sx={{
+                  px: 2,
+                  py: 4,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 1,
+                }}>
+                  <Box component="svg" viewBox="0 0 24 24" sx={{ width: 40, height: 40, fill: "none", stroke: alpha(activeNoteTint, 0.3), strokeWidth: 1.5, strokeLinecap: "round" }}>
+                    <circle cx="11" cy="11" r="7" />
+                    <line x1="16.5" y1="16.5" x2="21" y2="21" />
+                  </Box>
+                  <Typography sx={{ fontSize: 15, color: alpha("#2a2a2a", 0.4), fontWeight: 500 }}>No matching notes found</Typography>
                 </Box>
               ) : (
                 commandSearchResults.map((note, index) => {
                   const title = note.title?.trim() || "Untitled";
                   const snippet = plainTextFromHtml(note.content || "");
                   const isSelected = index === commandSearchIndex;
+                  const noteColor = note.color || "#F7E36D";
 
                   return (
                     <Box
                       key={note.id}
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={() => activateSearchResult(note.id)}
+                      onMouseEnter={() => setCommandSearchIndex(index)}
                       sx={{
-                        px: 1.2,
-                        py: 0.7,
+                        px: 1.8,
+                        py: 1.2,
                         cursor: "pointer",
-                        opacity: isSelected ? 1 : 0.76,
-                        transition: "opacity 120ms ease",
-                        "&:hover": { opacity: 1 },
+                        borderRadius: 3,
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 1.5,
+                        bgcolor: isSelected ? alpha(activeNoteTint, 0.10) : "transparent",
+                        border: isSelected ? `1px solid ${alpha(activeNoteTint, 0.18)}` : "1px solid transparent",
+                        transition: "all 150ms ease",
+                        mb: 0.4,
+                        "&:hover": {
+                          bgcolor: alpha(activeNoteTint, 0.10),
+                          border: `1px solid ${alpha(activeNoteTint, 0.18)}`,
+                        },
                       }}
                     >
-                      <Typography sx={{ fontSize: { xs: 24, md: 32 }, fontWeight: 700, color: "#162133", lineHeight: 1.18, letterSpacing: "-0.02em" }}>
-                        {title}
-                      </Typography>
-                      <Typography sx={{ fontSize: 15, color: "#5f6d82", mt: 0.22, lineHeight: 1.25 }}>
-                        {(snippet || "Empty note").slice(0, 170)}
-                      </Typography>
+                      <Box sx={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: "50%",
+                        bgcolor: noteColor,
+                        boxShadow: `0 0 0 2px ${alpha(noteColor, 0.2)}`,
+                        mt: 0.7,
+                        flexShrink: 0,
+                      }} />
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography noWrap sx={{
+                          fontSize: { xs: 15, md: 16 },
+                          fontWeight: 700,
+                          color: isSelected ? "#1a1a1a" : "#2a2a2a",
+                          lineHeight: 1.3,
+                          letterSpacing: "-0.01em",
+                        }}>
+                          {title}
+                        </Typography>
+                        <Typography noWrap sx={{
+                          fontSize: 13,
+                          color: alpha("#2a2a2a", 0.5),
+                          mt: 0.15,
+                          lineHeight: 1.3,
+                        }}>
+                          {(snippet || "Empty note").slice(0, 120)}
+                        </Typography>
+                      </Box>
+                      {isSelected && (
+                        <Box sx={{
+                          px: 0.7,
+                          py: 0.25,
+                          borderRadius: 1.2,
+                          bgcolor: alpha(activeNoteTint, 0.14),
+                          mt: 0.4,
+                          flexShrink: 0,
+                        }}>
+                          <Typography sx={{ fontSize: 10, fontWeight: 700, color: alpha(activeNoteTint, 0.8) }}>↵</Typography>
+                        </Box>
+                      )}
                     </Box>
                   );
                 })
               )}
+            </Box>
+
+            {/* Bottom Hint Bar */}
+            <Box sx={{
+              px: 2.5,
+              py: 1.2,
+              borderTop: `1px solid ${alpha(activeNoteTint, 0.12)}`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              background: `linear-gradient(180deg, ${alpha(activeNoteTint, 0.02)} 0%, ${alpha(activeNoteTint, 0.05)} 100%)`,
+            }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Box sx={{ px: 0.6, py: 0.2, borderRadius: 1, bgcolor: alpha(activeNoteTint, 0.08), border: `1px solid ${alpha(activeNoteTint, 0.14)}` }}>
+                    <Typography sx={{ fontSize: 10, fontWeight: 700, color: alpha(activeNoteTint, 0.75) }}>↑↓</Typography>
+                  </Box>
+                  <Typography sx={{ fontSize: 10.5, color: alpha("#2a2a2a", 0.4), fontWeight: 500 }}>Navigate</Typography>
+                </Box>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Box sx={{ px: 0.6, py: 0.2, borderRadius: 1, bgcolor: alpha(activeNoteTint, 0.08), border: `1px solid ${alpha(activeNoteTint, 0.14)}` }}>
+                    <Typography sx={{ fontSize: 10, fontWeight: 700, color: alpha(activeNoteTint, 0.75) }}>↵</Typography>
+                  </Box>
+                  <Typography sx={{ fontSize: 10.5, color: alpha("#2a2a2a", 0.4), fontWeight: 500 }}>Open</Typography>
+                </Box>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Box sx={{ px: 0.6, py: 0.2, borderRadius: 1, bgcolor: alpha(activeNoteTint, 0.08), border: `1px solid ${alpha(activeNoteTint, 0.14)}` }}>
+                    <Typography sx={{ fontSize: 10, fontWeight: 700, color: alpha(activeNoteTint, 0.75) }}>Esc</Typography>
+                  </Box>
+                  <Typography sx={{ fontSize: 10.5, color: alpha("#2a2a2a", 0.4), fontWeight: 500 }}>Close</Typography>
+                </Box>
+              </Box>
+              <Typography sx={{ fontSize: 10.5, color: alpha("#2a2a2a", 0.3), fontWeight: 600, letterSpacing: "0.04em" }}>
+                ⌘K / Ctrl+K
+              </Typography>
             </Box>
           </Box>
         </Box>

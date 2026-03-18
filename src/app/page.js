@@ -14,6 +14,8 @@ import SelectionPanel from "@/components/docbook/SelectionPanel";
 import FeedbackModal from "@/components/docbook/FeedbackModal";
 import PricingPanel from "@/components/docbook/PricingPanel";
 import WelcomeIntroModal from "@/components/docbook/WelcomeIntroModal";
+import ChangelogPanel from "@/components/docbook/ChangelogPanel";
+import CustomizationPanel, { loadCustomPeople, loadCustomFolders, loadCustomEmojis, loadNoteReactions } from "@/components/docbook/CustomizationPanel";
 import {
   buildId,
   createNote,
@@ -29,6 +31,13 @@ import { docbookDb } from "../lib/docbookDb";
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
+}
+
+function normalizeNoteRecord(note) {
+  return {
+    ...note,
+    links: Array.isArray(note?.links) ? [...new Set(note.links.filter(Boolean))] : [],
+  };
 }
 
 const highlightBlockSelector = "li, p, div, td, th, blockquote, h1, h2, h3, h4, h5, h6";
@@ -49,6 +58,7 @@ export default function Home() {
   const [stickyDragState, setStickyDragState] = useState({ stickyId: "", targetNoteId: "" });
   const [ready, setReady] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
   const [selectionMenu, setSelectionMenu] = useState({ visible: false, x: 0, y: 0 });
   const [colorAnchorEl, setColorAnchorEl] = useState(null);
   const [linkAnchorEl, setLinkAnchorEl] = useState(null);
@@ -71,6 +81,11 @@ export default function Home() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [welcomeIntroOpen, setWelcomeIntroOpen] = useState(false);
   const [selectionContent, setSelectionContent] = useState("");
+  const [customizationPanelOpen, setCustomizationPanelOpen] = useState(false);
+  const [customPeople, setCustomPeople] = useState([]);
+  const [customFolders, setCustomFolders] = useState([]);
+  const [customEmojis, setCustomEmojis] = useState([]);
+  const [noteReactions, setNoteReactions] = useState({});
   const [syncBadgeState, setSyncBadgeState] = useState({
     enabled: false,
     hasPin: false,
@@ -86,6 +101,15 @@ export default function Home() {
   const deletedNotes = useMemo(() => notes.filter((note) => note.deletedAt && !isExpiredDelete(note.deletedAt)), [notes]);
   const activeNote = useMemo(() => activeNotes.find((note) => note.id === activeNoteId) || activeNotes[0] || null, [activeNotes, activeNoteId]);
   const activeNoteStickyNotes = useMemo(() => stickyNotes.filter((note) => note.noteId === activeNoteId), [stickyNotes, activeNoteId]);
+  const linkedNotes = useMemo(() => {
+    if (!activeNote) return [];
+    const linkedIds = new Set(Array.isArray(activeNote.links) ? activeNote.links : []);
+    return activeNotes.filter((note) => linkedIds.has(note.id));
+  }, [activeNote, activeNotes]);
+  const backlinkNotes = useMemo(() => {
+    if (!activeNote) return [];
+    return activeNotes.filter((note) => note.id !== activeNote.id && Array.isArray(note.links) && note.links.includes(activeNote.id));
+  }, [activeNote, activeNotes]);
   const activeNoteTint = activeNote?.color || "#F7E36D";
   const commandSearchResults = useMemo(() => {
     const normalized = commandSearchQuery.trim().toLowerCase();
@@ -401,6 +425,44 @@ export default function Home() {
     [activeNoteId]
   );
 
+  const connectNoteToActive = useCallback(
+    (targetNoteId) => {
+      if (!activeNoteId || !targetNoteId || activeNoteId === targetNoteId) return;
+      setNotes((prev) =>
+        prev.map((note) => {
+          if (note.id !== activeNoteId) return note;
+          const links = Array.isArray(note.links) ? note.links : [];
+          if (links.includes(targetNoteId)) return note;
+          return {
+            ...note,
+            links: [...links, targetNoteId],
+            updatedAt: new Date().toISOString(),
+          };
+        })
+      );
+    },
+    [activeNoteId]
+  );
+
+  const disconnectNoteFromActive = useCallback(
+    (targetNoteId) => {
+      if (!activeNoteId || !targetNoteId) return;
+      setNotes((prev) =>
+        prev.map((note) => {
+          if (note.id !== activeNoteId) return note;
+          const links = Array.isArray(note.links) ? note.links : [];
+          if (!links.includes(targetNoteId)) return note;
+          return {
+            ...note,
+            links: links.filter((id) => id !== targetNoteId),
+            updatedAt: new Date().toISOString(),
+          };
+        })
+      );
+    },
+    [activeNoteId]
+  );
+
   const syncEditorHtml = useCallback(() => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -497,6 +559,8 @@ export default function Home() {
     const fresh = createNote({ content: "<p></p>" });
     setNotes((prev) => [fresh, ...prev]);
     setActiveNoteId(fresh.id);
+    setShowDeleted(false);
+    setShowChangelog(false);
     hideSelectionMenu();
     await docbookDb.notes.put(fresh);
     await docbookDb.meta.put({ key: "activeNoteId", value: fresh.id });
@@ -583,13 +647,29 @@ export default function Home() {
 
   const permanentlyDeleteNote = useCallback(
     async (noteId) => {
-      setNotes((prev) => prev.filter((note) => note.id !== noteId));
+      setNotes((prev) =>
+        prev
+          .filter((note) => note.id !== noteId)
+          .map((note) => ({
+            ...note,
+            links: Array.isArray(note.links) ? note.links.filter((id) => id !== noteId) : [],
+          }))
+      );
       setStickyNotes((prev) => prev.filter((note) => note.noteId !== noteId));
       setActiveStickyNoteId((prev) => (stickyNotes.some((note) => note.id === prev && note.noteId === noteId) ? "" : prev));
       await docbookDb.transaction("rw", docbookDb.notes, docbookDb.images, docbookDb.stickyNotes, async () => {
         await docbookDb.notes.delete(noteId);
         await docbookDb.images.where("noteId").equals(noteId).delete();
         await docbookDb.stickyNotes.where("noteId").equals(noteId).delete();
+        const linkedNotesToUpdate = await docbookDb.notes.filter((note) => Array.isArray(note.links) && note.links.includes(noteId)).toArray();
+        if (linkedNotesToUpdate.length > 0) {
+          await docbookDb.notes.bulkPut(
+            linkedNotesToUpdate.map((note) => ({
+              ...note,
+              links: note.links.filter((id) => id !== noteId),
+            }))
+          );
+        }
       });
     },
     [stickyNotes]
@@ -1170,13 +1250,14 @@ export default function Home() {
   /* Import notes from cloud */
   const handleImportNotes = useCallback(async (cloudNotes) => {
     if (!cloudNotes || cloudNotes.length === 0) return;
+    const normalizedCloudNotes = cloudNotes.map(normalizeNoteRecord);
 
     setNotes((prev) => {
       const existingIds = new Set(prev.map((n) => n.id));
       const newNotes = [];
       const updatedPrev = [...prev];
 
-      for (const cloudNote of cloudNotes) {
+      for (const cloudNote of normalizedCloudNotes) {
         if (existingIds.has(cloudNote.id)) {
           /* Update existing note if cloud version is newer */
           const idx = updatedPrev.findIndex((n) => n.id === cloudNote.id);
@@ -1192,7 +1273,7 @@ export default function Home() {
     });
 
     /* Persist to IndexedDB */
-    await docbookDb.notes.bulkPut(cloudNotes);
+    await docbookDb.notes.bulkPut(normalizedCloudNotes);
   }, []);
 
   /* ─── Bootstrap ─── */
@@ -1201,7 +1282,7 @@ export default function Home() {
 
     const bootstrap = async () => {
       let shouldShowWelcomeIntro = false;
-      let storedNotes = await docbookDb.notes.orderBy("updatedAt").reverse().toArray();
+      let storedNotes = (await docbookDb.notes.orderBy("updatedAt").reverse().toArray()).map(normalizeNoteRecord);
       let storedStickyNotes = await docbookDb.stickyNotes.toArray();
 
       /* Purge notes that were soft-deleted more than 7 days ago */
@@ -1276,6 +1357,13 @@ export default function Home() {
       setActiveNoteId(initialActiveId);
       setReady(true);
       setWelcomeIntroOpen(shouldShowWelcomeIntro);
+
+      /* ── Load custom people, folders, emojis, reactions from localStorage ── */
+      setCustomPeople(loadCustomPeople());
+      setCustomFolders(loadCustomFolders());
+      setCustomEmojis(loadCustomEmojis());
+      setNoteReactions(loadNoteReactions());
+
       await docbookDb.meta.put({ key: "activeNoteId", value: initialActiveId });
     };
 
@@ -1467,6 +1555,7 @@ export default function Home() {
               id: n.id,
               title: n.title,
               content: n.content,
+              links: Array.isArray(n.links) ? n.links : [],
               createdAt: n.createdAt,
               updatedAt: n.updatedAt,
               deletedAt: n.deletedAt || null,
@@ -1540,14 +1629,23 @@ export default function Home() {
             activeNoteId={activeNote?.id}
             sidebarTint={activeNoteTint}
             showDeleted={showDeleted}
+            showChangelog={showChangelog}
             stickyDragState={stickyDragState}
             isCollapsed={sidebarCollapsed}
-            onToggleDeleted={() => setShowDeleted((prev) => !prev)}
+            onToggleDeleted={() => {
+              setShowChangelog(false);
+              setShowDeleted((prev) => !prev);
+            }}
+            onOpenChangelog={(open) => {
+              setShowDeleted(false);
+              setShowChangelog(Boolean(open));
+            }}
             onCreateNote={() => {
               void createNewNote();
             }}
             onOpenNote={(noteId) => {
               setShowDeleted(false);
+              setShowChangelog(false);
               setActiveNoteId(noteId);
             }}
             onDeleteNote={(noteId) => {
@@ -1564,6 +1662,17 @@ export default function Home() {
             onOpenPricing={() => setPricingOpen(true)}
             onExpand={() => setDrawerOpen(true)}
             onImportNotes={handleImportNotes}
+            customEmojis={customEmojis}
+            noteReactions={noteReactions}
+            onToggleReaction={(noteId, emoji) => {
+              setNoteReactions((prev) => {
+                const current = prev[noteId] || [];
+                const next = current[0] === emoji ? [] : [emoji];
+                const updated = { ...prev, [noteId]: next };
+                localStorage.setItem("docbook_note_reactions", JSON.stringify(updated));
+                return updated;
+              });
+            }}
           />
 
           <Drawer
@@ -1582,14 +1691,24 @@ export default function Home() {
               activeNoteId={activeNote?.id}
               sidebarTint={activeNoteTint}
               showDeleted={showDeleted}
+              showChangelog={showChangelog}
               stickyDragState={stickyDragState}
-              onToggleDeleted={() => setShowDeleted((prev) => !prev)}
+              onToggleDeleted={() => {
+                setShowChangelog(false);
+                setShowDeleted((prev) => !prev);
+              }}
+              onOpenChangelog={(open) => {
+                setShowDeleted(false);
+                setShowChangelog(Boolean(open));
+                setDrawerOpen(false);
+              }}
               onCreateNote={() => {
                 void createNewNote();
                 setDrawerOpen(false);
               }}
               onOpenNote={(noteId) => {
                 setShowDeleted(false);
+                setShowChangelog(false);
                 setActiveNoteId(noteId);
                 setDrawerOpen(false);
               }}
@@ -1616,50 +1735,80 @@ export default function Home() {
               }}
               onImportNotes={handleImportNotes}
               isDrawer={true}
+              customEmojis={customEmojis}
+              noteReactions={noteReactions}
+              onToggleReaction={(noteId, emoji) => {
+                setNoteReactions((prev) => {
+                  const current = prev[noteId] || [];
+                  const next = current.includes(emoji) ? current.filter((e) => e !== emoji) : [...current, emoji];
+                  const updated = { ...prev, [noteId]: next };
+                  localStorage.setItem("docbook_note_reactions", JSON.stringify(updated));
+                  return updated;
+                });
+              }}
             />
           </Drawer>
 
-          <DocbookEditorSurface
-            collapseSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
-            activeNote={activeNote}
-            editorRef={editorRef}
-            imageUrlMap={imageUrlMap}
-            stickyNotes={stickyNotes}
-            activeStickyNoteId={activeStickyNoteId}
-            onTitleChange={(event) => updateCurrentNote((note) => ({ ...note, title: event.target.value }))}
-            onNoteColorChange={(color) => updateCurrentNote((note) => ({ ...note, color }))}
-            onEditorInput={syncEditorHtml}
-            onEditorBlur={syncEditorHtml}
-            onEditorSelectionChange={handleEditorSelectionChange}
-            onEditorClick={handleEditorClick}
-            onEditorDoubleClick={handleEditorDoubleClick}
-            onEditorMouseMove={handleEditorMouseMove}
-            onEditorMouseLeave={hideHoverPreview}
-            onEditorDragOver={handleEditorDragOver}
-            onEditorDragLeave={handleEditorDragLeave}
-            onEditorDrop={handleEditorDrop}
-            onOpenSelectionPanel={handleOpenSelectionPanel}
-            onPasteImage={handlePasteImage}
-            onAddStickyNote={() => {
-              void createNewStickyNote();
-            }}
-            onOpenStickyNote={openStickyNote}
-            onUpdateStickyNote={(stickyId, updates) => {
-              void updateStickyNote(stickyId, updates);
-            }}
-            onMoveStickyNote={(stickyId, noteId, updates) => {
-              void moveStickyNoteToNote(stickyId, noteId, updates);
-            }}
-            onStickyDragStateChange={setStickyDragState}
-            onDeleteStickyNote={(stickyId) => {
-              void deleteStickyNote(stickyId);
-            }}
-            onNoteFontSizeIncrease={handleNoteFontScaleIncrease}
-            onNoteFontSizeDecrease={handleNoteFontScaleDecrease}
-            onFontSizeIncrease={handleFontSizeIncrease}
-            onFontSizeDecrease={handleFontSizeDecrease}
-            syncBadgeState={syncBadgeState}
-          />
+          {showChangelog ? (
+            <ChangelogPanel accentColor={activeNoteTint} />
+          ) : (
+            <DocbookEditorSurface
+              collapseSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+              activeNote={activeNote}
+              allNotes={activeNotes}
+              linkedNotes={linkedNotes}
+              backlinkNotes={backlinkNotes}
+              editorRef={editorRef}
+              imageUrlMap={imageUrlMap}
+              stickyNotes={stickyNotes}
+              activeStickyNoteId={activeStickyNoteId}
+              onOpenLinkedNote={(noteId) => {
+                setShowDeleted(false);
+                setShowChangelog(false);
+                setActiveNoteId(noteId);
+              }}
+              onConnectNote={connectNoteToActive}
+              onDisconnectNote={disconnectNoteFromActive}
+              onTitleChange={(event) => updateCurrentNote((note) => ({ ...note, title: event.target.value }))}
+              onNoteColorChange={(color) => updateCurrentNote((note) => ({ ...note, color }))}
+              onEditorInput={syncEditorHtml}
+              onEditorBlur={syncEditorHtml}
+              onEditorSelectionChange={handleEditorSelectionChange}
+              onEditorClick={handleEditorClick}
+              onEditorDoubleClick={handleEditorDoubleClick}
+              onEditorMouseMove={handleEditorMouseMove}
+              onEditorMouseLeave={hideHoverPreview}
+              onEditorDragOver={handleEditorDragOver}
+              onEditorDragLeave={handleEditorDragLeave}
+              onEditorDrop={handleEditorDrop}
+              onOpenSelectionPanel={handleOpenSelectionPanel}
+              onPasteImage={handlePasteImage}
+              onAddStickyNote={() => {
+                void createNewStickyNote();
+              }}
+              onOpenStickyNote={openStickyNote}
+              onUpdateStickyNote={(stickyId, updates) => {
+                void updateStickyNote(stickyId, updates);
+              }}
+              onMoveStickyNote={(stickyId, noteId, updates) => {
+                void moveStickyNoteToNote(stickyId, noteId, updates);
+              }}
+              onStickyDragStateChange={setStickyDragState}
+              onDeleteStickyNote={(stickyId) => {
+                void deleteStickyNote(stickyId);
+              }}
+              onNoteFontSizeIncrease={handleNoteFontScaleIncrease}
+              onNoteFontSizeDecrease={handleNoteFontScaleDecrease}
+              onFontSizeIncrease={handleFontSizeIncrease}
+              onFontSizeDecrease={handleFontSizeDecrease}
+              syncBadgeState={syncBadgeState}
+              customPeople={customPeople}
+              customFolders={customFolders}
+              onOpenCustomization={() => setCustomizationPanelOpen(true)}
+              onPeopleChange={setCustomPeople}
+              onFoldersChange={setCustomFolders}
+            />
+          )}
         </Box>
 
         <Box
@@ -2046,6 +2195,18 @@ export default function Home() {
       <PricingPanel
         open={pricingOpen}
         onClose={() => setPricingOpen(false)}
+      />
+
+      {/* Customization Panel */}
+      <CustomizationPanel
+        open={customizationPanelOpen}
+        onClose={() => setCustomizationPanelOpen(false)}
+        people={customPeople}
+        folders={customFolders}
+        selectedEmojis={customEmojis}
+        onPeopleChange={setCustomPeople}
+        onFoldersChange={setCustomFolders}
+        onEmojisChange={setCustomEmojis}
       />
     </Box>
   );

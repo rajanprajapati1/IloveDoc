@@ -1,17 +1,22 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Box, IconButton, Tooltip, Stack, Paper, Typography } from "@mui/material";
+import { Box, ClickAwayListener, IconButton, Tooltip, Stack, Paper, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import CloudDoneRoundedIcon from "@mui/icons-material/CloudDoneRounded";
 import CloudOffRoundedIcon from "@mui/icons-material/CloudOffRounded";
 import ViewSidebarRoundedIcon from "@mui/icons-material/ViewSidebarRounded";
 import TextDecreaseRoundedIcon from "@mui/icons-material/TextDecreaseRounded";
 import StickyNote2RoundedIcon from "@mui/icons-material/StickyNote2Rounded";
-import { noteColorOptions, tooltipSlotProps, uncheckedIconSvg } from "./shared";
+import { buildId, noteColorOptions, plainTextFromHtml, tooltipSlotProps, uncheckedIconSvg } from "./shared";
 import TextIncreaseRoundedIcon from "@mui/icons-material/TextIncreaseRounded";
 import StickyNoteBoard from "./StickyNoteBoard";
 import ViewCarouselRoundedIcon from "@mui/icons-material/ViewCarouselRounded";
 import KeyboardOptionKeyRoundedIcon from "@mui/icons-material/KeyboardOptionKeyRounded";
 import WorkspacesRoundedIcon from "@mui/icons-material/WorkspacesRounded";
+import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
+import HubRoundedIcon from "@mui/icons-material/HubRounded";
+import NorthEastRoundedIcon from "@mui/icons-material/NorthEastRounded";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -19,27 +24,20 @@ function clamp(value, min, max) {
 
 const richTokenBoundarySelector = "[data-highlight], [data-img-ref], [data-user-mention], [data-folder-ref]";
 
-const mentionDirectory = [
-  { id: "user-1", name: "Aarav Shah", handle: "aarav", role: "Product owner", accent: "#f97316" },
-  { id: "user-2", name: "Nina Kapoor", handle: "nina", role: "Design lead", accent: "#ef4444" },
-  { id: "user-3", name: "Rohan Mehta", handle: "rohan", role: "Frontend engineer", accent: "#2563eb" },
-  { id: "user-4", name: "Sara Iyer", handle: "sara", role: "QA reviewer", accent: "#14b8a6" },
-];
-
-const folderDirectory = [
-  { id: "folder-1", name: "src", path: "src", description: "Main source files", accent: "#8b5cf6" },
-  { id: "folder-2", name: "src/components/docbook", path: "src/components/docbook", description: "Editor and sidebar UI", accent: "#0f766e" },
-  { id: "folder-3", name: "src/app", path: "src/app", description: "Routes and app shell", accent: "#b45309" },
-  { id: "folder-4", name: "docs", path: "docs", description: "Project documentation", accent: "#1d4ed8" },
-  { id: "folder-5", name: "public", path: "public", description: "Static assets", accent: "#be185d" },
-];
+/* mentionDirectory and folderDirectory are now passed as props (customPeople / customFolders) */
 
 export default function DocbookEditorSurface({
   activeNote,
+  allNotes = [],
+  linkedNotes = [],
+  backlinkNotes = [],
   editorRef,
   imageUrlMap = {},
   stickyNotes = [],
   activeStickyNoteId,
+  onOpenLinkedNote,
+  onConnectNote,
+  onDisconnectNote,
   onTitleChange,
   onEditorInput,
   onEditorBlur,
@@ -65,14 +63,22 @@ export default function DocbookEditorSurface({
   onNoteFontSizeIncrease,
   onFontSizeIncrease,
   syncBadgeState,
-  collapseSidebar
+  collapseSidebar,
+  customPeople = [],
+  customFolders = [],
+  onOpenCustomization,
+  onPeopleChange,
+  onFoldersChange,
 }) {
   const [dropCaret, setDropCaret] = useState({ visible: false, x: 0, y: 0, height: 0 });
   const [slashMenu, setSlashMenu] = useState({ visible: false, x: 0, y: 0, query: "", selectedIndex: 0, token: "" });
   const [tokenMenu, setTokenMenu] = useState({ visible: false, x: 0, y: 0, query: "", selectedIndex: 0, token: "", tokenType: "" });
   const [titleSlashMenu, setTitleSlashMenu] = useState({ visible: false, query: "", selectedIndex: 0 });
-  const [showReferenceHelp, setShowReferenceHelp] = useState(false);
+  const [linkSearchOpen, setLinkSearchOpen] = useState(false);
+  const [linkSearchQuery, setLinkSearchQuery] = useState("");
+  const [connectionsDockOpen, setConnectionsDockOpen] = useState(false);
   const titleInputRef = useRef(null);
+  const linkSearchInputRef = useRef(null);
   const [stickyNotesVisible, setStickyNotesVisible] = useState(true);
   const [editorScrollState, setEditorScrollState] = useState({
     scrollTop: 0,
@@ -81,6 +87,20 @@ export default function DocbookEditorSurface({
   });
   const activeNoteTint = activeNote?.color || noteColorOptions[0].value;
   const editorFontScale = activeNote?.fontScale || 1;
+  const activeNoteLinks = Array.isArray(activeNote?.links) ? activeNote.links : [];
+  const availableLinkedSearchResults = allNotes
+    .filter((note) => {
+      if (!activeNote?.id || note.id === activeNote.id) return false;
+      if (activeNoteLinks.includes(note.id)) return false;
+
+      const normalizedQuery = linkSearchQuery.trim().toLowerCase();
+      if (!normalizedQuery) return true;
+
+      const title = (note.title || "").toLowerCase();
+      const content = plainTextFromHtml(note.content || "").toLowerCase();
+      return title.includes(normalizedQuery) || content.includes(normalizedQuery);
+    })
+    .slice(0, 6);
 
   const imageEntries = Object.entries(imageUrlMap);
   const showSyncBadge = Boolean(syncBadgeState?.enabled && syncBadgeState?.hasPin && syncBadgeState?.interval > 0);
@@ -219,6 +239,19 @@ export default function DocbookEditorSurface({
       );
     }
 
+    if (slashMenu.query.startsWith("/map") || "map".includes(cleanQuery)) {
+      const mapQuery = cleanQuery.replace("map", "").trim();
+      if (mapQuery) {
+        results.push(
+          { id: "map-pin", kind: "map", label: `📍 ${mapQuery}`, description: `Insert location: ${mapQuery}`, value: mapQuery }
+        );
+      } else {
+        results.push(
+          { id: "map-hint", kind: "map", label: "📍 Insert Location", description: "Type /map followed by a place name", value: "" }
+        );
+      }
+    }
+
     return results;
   })();
 
@@ -228,7 +261,7 @@ export default function DocbookEditorSurface({
     const normalizedQuery = tokenMenu.query.toLowerCase().trim();
 
     if (tokenMenu.tokenType === "mention") {
-      return mentionDirectory.filter((person) => {
+      const matches = customPeople.filter((person) => {
         if (!normalizedQuery) return true;
         return (
           person.name.toLowerCase().includes(normalizedQuery) ||
@@ -236,10 +269,17 @@ export default function DocbookEditorSurface({
           person.role.toLowerCase().includes(normalizedQuery)
         );
       });
+      if (!normalizedQuery && matches.length === 0) {
+        matches.push({ id: "__mention_hint__", name: "Type a name to create or search", handle: "", role: "No people added yet", accent: "#8b5e3c", __isHint: true });
+      }
+      if (normalizedQuery && !customPeople.some((p) => p.handle.toLowerCase() === normalizedQuery || p.name.toLowerCase() === normalizedQuery)) {
+        matches.push({ id: "__create_person__", name: normalizedQuery, handle: normalizedQuery, role: "", accent: "#8b5e3c", __isCreate: true });
+      }
+      return matches;
     }
 
     if (tokenMenu.tokenType === "folder") {
-      return folderDirectory.filter((folder) => {
+      const matches = customFolders.filter((folder) => {
         if (!normalizedQuery) return true;
         return (
           folder.name.toLowerCase().includes(normalizedQuery) ||
@@ -247,6 +287,13 @@ export default function DocbookEditorSurface({
           folder.description.toLowerCase().includes(normalizedQuery)
         );
       });
+      if (!normalizedQuery && matches.length === 0) {
+        matches.push({ id: "__folder_hint__", name: "Type a path to create or search", path: "", description: "No folders added yet", accent: "#6d4c41", __isHint: true });
+      }
+      if (normalizedQuery && !customFolders.some((f) => f.path.toLowerCase() === normalizedQuery || f.name.toLowerCase() === normalizedQuery)) {
+        matches.push({ id: "__create_folder__", name: normalizedQuery, path: normalizedQuery, description: "", accent: "#6d4c41", __isCreate: true });
+      }
+      return matches;
     }
 
     return [];
@@ -409,7 +456,7 @@ export default function DocbookEditorSurface({
 
     const query = context.token.toLowerCase();
     const noSlash = query.replace("/", "");
-    if (!"note".includes(noSlash) && !"date".includes(noSlash) && !"todo".includes(noSlash)) {
+    if (!"note".includes(noSlash) && !"date".includes(noSlash) && !"todo".includes(noSlash) && !"map".includes(noSlash)) {
       closeSlashMenu();
       return;
     }
@@ -491,6 +538,14 @@ export default function DocbookEditorSurface({
         return;
       }
 
+      if (item.kind === "map" && item.value) {
+        const mapUrl = `https://www.google.com/maps/search/${encodeURIComponent(item.value)}`;
+        const mapHtml = `<span data-location="${item.value.replace(/"/g, '&quot;')}" data-location-url="${mapUrl}" contenteditable="false" style="display:inline-flex;align-items:center;gap:0.25em;vertical-align:middle;border-radius:999px;padding:0.08em 0.34em;margin:0 0.04em;background:rgba(255,252,247,0.92);border:1px solid rgba(139,94,60,0.16);box-shadow:0 8px 18px rgba(92,61,46,0.12);color:#3e2f24;line-height:1;user-select:none;cursor:pointer;font-size:0.42em;font-weight:700">📍 ${item.value}</span>\u00A0`;
+        document.execCommand("insertHTML", false, mapHtml);
+        if (onEditorInput) onEditorInput();
+        return;
+      }
+
       if (item.kind === "create") {
         onAddStickyNote?.();
         return;
@@ -505,8 +560,26 @@ export default function DocbookEditorSurface({
 
   const applyTokenSuggestion = useCallback(
     (item) => {
+      if (item.__isHint) return;
+
       const context = getTokenContext();
       if (!context?.textNode) return;
+
+      /* If this is a 'create new' entry, auto-save to the custom list first */
+      let resolvedItem = item;
+      if (item.__isCreate && tokenMenu.tokenType === "mention") {
+        const newPerson = { id: buildId(), name: item.name, handle: item.handle, role: "", accent: "#8b5e3c" };
+        resolvedItem = newPerson;
+        const updatedPeople = [...customPeople, newPerson];
+        localStorage.setItem("docbook_custom_people", JSON.stringify(updatedPeople));
+        onPeopleChange?.(updatedPeople);
+      } else if (item.__isCreate && tokenMenu.tokenType === "folder") {
+        const newFolder = { id: buildId(), name: item.name, path: item.path, description: "", accent: "#6d4c41" };
+        resolvedItem = newFolder;
+        const updatedFolders = [...customFolders, newFolder];
+        localStorage.setItem("docbook_custom_folders", JSON.stringify(updatedFolders));
+        onFoldersChange?.(updatedFolders);
+      }
 
       const selection = window.getSelection();
       const replaceRange = document.createRange();
@@ -517,15 +590,15 @@ export default function DocbookEditorSurface({
       chip.contentEditable = "false";
 
       if (tokenMenu.tokenType === "mention") {
-        chip.setAttribute("data-user-mention", item.id);
-        chip.setAttribute("data-user-name", item.name);
-        chip.setAttribute("data-user-handle", item.handle);
-        chip.setAttribute("data-user-role", item.role);
+        chip.setAttribute("data-user-mention", resolvedItem.id);
+        chip.setAttribute("data-user-name", resolvedItem.name);
+        chip.setAttribute("data-user-handle", resolvedItem.handle);
+        chip.setAttribute("data-user-role", resolvedItem.role);
 
         const avatar = document.createElement("span");
         avatar.setAttribute("data-chip-avatar", "true");
-        avatar.style.background = `linear-gradient(135deg, ${alpha(item.accent, 0.95)} 0%, ${alpha(item.accent, 0.72)} 100%)`;
-        avatar.textContent = item.name
+        avatar.style.background = `linear-gradient(135deg, ${alpha(resolvedItem.accent, 0.95)} 0%, ${alpha(resolvedItem.accent, 0.72)} 100%)`;
+        avatar.textContent = resolvedItem.name
           .split(" ")
           .map((part) => part[0])
           .join("")
@@ -537,14 +610,14 @@ export default function DocbookEditorSurface({
 
         const primary = document.createElement("span");
         primary.setAttribute("data-chip-primary", "true");
-        primary.textContent = item.name;
+        primary.textContent = resolvedItem.name;
 
         const secondaryRow = document.createElement("span");
         secondaryRow.setAttribute("data-chip-secondary-row", "true");
 
         const secondary = document.createElement("span");
         secondary.setAttribute("data-chip-secondary", "true");
-        secondary.textContent = `@${item.handle}`;
+        secondary.textContent = `@${resolvedItem.handle}`;
 
         const dot = document.createElement("span");
         dot.setAttribute("data-chip-dot", "true");
@@ -554,10 +627,10 @@ export default function DocbookEditorSurface({
 
         chip.append(avatar, content);
       } else {
-        chip.setAttribute("data-folder-ref", item.id);
-        chip.setAttribute("data-folder-name", item.name);
-        chip.setAttribute("data-folder-path", item.path);
-        chip.setAttribute("data-folder-description", item.description);
+        chip.setAttribute("data-folder-ref", resolvedItem.id);
+        chip.setAttribute("data-folder-name", resolvedItem.name);
+        chip.setAttribute("data-folder-path", resolvedItem.path);
+        chip.setAttribute("data-folder-description", resolvedItem.description);
 
         const icon = document.createElement("span");
         icon.setAttribute("data-chip-folder-icon", "true");
@@ -565,7 +638,7 @@ export default function DocbookEditorSurface({
 
         const label = document.createElement("span");
         label.setAttribute("data-chip-label", "true");
-        label.textContent = item.path;
+        label.textContent = resolvedItem.path;
 
         chip.append(icon, label);
       }
@@ -585,7 +658,7 @@ export default function DocbookEditorSurface({
       if (onEditorInput) onEditorInput();
       closeTokenMenu();
     },
-    [closeTokenMenu, getTokenContext, onEditorInput, tokenMenu.tokenType]
+    [closeTokenMenu, getTokenContext, onEditorInput, tokenMenu.tokenType, customPeople, customFolders, onPeopleChange, onFoldersChange]
   );
 
   const handleDragOver = useCallback(
@@ -720,6 +793,9 @@ export default function DocbookEditorSurface({
         }
       }
 
+      setConnectionsDockOpen(false);
+      setLinkSearchOpen(false);
+
       /* Delegate to parent handler */
       if (onEditorClick) onEditorClick(event);
       window.requestAnimationFrame(refreshSlashMenu);
@@ -780,6 +856,40 @@ export default function DocbookEditorSurface({
       window.removeEventListener("resize", handleResize);
     };
   }, [activeNote?.id, activeNote?.content, editorFontScale, editorRef, refreshEditorScrollState]);
+
+  useEffect(() => {
+    if (!linkSearchOpen) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      linkSearchInputRef.current?.focus();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [linkSearchOpen]);
+
+  useEffect(() => {
+    setLinkSearchOpen(false);
+    setLinkSearchQuery("");
+    setConnectionsDockOpen(false);
+  }, [activeNote?.id]);
+
+  useEffect(() => {
+    if (!linkSearchOpen) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setLinkSearchOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [linkSearchOpen]);
 
   /* ── Escape highlight/img-ref spans when typing at their boundary ── */
   const handleEditorKeyDown = useCallback(
@@ -1251,6 +1361,274 @@ export default function DocbookEditorSurface({
           </Box>
         </Tooltip>
 
+        <ClickAwayListener
+          onClickAway={() => {
+            setLinkSearchOpen(false);
+            setConnectionsDockOpen(false);
+          }}
+        >
+        <Box
+          onMouseEnter={() => setConnectionsDockOpen(true)}
+          onMouseLeave={() => {
+            if (!linkSearchOpen) {
+              setConnectionsDockOpen(false);
+            }
+          }}
+          sx={{
+            position: "fixed",
+            top: 72,
+            right: 0,
+            zIndex: 23,
+            width: connectionsDockOpen ? { xs: 284, md: 320 } : 44,
+            maxWidth: "calc(100% - 12px)",
+            borderRadius: "20px 0 0 20px",
+            overflow: "hidden",
+            border: `1px solid ${alpha(activeNoteTint, 0.2)}`,
+            borderRight: 0,
+            bgcolor: alpha("#fffdf8", 2),
+            boxShadow: `0 14px 30px ${alpha(activeNoteTint, 0.12)}`,
+            backdropFilter: "blur(10px)",
+            transition: "width 220ms ease, box-shadow 180ms ease, background-color 180ms ease",
+          }}
+        >
+          <Box
+            onClick={() => setConnectionsDockOpen((prev) => !prev)}
+            sx={{
+              minHeight: 44,
+              px: connectionsDockOpen ? 0.9 : 0.55,
+              py: 0.75,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: connectionsDockOpen ? "space-between" : "center",
+              gap: 0.75,
+              cursor: "pointer",
+              background: `linear-gradient(180deg, ${alpha(activeNoteTint, 0.14)} 0%, rgba(255, 251, 245, 0.94) 100%)`,
+            }}
+          >
+            <Stack direction="row" spacing={0.8} alignItems="center" sx={{ minWidth: 0 }}>
+              <Box
+                sx={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  display: "grid",
+                  placeItems: "center",
+                  bgcolor: alpha(activeNoteTint, 0.25),
+                  color: "#6d4f36",
+                  flexShrink: 0,
+                }}
+              >
+                <HubRoundedIcon sx={{ fontSize: 16 }} />
+              </Box>
+              {connectionsDockOpen && (
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 11, fontWeight: 800, color: "#6a5a49", letterSpacing: "0.08em", textTransform: "uppercase", lineHeight: 1.1 }}>
+                    Connections
+                  </Typography>
+                  <Typography sx={{ fontSize: 11.5, color: "#7b6c5c", lineHeight: 1.15 }}>
+                    {linkedNotes.length} linked, {backlinkNotes.length} backlinks
+                  </Typography>
+                </Box>
+              )}
+            </Stack>
+            {connectionsDockOpen && (
+              <Tooltip title="Connect note" arrow slotProps={tooltipSlotProps}>
+                <IconButton
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setLinkSearchOpen((prev) => !prev);
+                  }}
+                  size="small"
+                  sx={{
+                    width: 28,
+                    height: 28,
+                    color: linkSearchOpen ? "#8b5e3c" : "#9a7653",
+                    bgcolor: linkSearchOpen ? alpha("#fff2d8", 0.98) : alpha("#fffdf8", 0.9),
+                    border: "1px solid rgba(139,94,60,0.12)",
+                    "&:hover": { bgcolor: alpha("#fff4df", 0.98) },
+                  }}
+                >
+                  <SearchRoundedIcon sx={{ fontSize: 15 }} />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
+
+          {connectionsDockOpen && (
+            <Box sx={{ px: 1, pb: 1, pt: 0.2 }}>
+              {linkSearchOpen && (
+                <Box
+                  sx={{
+                    mb: 0.9,
+                    borderRadius: 2.4,
+                    overflow: "hidden",
+                    border: "1px solid #e2d6c8",
+                    bgcolor: "#fffaf4",
+                  }}
+                >
+                  <Box
+                    sx={{
+                      px: 1.1,
+                      py: 0.85,
+                      borderBottom: "1px solid #ebe1d4",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 0.8,
+                    }}
+                  >
+                    <SearchRoundedIcon sx={{ fontSize: 16, color: "#6a5a49" }} />
+                    <Box
+                      ref={linkSearchInputRef}
+                      component="input"
+                      value={linkSearchQuery}
+                      onChange={(event) => setLinkSearchQuery(event.target.value)}
+                      placeholder="Search notes..."
+                      sx={{
+                        flex: 1,
+                        minWidth: 0,
+                        border: 0,
+                        outline: 0,
+                        bgcolor: "transparent",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: "#352f29",
+                        "&::placeholder": { color: "#8a7968", opacity: 1 },
+                      }}
+                    />
+                    <IconButton
+                      size="small"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        setLinkSearchOpen(false);
+                        setLinkSearchQuery("");
+                      }}
+                      sx={{ p: 0.25, color: "#8a7968" }}
+                    >
+                      <CloseRoundedIcon sx={{ fontSize: 15 }} />
+                    </IconButton>
+                  </Box>
+                  <Stack spacing={0} sx={{ py: 0.35, maxHeight: 220, overflowY: "auto" }}>
+                    {availableLinkedSearchResults.length > 0 ? (
+                      availableLinkedSearchResults.map((note) => (
+                        <Box
+                          key={note.id}
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            onConnectNote?.(note.id);
+                            setLinkSearchQuery("");
+                            setLinkSearchOpen(false);
+                          }}
+                          sx={{
+                            px: 1.1,
+                            py: 0.9,
+                            cursor: "pointer",
+                            transition: "background-color 120ms ease",
+                            "&:hover": { bgcolor: alpha("#c4956a", 0.12) },
+                          }}
+                        >
+                          <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: "#352f29" }}>
+                            {note.title?.trim() || "Untitled"}
+                          </Typography>
+                          <Typography sx={{ fontSize: 11, color: "#7b6c5c" }}>
+                            {(plainTextFromHtml(note.content || "") || "Empty note").slice(0, 82)}
+                          </Typography>
+                        </Box>
+                      ))
+                    ) : (
+                      <Box sx={{ px: 1.1, py: 1 }}>
+                        <Typography sx={{ fontSize: 12, color: "#7b6c5c" }}>
+                          No notes found to connect.
+                        </Typography>
+                      </Box>
+                    )}
+                  </Stack>
+                </Box>
+              )}
+
+              <Stack spacing={0.85}>
+                <Box>
+                  <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: "#7b6c5c", letterSpacing: "0.08em", textTransform: "uppercase", mb: 0.45 }}>
+                    Connected
+                  </Typography>
+                  {linkedNotes.length > 0 ? (
+                    <Stack spacing={0.5}>
+                      {linkedNotes.map((note) => (
+                        <Stack
+                          key={note.id}
+                          direction="row"
+                          spacing={0.5}
+                          alignItems="center"
+                          sx={{
+                            px: 0.8,
+                            py: 0.55,
+                            borderRadius: 999,
+                            bgcolor: alpha(note.color || activeNoteTint, 0.16),
+                            border: `1px solid ${alpha(note.color || activeNoteTint, 0.18)}`,
+                          }}
+                        >
+                          <Typography
+                            onClick={() => onOpenLinkedNote?.(note.id)}
+                            sx={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 700, color: "#312821", cursor: "pointer" }}
+                            noWrap
+                          >
+                            {note.title?.trim() || "Untitled"}
+                          </Typography>
+                          <IconButton
+                            size="small"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => onDisconnectNote?.(note.id)}
+                            sx={{ p: 0.2, color: "#7b6c5c" }}
+                          >
+                            <CloseRoundedIcon sx={{ fontSize: 14 }} />
+                          </IconButton>
+                        </Stack>
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Typography sx={{ fontSize: 11.5, color: "#8a7968" }}>No linked notes yet.</Typography>
+                  )}
+                </Box>
+
+                <Box>
+                  <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: "#7b6c5c", letterSpacing: "0.08em", textTransform: "uppercase", mb: 0.45 }}>
+                    Linked Here
+                  </Typography>
+                  {backlinkNotes.length > 0 ? (
+                    <Stack spacing={0.5}>
+                      {backlinkNotes.map((note) => (
+                        <Stack
+                          key={note.id}
+                          direction="row"
+                          spacing={0.45}
+                          alignItems="center"
+                          onClick={() => onOpenLinkedNote?.(note.id)}
+                          sx={{
+                            px: 0.8,
+                            py: 0.55,
+                            borderRadius: 999,
+                            bgcolor: alpha("#fff8ef", 0.95),
+                            border: "1px solid rgba(139,94,60,0.14)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <Typography sx={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 700, color: "#312821" }} noWrap>
+                            {note.title?.trim() || "Untitled"}
+                          </Typography>
+                          <NorthEastRoundedIcon sx={{ fontSize: 14, color: "#8b5e3c" }} />
+                        </Stack>
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Typography sx={{ fontSize: 11.5, color: "#8a7968" }}>No backlinks yet.</Typography>
+                  )}
+                </Box>
+              </Stack>
+            </Box>
+          )}
+        </Box>
+        </ClickAwayListener>
+
 
 
         <Stack
@@ -1388,68 +1766,6 @@ export default function DocbookEditorSurface({
               <StickyNote2RoundedIcon sx={{ fontSize: 20 }} />
             </IconButton>
           </Tooltip>
-          <Box sx={{ position: "relative" }}>
-            <Tooltip title="How mentions and folder refs work" arrow slotProps={tooltipSlotProps}>
-              <IconButton
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => setShowReferenceHelp((prev) => !prev)}
-                size="small"
-                sx={{
-                  color: "#5d4a3d",
-                  bgcolor: alpha("#fffdf8", 0.82),
-                  border: `1px solid ${alpha(activeNoteTint, 0.24)}`,
-                  boxShadow: `0 10px 24px ${alpha(activeNoteTint, 0.12)}`,
-                  backdropFilter: "blur(10px)",
-                  "&:hover": { bgcolor: alpha("#fff8ef", 0.92) },
-                }}
-              >
-                <Typography sx={{ fontSize: 20, fontWeight: 800, lineHeight: 1, color: "inherit" }}>i</Typography>
-              </IconButton>
-            </Tooltip>
-
-            {showReferenceHelp && (
-              <Paper
-                elevation={8}
-                sx={{
-                  position: "absolute",
-                  top: "calc(100% + 10px)",
-                  left: "50%",
-                  transform: "translateX(-100%)",
-                  width: 320,
-                  maxWidth: "calc(100vw - 32px)",
-                  px: 1.5,
-                  py: 1.35,
-                  borderRadius: 3,
-                  border: "1px solid #ddd0c0",
-                  bgcolor: "#fdf8f1",
-                  boxShadow: "0 18px 38px rgba(58, 46, 34, 0.18)",
-                }}
-              >
-                <Typography sx={{ fontSize: 12, fontWeight: 800, color: "#5b493c", letterSpacing: "0.08em", textTransform: "uppercase", mb: 0.8 }}>
-                  Quick refs
-                </Typography>
-                <Stack spacing={0.85}>
-                  <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
-                    <Box sx={{ fontSize: 18, lineHeight: 1, color: "#8b5e3c", mt: 0.05 }}>@</Box>
-                    <Box>
-                      <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#352f29" }}>Type `@` to mention a user</Typography>
-                      <Typography sx={{ fontSize: 11.5, color: "#7b6c5c" }}>Example: `@rohan` becomes an avatar chip.</Typography>
-                    </Box>
-                  </Box>
-                  <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
-                    <Box sx={{ fontSize: 18, lineHeight: 1, color: "#8b5e3c", mt: 0.05 }}>#</Box>
-                    <Box>
-                      <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#352f29" }}>Type `#` to reference a folder</Typography>
-                      <Typography sx={{ fontSize: 11.5, color: "#7b6c5c" }}>Example: `#src/components/docbook` becomes a rounded path chip.</Typography>
-                    </Box>
-                  </Box>
-                  <Typography sx={{ fontSize: 11.5, color: "#7b6c5c", pt: 0.3 }}>
-                    Use arrow keys to navigate suggestions, then press Enter or Tab to insert.
-                  </Typography>
-                </Stack>
-              </Paper>
-            )}
-          </Box>
 
           {imageEntries.length > 0 && (
             <Tooltip title="View images & selection" arrow slotProps={tooltipSlotProps}>
@@ -1847,10 +2163,10 @@ export default function DocbookEditorSurface({
             position: "fixed",
             left: tokenMenu.x,
             top: tokenMenu.y,
-            opacity: tokenMenu.visible && activeTokenSuggestions.length > 0 ? 1 : 0,
-            transform: tokenMenu.visible && activeTokenSuggestions.length > 0 ? "translateY(0)" : "translateY(6px)",
+            opacity: tokenMenu.visible ? 1 : 0,
+            transform: tokenMenu.visible ? "translateY(0)" : "translateY(6px)",
             transition: "opacity 140ms ease, transform 140ms ease",
-            pointerEvents: tokenMenu.visible && activeTokenSuggestions.length > 0 ? "auto" : "none",
+            pointerEvents: tokenMenu.visible ? "auto" : "none",
             zIndex: 1600,
           }}
         >
@@ -1880,11 +2196,22 @@ export default function DocbookEditorSurface({
               <Typography sx={{ fontSize: 11, fontWeight: 800, color: "#6a5a49", letterSpacing: "0.08em", textTransform: "uppercase" }}>
                 {tokenMenu.tokenType === "mention" ? "People" : "Folders"}
               </Typography>
-              {tokenMenu.tokenType === "mention" ? (
-                <Typography sx={{ color: "#6a5a49", fontSize: 14, fontWeight: 800, lineHeight: 1 }}>@</Typography>
-              ) : (
-                <Typography sx={{ color: "#6a5a49", fontSize: 14, fontWeight: 800, lineHeight: 1 }}>#</Typography>
-              )}
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                {onOpenCustomization && (
+                  <IconButton
+                    size="small"
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); closeTokenMenu(); onOpenCustomization(); }}
+                    sx={{ width: 22, height: 22, color: "#6a5a49", "&:hover": { bgcolor: alpha("#c4956a", 0.12) } }}
+                  >
+                    <TuneRoundedIcon sx={{ fontSize: 14 }} />
+                  </IconButton>
+                )}
+                {tokenMenu.tokenType === "mention" ? (
+                  <Typography sx={{ color: "#6a5a49", fontSize: 14, fontWeight: 800, lineHeight: 1 }}>@</Typography>
+                ) : (
+                  <Typography sx={{ color: "#6a5a49", fontSize: 14, fontWeight: 800, lineHeight: 1 }}>#</Typography>
+                )}
+              </Stack>
             </Box>
             <Stack spacing={0} sx={{ py: 0.5 }}>
               {activeTokenSuggestions.map((item, index) => (
@@ -1913,14 +2240,19 @@ export default function DocbookEditorSurface({
                           display: "grid",
                           placeItems: "center",
                           position: "relative",
-                          background: `linear-gradient(135deg, ${item.accent} 0%, ${alpha(item.accent, 0.68)} 100%)`,
-                          color: "#fffdf8",
-                          fontSize: 13,
+                          background: item.__isCreate
+                            ? "transparent"
+                            : item.__isHint
+                              ? alpha("#c4956a", 0.12)
+                            : `linear-gradient(135deg, ${item.accent} 0%, ${alpha(item.accent, 0.68)} 100%)`,
+                          border: item.__isCreate ? "2px dashed #c4956a" : item.__isHint ? "1px dashed #c4956a" : "none",
+                          color: item.__isCreate || item.__isHint ? "#c4956a" : "#fffdf8",
+                          fontSize: item.__isCreate ? 20 : item.__isHint ? 12 : 13,
                           fontWeight: 800,
                           letterSpacing: "0.04em",
-                          boxShadow: `0 10px 20px ${alpha(item.accent, 0.26)}, inset 0 1px 0 rgba(255,255,255,0.28)`,
+                          boxShadow: item.__isCreate || item.__isHint ? "none" : `0 10px 20px ${alpha(item.accent, 0.26)}, inset 0 1px 0 rgba(255,255,255,0.28)`,
                           flexShrink: 0,
-                          "&::after": {
+                          "&::after": item.__isCreate || item.__isHint ? {} : {
                             content: '""',
                             position: "absolute",
                             right: 2,
@@ -1933,43 +2265,63 @@ export default function DocbookEditorSurface({
                           },
                         }}
                       >
-                        {item.name
-                          .split(" ")
-                          .map((part) => part[0])
-                          .join("")
-                          .slice(0, 2)
-                          .toUpperCase()}
+                        {item.__isHint
+                          ? "@"
+                          : item.__isCreate
+                          ? "+"
+                          : item.name
+                              .split(" ")
+                              .map((part) => part[0])
+                              .join("")
+                              .slice(0, 2)
+                              .toUpperCase()}
                       </Box>
                       <Box sx={{ minWidth: 0 }}>
-                        <Typography sx={{ fontSize: 14, fontWeight: 800, color: "#2f2721", lineHeight: 1.15, letterSpacing: "-0.02em" }}>
-                          {item.name}
+                        <Typography sx={{ fontSize: 14, fontWeight: 800, color: item.__isCreate || item.__isHint ? "#8b5e3c" : "#2f2721", lineHeight: 1.15, letterSpacing: "-0.02em" }}>
+                          {item.__isHint ? item.name : item.__isCreate ? `Create @${item.name}` : item.name}
                         </Typography>
-                        <Stack direction="row" spacing={0.7} alignItems="center" sx={{ mt: 0.25, flexWrap: "wrap" }}>
-                          <Typography
-                            sx={{
-                              fontSize: 11,
-                              fontWeight: 800,
-                              color: item.accent,
-                              px: 0.7,
-                              py: 0.22,
-                              borderRadius: 999,
-                              bgcolor: alpha(item.accent, 0.1),
-                              lineHeight: 1,
-                              letterSpacing: "0.01em",
-                            }}
-                          >
-                            @{item.handle}
-                          </Typography>
+                        {!item.__isCreate && !item.__isHint && (
+                          <Stack direction="row" spacing={0.7} alignItems="center" sx={{ mt: 0.25, flexWrap: "wrap" }}>
+                            <Typography
+                              sx={{
+                                fontSize: 11,
+                                fontWeight: 800,
+                                color: item.accent,
+                                px: 0.7,
+                                py: 0.22,
+                                borderRadius: 999,
+                                bgcolor: alpha(item.accent, 0.1),
+                                lineHeight: 1,
+                                letterSpacing: "0.01em",
+                              }}
+                            >
+                              @{item.handle}
+                            </Typography>
+                            <Typography sx={{ fontSize: 11.5, color: "#7b6c5c", lineHeight: 1.2 }}>
+                              {item.role}
+                            </Typography>
+                          </Stack>
+                        )}
+                        {item.__isCreate && (
                           <Typography sx={{ fontSize: 11.5, color: "#7b6c5c", lineHeight: 1.2 }}>
-                            {item.role}
+                            Add as new person & insert mention
                           </Typography>
-                        </Stack>
+                        )}
+                        {item.__isHint && (
+                          <Typography sx={{ fontSize: 11.5, color: "#7b6c5c", lineHeight: 1.2 }}>
+                            Start typing after @ to create or search a person
+                          </Typography>
+                        )}
                       </Box>
                     </Stack>
                   ) : (
                     <>
-                      <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#352f29" }}>{item.path}</Typography>
-                      <Typography sx={{ fontSize: 11.5, color: "#7b6c5c" }}>{item.description}</Typography>
+                      <Typography sx={{ fontSize: 13, fontWeight: 700, color: item.__isCreate || item.__isHint ? "#8b5e3c" : "#352f29" }}>
+                        {item.__isHint ? item.name : item.__isCreate ? `+ Create #${item.path}` : item.path}
+                      </Typography>
+                      <Typography sx={{ fontSize: 11.5, color: "#7b6c5c" }}>
+                        {item.__isHint ? "Start typing after # to create or search a folder" : item.__isCreate ? "Add as new folder & insert reference" : item.description}
+                      </Typography>
                     </>
                   )}
                 </Box>

@@ -1,0 +1,161 @@
+{
+  "title": "Changelog",
+  "subtitle": "Recent product updates and how to use the main features in DocBook.",
+  "status": "In Review",
+  "releases": [
+    {
+      "date": "March 18, 2026",
+      "title": "Connections and changelog",
+      "summary": "DocBook now supports searchable note-to-note connections and an in-app changelog view.",
+      "changes": [
+        "Added searchable note connections between any two notes.",
+        "Added backlinks so you can see which notes point to the current one.",
+        "Added a docked right-side connections tray inside the editor.",
+        "Added a sidebar changelog entry with an in-app changelog panel."
+      ],
+      "how_to_use": [
+        "Open any note and use the connections tray on the right edge.",
+        "Hover or click the tray to expand it.",
+        "Click the search button inside the tray to find another note.",
+        "Select a note from the results to connect it.",
+        "Use the left sidebar Changelog item to open this changelog view."
+      ]
+    },
+    {
+      "date": "March 17, 2026",
+      "title": "Writing tools and editor cleanup",
+      "summary": "The main writing surface was refined with more commands, cleaner controls, and better organization.",
+      "changes": [
+        "Improved editor toolbar spacing and reduced header clutter.",
+        "Added slash commands for notes, dates, and todo insertion.",
+        "Added mention and folder reference chips inside notes.",
+        "Improved image handling and selection panel flow."
+      ],
+      "how_to_use": [
+        "Type /note to create or open a sticky note from the editor.",
+        "Type /date to insert formatted dates like today, tomorrow, or custom day phrases.",
+        "Type /todo to insert todo rows.",
+        "Type @ to insert a person mention chip.",
+        "Type # to insert a folder/path reference chip.",
+        "Click the image/selection button when images are attached to inspect them."
+      ]
+    },
+    {
+      "date": "March 16, 2026",
+      "title": "Core DocBook system",
+      "summary": "The app foundation was set up for notes, sticky notes, backup, local storage, and sync settings.",
+      "changes": [
+        "Added rich note editing with local IndexedDB persistence.",
+        "Added floating sticky notes that can move across notes.",
+        "Added note color and note text scaling controls.",
+        "Added soft delete with restore flow for removed notes.",
+        "Added import/export backup actions in the sidebar.",
+        "Added cloud sync settings with PIN-based sync."
+      ],
+      "how_to_use": [
+        "Create notes from the sidebar plus button.",
+        "Change note color from the color dots in the editor header.",
+        "Use the text size controls to scale note content.",
+        "Create sticky notes from the toolbar or /note command.",
+        "Drag sticky notes across the board and drop them onto a note in the sidebar to move them.",
+        "Use Export Backup or Import Backup from the lower-left sidebar actions.",
+        "Open Cloud Sync from the lower-left sidebar to save a PIN, push notes, pull notes, or enable auto-sync."
+      ]
+    }
+  ],
+  "features": [
+    {
+      "name": "Notes",
+      "description": "Create and organize long-form notes with color, title, and rich formatting.",
+      "how_to_use": [
+        "Use the sidebar plus button to create a new note.",
+        "Click any note in the sidebar to open it.",
+        "Edit the title from the top-left title field.",
+        "Use the color dots and size buttons in the editor header to personalize the note."
+      ]
+    },
+    {
+      "name": "Sticky notes",
+      "description": "Keep quick floating ideas near your main note.",
+      "how_to_use": [
+        "Click the sticky note button in the editor header or type /note.",
+        "Drag sticky notes around the page to reposition them.",
+        "Drop a sticky note on another note in the sidebar to move it to that note."
+      ]
+    },
+    {
+      "name": "Connections",
+      "description": "Connect notes together like a knowledge graph without leaving the note view.",
+      "how_to_use": [
+        "Open the right-side connections tray.",
+        "Use the tray search to find another note.",
+        "Click a result to connect it.",
+        "Click a connected note to jump there, or remove it with the close icon."
+      ]
+    },
+    {
+      "name": "Command search",
+      "description": "Jump to notes quickly with the global search overlay.",
+      "how_to_use": [
+        "Press Ctrl+K or Cmd+K.",
+        "Type part of a note title or content.",
+        "Use arrow keys to move through results and Enter to open one."
+      ]
+    },
+    {
+      "name": "Slash commands",
+      "description": "Insert structured content quickly while writing.",
+      "how_to_use": [
+        "Type /date to insert a date.",
+        "Type /todo to insert todo rows.",
+        "Type /note to open or create sticky notes."
+      ]
+    },
+    {
+      "name": "Mentions and folders",
+      "description": "Reference people and folders directly inside note content.",
+      "how_to_use": [
+        "Type @ to search people.",
+        "Type # to search folder references.",
+        "Use arrow keys and Enter to insert the selected chip."
+      ]
+    },
+    {
+      "name": "Images and selection panel",
+      "description": "Attach images to notes and inspect the current selection or image list.",
+      "how_to_use": [
+        "Paste an image with Ctrl+V or drag an image into the editor.",
+        "Attach images to a selected range when available.",
+        "Use the image/selection button in the editor header to open the selection panel."
+      ]
+    },
+    {
+      "name": "Cloud sync",
+      "description": "Sync note text across devices with a PIN-based cloud flow.",
+      "how_to_use": [
+        "Open Cloud Sync from the bottom-left sidebar.",
+        "Create or enter your PIN.",
+        "Use Sync to Cloud or Pull from Cloud.",
+        "Enable auto-sync and choose an interval if needed."
+      ]
+    },
+    {
+      "name": "Backups",
+      "description": "Export and import note backups locally.",
+      "how_to_use": [
+        "Use Export Backup from the bottom-left sidebar to download notes as JSON.",
+        "Use Import Backup to merge notes from a saved JSON backup."
+      ]
+    },
+    {
+      "name": "Customization",
+      "description": "Customize people, folders, and emoji reactions used in the editor.",
+      "how_to_use": [
+        "Open the customization panel from the mention or folder suggestion menu.",
+        "Add or edit people for @mentions.",
+        "Add or edit folders for #references.",
+        "Choose which emoji reactions are available in the sidebar."
+      ]
+    }
+  ]
+}

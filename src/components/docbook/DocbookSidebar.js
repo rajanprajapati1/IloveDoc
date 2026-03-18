@@ -16,6 +16,7 @@ import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import CloudSyncRoundedIcon from "@mui/icons-material/CloudSyncRounded";
+import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 import {
   Badge,
   Box,
@@ -34,11 +35,12 @@ import { alpha } from "@mui/material/styles";
 import { HeartIcon, NotesSvg } from "@/assets/icon";
 import { useState, useEffect } from "react";
 import { formatEditedAt, plainTextFromHtml, timeAgoLabel, tooltipSlotProps } from "./shared";
+import { ALL_EMOJIS, DEFAULT_SELECTED_EMOJIS } from "./CustomizationPanel";
 
 function SectionLabel({ children, isDrawer, isCollapsed }) {
   if (isCollapsed) return null;
   return (
-    <Typography variant="overline" sx={{ color: "#8f7968", display: isDrawer ? "block" : { xs: "none", lg: "block" }, mb: 0.8, letterSpacing: 1, fontWeight: 800 }}>
+    <Typography variant="overline" sx={{ color: "#8f7968", display: "block", mb: 0.8, letterSpacing: 1, fontWeight: 800 }}>
       {children}
     </Typography>
   );
@@ -53,10 +55,10 @@ function SidebarLink({ icon, label, active = false, onClick, badge, isDrawer, is
         overflow: "visible",
         width: isCollapsed ? 36 : "100%",
         height: isCollapsed ? 36 : "auto",
-        justifyContent: isCollapsed ? "center" : (isDrawer ? "flex-start" : { xs: "center", md: "flex-start" }),
+        justifyContent: isCollapsed ? "center" : "flex-start",
         gap: isCollapsed ? 0 : 1.25,
         borderRadius: isCollapsed ? "50%" : 50,
-        px: isCollapsed ? 0 : (isDrawer ? 2 : { xs: 0, md: 1.5 }),
+        px: isCollapsed ? 0 : 1.5,
         py: 0.8,
         mx: isCollapsed ? "auto" : 0,
         color: active ? "#2a211b" : "#675d53",
@@ -72,7 +74,7 @@ function SidebarLink({ icon, label, active = false, onClick, badge, isDrawer, is
           fontSize: 13.5,
           whiteSpace: "nowrap",
           overflow: "hidden",
-          textOverflow: "ellipsis", fontWeight: active ? 800 : 600, lineHeight: 1.2, textAlign: "left", flex: 1, display: isDrawer ? "block" : { xs: "none", md: "block" }
+          textOverflow: "ellipsis", fontWeight: active ? 800 : 600, lineHeight: 1.2, textAlign: "left", flex: 1, display: "block"
         }}>{label}</Typography>
       )}
       {badge > 0 && (
@@ -118,168 +120,19 @@ function NoteTitleLink({
   onDelete,
   disableDelete,
   isDrawer,
+  isCollapsed = false,
   isStickyDropTarget = false,
   isStickyDragging = false,
+  customEmojis = [],
+  reactions = [],
+  onToggleReaction,
 }) {
   const title = note.title?.trim() || "Untitled";
   const preview = plainTextFromHtml(note.content) || "Empty note";
   const noteColor = note.color || "#F7E36D";
   const stickyNoteCount = stickyNotes.length;
-
-  const linkContent = (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
-      <Tooltip
-        arrow
-        placement="right"
-        slotProps={tooltipSlotProps}
-        disableFocusListener={isStickyDragging}
-        disableHoverListener={isStickyDragging}
-        enterDelay={350}
-        title={
-          <Box
-            sx={{
-              width: 290,
-              maxWidth: "100%",
-              borderRadius: 2.2,
-              overflow: "hidden",
-              bgcolor: "rgba(255, 249, 242, 0.96)",
-            }}
-          >
-            <Box
-              sx={{
-                px: 1.4,
-                py: 1.2,
-                background: `linear-gradient(135deg, ${alpha(noteColor, 0.4)} 0%, ${alpha("#fff7ef", 0.96)} 100%)`,
-                borderBottom: "1px solid rgba(138, 108, 76, 0.14)",
-              }}
-            >
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.6 }}>
-                <Box
-                  sx={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: "50%",
-                    bgcolor: noteColor,
-                    boxShadow: `0 0 0 3px ${alpha("#fffdf8", 0.92)}`,
-                  }}
-                />
-                <Typography sx={{ fontSize: 12.8, fontWeight: 800, lineHeight: 1.3, color: "#2f261f" }}>{title}</Typography>
-              </Stack>
-              <Typography sx={{ fontSize: 12, lineHeight: 1.45, color: "#53483f" }}>{preview.slice(0, 150)}</Typography>
-              <Typography sx={{ fontSize: 10.5, mt: 0.75, color: "#8a7664", fontWeight: 600 }}>{formatEditedAt(note.updatedAt)}</Typography>
-            </Box>
-
-            <Box sx={{ px: 1.4, py: 1.15 }}>
-              <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: stickyNoteCount ? 0.95 : 0 }}>
-                <Box
-                  sx={{
-                    display: "grid",
-                    placeItems: "center",
-                    width: 22,
-                    height: 22,
-                    borderRadius: 1.2,
-                    bgcolor: alpha("#d97706", 0.12),
-                    color: "#b86616",
-                  }}
-                >
-                  <ListAltRoundedIcon sx={{ fontSize: 15 }} />
-                </Box>
-                <Typography sx={{ fontSize: 11.8, fontWeight: 800, color: "#4b3d33", letterSpacing: "0.03em", textTransform: "uppercase" }}>
-                  Sticky Notes {stickyNoteCount ? `(${stickyNoteCount})` : ""}
-                </Typography>
-              </Stack>
-
-              {stickyNoteCount ? (
-                <Stack spacing={0.7} sx={{ maxHeight: 190, overflowY: "auto", pr: 0.35 }}>
-                  {stickyNotes.map((sticky) => (
-                    <Box
-                      key={sticky.id}
-                      sx={{
-                        px: 1,
-                        py: 0.9,
-                        borderRadius: 1.6,
-                        background: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(250,241,231,0.94) 100%)",
-                        border: "1px solid rgba(153, 119, 83, 0.12)",
-                        boxShadow: "0 8px 18px rgba(93, 62, 40, 0.06)",
-                      }}
-                    >
-                      <Typography sx={{ fontSize: 11.8, fontWeight: 700, color: "#382f28", lineHeight: 1.3 }}>
-                        {(sticky.title || "Untitled sticky note").trim()}
-                      </Typography>
-                      <Typography sx={{ fontSize: 11, mt: 0.35, color: "#6d6055", lineHeight: 1.4 }}>
-                        {(sticky.content || "Empty sticky note").trim().slice(0, 90)}
-                      </Typography>
-                    </Box>
-                  ))}
-                </Stack>
-              ) : (
-                <Typography sx={{ fontSize: 11.5, color: "#8b7968", lineHeight: 1.45 }}>
-                  No sticky notes linked to this note yet.
-                </Typography>
-              )}
-            </Box>
-          </Box>
-        }
-      >
-        <ButtonBase
-          onClick={onOpen}
-          sx={{
-            flex: 1,
-            minWidth: 0,
-            alignItems: "center",
-            justifyContent: isDrawer ? "flex-start" : { xs: "center", lg: "flex-start" },
-            gap: 0.9,
-            borderRadius: 50,
-            px: isDrawer ? 2 : { xs: 0, lg: 1.5 },
-            py: 1,
-            color: active ? "#1d1a17" : "#605951",
-            bgcolor: isStickyDropTarget ? alpha(noteColor, 0.28) : active ? alpha(noteColor, 0.2) : "transparent",
-            boxShadow: isStickyDropTarget ? `0 0 0 2px ${alpha(noteColor, 0.55)}` : "none",
-            transition: "background-color 180ms ease, box-shadow 180ms ease, transform 180ms ease",
-            "&:hover": { bgcolor: isStickyDropTarget ? alpha(noteColor, 0.32) : active ? alpha(noteColor, 0.24) : alpha("#8f7d66", 0.08) },
-          }}
-        >
-          <Box sx={{ display: "grid", placeItems: "center", color: active ? "#1d1a17" : "#6a645d", minWidth: 20 }}>
-            <TextFieldsRoundedIcon sx={{ fontSize: 15 }} />
-          </Box>
-          <Box
-            sx={{
-              width: 10,
-              height: 10,
-              minWidth: 10,
-              minHeight: 10,
-              flexShrink: 0,
-              borderRadius: "50%",
-              bgcolor: noteColor,
-              boxShadow: `0 0 0 2px ${alpha("#fffdf8", 0.9)}`,
-              display: isDrawer ? "block" : { xs: "none", lg: "block" },
-            }}
-          />
-          <Typography
-            noWrap
-            sx={{
-              flex: 1,
-              minWidth: 0,
-              fontSize: 13.5,
-              fontWeight: active ? 800 : 600,
-              lineHeight: 1.2,
-              textAlign: "left",
-              display: isDrawer ? "block" : { xs: "none", lg: "block" },
-            }}
-          >
-            {title}
-          </Typography>
-        </ButtonBase>
-      </Tooltip>
-      <Tooltip arrow placement="right" slotProps={tooltipSlotProps} title={disableDelete ? "At least one note is required" : "Delete note"}>
-        <Box component="span" sx={{ display: isDrawer ? "block" : { xs: "none", lg: "block" } }}>
-          <IconButton size="small" disabled={disableDelete} onClick={onDelete} sx={{ width: 24, height: 24, color: "#82796f", "&:hover": { bgcolor: alpha("#8f7d66", 0.12), color: "#5f554b" } }}>
-            <DeleteRoundedIcon sx={{ fontSize: 15 }} />
-          </IconButton>
-        </Box>
-      </Tooltip>
-    </Box>
-  );
+  const activeReactionCode = reactions[0] || "";
+  const activeReaction = activeReactionCode ? ALL_EMOJIS.find((emoji) => emoji.code === activeReactionCode) : null;
 
   return (
     <Box
@@ -288,6 +141,10 @@ function NoteTitleLink({
         transition: "background-color 200ms, transform 180ms ease",
         borderRadius: 8,
         position: "relative",
+        "&:hover .emoji-add-picker": {
+          opacity: 1,
+          pointerEvents: "auto",
+        },
         "&::after": isStickyDragging
           ? {
             content: '""',
@@ -301,7 +158,271 @@ function NoteTitleLink({
           : undefined,
       }}
     >
-      {linkContent}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.35 }}>
+        <Tooltip
+          arrow
+          placement="right"
+          slotProps={tooltipSlotProps}
+          disableFocusListener={isStickyDragging}
+          disableHoverListener={isStickyDragging}
+          enterDelay={350}
+          title={
+            <Box
+              sx={{
+                width: 290,
+                maxWidth: "100%",
+                borderRadius: 2.2,
+                overflow: "hidden",
+                bgcolor: "rgba(255, 249, 242, 0.96)",
+              }}
+            >
+              <Box
+                sx={{
+                  px: 1.4,
+                  py: 1.2,
+                  background: `linear-gradient(135deg, ${alpha(noteColor, 0.4)} 0%, ${alpha("#fff7ef", 0.96)} 100%)`,
+                  borderBottom: "1px solid rgba(138, 108, 76, 0.14)",
+                }}
+              >
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.6 }}>
+                  <Box
+                    sx={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      bgcolor: noteColor,
+                      boxShadow: `0 0 0 3px ${alpha("#fffdf8", 0.92)}`,
+                    }}
+                  />
+                  <Typography sx={{ fontSize: 12.8, fontWeight: 800, lineHeight: 1.3, color: "#2f261f" }}>{title}</Typography>
+                </Stack>
+                <Typography sx={{ fontSize: 12, lineHeight: 1.45, color: "#53483f" }}>{preview.slice(0, 150)}</Typography>
+                <Typography sx={{ fontSize: 10.5, mt: 0.75, color: "#8a7664", fontWeight: 600 }}>{formatEditedAt(note.updatedAt)}</Typography>
+              </Box>
+
+              <Box sx={{ px: 1.4, py: 1.15 }}>
+                <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: stickyNoteCount ? 0.95 : 0 }}>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      placeItems: "center",
+                      width: 22,
+                      height: 22,
+                      borderRadius: 1.2,
+                      bgcolor: alpha("#d97706", 0.12),
+                      color: "#b86616",
+                    }}
+                  >
+                    <ListAltRoundedIcon sx={{ fontSize: 15 }} />
+                  </Box>
+                  <Typography sx={{ fontSize: 11.8, fontWeight: 800, color: "#4b3d33", letterSpacing: "0.03em", textTransform: "uppercase" }}>
+                    Sticky Notes {stickyNoteCount ? `(${stickyNoteCount})` : ""}
+                  </Typography>
+                </Stack>
+
+                {stickyNoteCount ? (
+                  <Stack spacing={0.7} sx={{ maxHeight: 190, overflowY: "auto", pr: 0.35 }}>
+                    {stickyNotes.map((sticky) => (
+                      <Box
+                        key={sticky.id}
+                        sx={{
+                          px: 1,
+                          py: 0.9,
+                          borderRadius: 1.6,
+                          background: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(250,241,231,0.94) 100%)",
+                          border: "1px solid rgba(153, 119, 83, 0.12)",
+                          boxShadow: "0 8px 18px rgba(93, 62, 40, 0.06)",
+                        }}
+                      >
+                        <Typography sx={{ fontSize: 11.8, fontWeight: 700, color: "#382f28", lineHeight: 1.3 }}>
+                          {(sticky.title || "Untitled sticky note").trim()}
+                        </Typography>
+                        <Typography sx={{ fontSize: 11, mt: 0.35, color: "#6d6055", lineHeight: 1.4 }}>
+                          {(sticky.content || "Empty sticky note").trim().slice(0, 90)}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Typography sx={{ fontSize: 11.5, color: "#8b7968", lineHeight: 1.45 }}>
+                    No sticky notes linked to this note yet.
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+          }
+        >
+          <ButtonBase
+            onClick={onOpen}
+            sx={{
+              flex: 1,
+              minWidth: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: isCollapsed ? "center" : "flex-start",
+              gap: isCollapsed ? 0 : 0.7,
+              borderRadius: 50,
+              px: isCollapsed ? 0 : (isDrawer ? 2 : { xs: 0, lg: 1.35 }),
+              py: 1,
+              pr: isCollapsed ? 0 : (isDrawer ? 5 : { xs: 0, lg: 5 }),
+              color: active ? "#1d1a17" : "#605951",
+              bgcolor: isStickyDropTarget ? alpha(noteColor, 0.28) : active ? alpha(noteColor, 0.2) : "transparent",
+              boxShadow: isStickyDropTarget ? `0 0 0 2px ${alpha(noteColor, 0.55)}` : "none",
+              transition: "background-color 180ms ease, box-shadow 180ms ease, transform 180ms ease",
+              "&:hover": { bgcolor: isStickyDropTarget ? alpha(noteColor, 0.32) : active ? alpha(noteColor, 0.24) : alpha("#8f7d66", 0.08) },
+            }}
+          >
+            <Box sx={{ display: "grid", placeItems: "center", color: active ? "#1d1a17" : "#6a645d", minWidth: 16, flexShrink: 0 }}>
+              <TextFieldsRoundedIcon sx={{ fontSize: 15 }} />
+            </Box>
+            {!isCollapsed && (
+              <>
+                <Box
+                  sx={{
+                    width: 10,
+                    height: 10,
+                    minWidth: 10,
+                    minHeight: 10,
+                    flexShrink: 0,
+                    borderRadius: "50%",
+                    bgcolor: noteColor,
+                    boxShadow: `0 0 0 2px ${alpha("#fffdf8", 0.9)}`,
+                  }}
+                />
+                {activeReaction && (
+                  <Box
+                    sx={{
+                      width: 24,
+                      height: 24,
+                      minWidth: 24,
+                      minHeight: 24,
+                      borderRadius: "50%",
+                      display: "grid",
+                      placeItems: "center",
+                      bgcolor: "#fff",
+                      border: `1px solid ${alpha(noteColor, 0.24)}`,
+                      boxShadow: `0 2px 6px ${alpha(noteColor, 0.16)}`,
+                      flexShrink: 0,
+                      position: 'absolute',
+                      left: 2,
+                      bottom: -2
+                    }}
+                  >
+                    {activeReaction.animated ? (
+                      <Box component="img" src={activeReaction.animated} alt={activeReaction.label} sx={{ width: 18, height: 18, objectFit: "contain" }} />
+                    ) : (
+                      <Typography sx={{ fontSize: 10, lineHeight: 1 }}>{activeReaction.code}</Typography>
+                    )}
+                  </Box>
+                )}
+                <Typography
+                  noWrap
+                  sx={{
+                    flex: 1,
+                    minWidth: 0,
+                    fontSize: 13.5,
+                    fontWeight: active ? 800 : 600,
+                    lineHeight: 1.2,
+                    textAlign: "left",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {title}
+                </Typography>
+              </>
+            )}
+          </ButtonBase>
+        </Tooltip>
+
+        {!isCollapsed && (
+          <Tooltip arrow placement="right" slotProps={tooltipSlotProps} title={disableDelete ? "At least one note is required" : "Delete note"}>
+            <Box component="span" sx={{ flexShrink: 0, display: isDrawer ? "block" : { xs: "none", lg: "block" } }}>
+              <IconButton
+                size="small"
+                disabled={disableDelete}
+                onClick={onDelete}
+                sx={{
+                  width: 24,
+                  height: 24,
+                  color: "#82796f",
+                  "&:hover": { bgcolor: alpha("#8f7d66", 0.12), color: "#5f554b" },
+                }}
+              >
+                <DeleteRoundedIcon sx={{ fontSize: 15 }} />
+              </IconButton>
+            </Box>
+          </Tooltip>
+        )}
+      </Box>
+
+      {!isCollapsed && customEmojis.length > 0 && (
+        <Box
+          sx={{
+            position: "absolute",
+            top: "130%",
+            left: isDrawer ? 30 : { xs: 0, lg: -10 },
+            transform: "translateY(-50%)",
+            display: isDrawer ? "flex" : { xs: "none", lg: "flex" },
+            alignItems: "center",
+            gap: 0.2,
+            pointerEvents: "none",
+            zIndex: 9999
+          }}
+        >
+          <Box
+            className="emoji-add-picker"
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 0.2,
+              opacity: 0,
+              pointerEvents: "none",
+              transition: "opacity 160ms ease",
+              px: 0.45,
+              py: 0.25,
+              borderRadius: 999,
+              bgcolor: alpha("#fffdf8", 0.9),
+              border: "1px solid rgba(0,0,0,0.04)",
+              boxShadow: "0 4px 14px rgba(93,62,40,0.08)",
+            }}
+          >
+            {customEmojis.map((code) => {
+              const emoji = ALL_EMOJIS.find((e) => e.code === code);
+              const selected = code === activeReactionCode;
+
+              return (
+                <Tooltip key={code} title={emoji?.label || code} arrow placement="top" slotProps={tooltipSlotProps}>
+                  <Box
+                    component="button"
+                    onClick={(e) => { e.stopPropagation(); onToggleReaction?.(note.id, code); }}
+                    sx={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: "50%",
+                      border: selected ? `1px solid ${alpha(noteColor, 0.5)}` : "1px solid rgba(0,0,0,0.06)",
+                      bgcolor: selected ? alpha(noteColor, 0.14) : "rgba(255,255,255,0.7)",
+                      display: "grid",
+                      placeItems: "center",
+                      cursor: "pointer",
+                      p: 0,
+                      transition: "transform 150ms ease, background-color 150ms ease",
+                      "&:hover": { transform: "scale(1.25)", bgcolor: alpha(noteColor, 0.15) },
+                    }}
+                  >
+                    {emoji?.animated ? (
+                      <Box component="img" src={emoji.animated} alt={emoji.label} sx={{ width: 14, height: 14, objectFit: "contain" }} />
+                    ) : (
+                      <Typography sx={{ fontSize: 11, lineHeight: 1 }}>{code}</Typography>
+                    )}
+                  </Box>
+                </Tooltip>
+              );
+            })}
+          </Box>
+        </Box>
+      )}
     </Box>
   );
 }
@@ -315,9 +436,9 @@ function DeletedNoteItem({ note, onRestore, onPermanentlyDelete, isDrawer }) {
       sx={{
         display: "flex",
         alignItems: "center",
-        justifyContent: "center",
+        justifyContent: "space-between",
         gap: 1,
-        px: isDrawer ? 2 : { xs: 0, lg: 1.5 },
+        px: 1.5,
         py: 0.65,
         borderRadius: 50,
         bgcolor: alpha("#e8d5b8", 0.25),
@@ -325,11 +446,11 @@ function DeletedNoteItem({ note, onRestore, onPermanentlyDelete, isDrawer }) {
         transition: "background-color 150ms ease",
       }}
     >
-      <Box sx={{ flex: 1, minWidth: 0, display: isDrawer ? "block" : { xs: "none", lg: "block" } }}>
+      <Box sx={{ flex: 1, minWidth: 0, display: "block" }}>
         <Typography noWrap sx={{ fontSize: 12.5, fontWeight: 600, color: "#4a3f36", lineHeight: 1.3 }}>{title}</Typography>
         <Typography sx={{ fontSize: 10, color: "#9a8d7f", lineHeight: 1.3 }}>Deleted {deletedLabel}</Typography>
       </Box>
-      <Stack direction={isDrawer ? "row" : { xs: "column", lg: "row" }} spacing={0.5}>
+      <Stack direction="row" spacing={0.5}>
         <Tooltip title="Restore" arrow slotProps={tooltipSlotProps}>
           <IconButton size="small" onClick={() => onRestore(note.id)} sx={{ width: 22, height: 22, color: "#7a6a56", "&:hover": { bgcolor: alpha("#8f7d66", 0.15), color: "#4a3f36" } }}>
             <RestoreRoundedIcon sx={{ fontSize: 14 }} />
@@ -352,8 +473,10 @@ export default function DocbookSidebar({
   activeNoteId,
   sidebarTint = "#F7E36D",
   showDeleted,
+  showChangelog = false,
   stickyDragState,
   onToggleDeleted,
+  onOpenChangelog,
   onCreateNote,
   onOpenNote,
   onDeleteNote,
@@ -367,6 +490,9 @@ export default function DocbookSidebar({
   onExpand,
   isCollapsed = false,
   onToggleCollapse,
+  customEmojis = [],
+  noteReactions = {},
+  onToggleReaction,
 }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [notesAnchorEl, setNotesAnchorEl] = useState(null);
@@ -480,8 +606,11 @@ export default function DocbookSidebar({
           <SidebarLink
             label="Home"
             icon={<HomeRoundedIcon sx={{ fontSize: 18 }} />}
-            active={!showDeleted}
-            onClick={() => { if (showDeleted) onToggleDeleted(); }}
+            active={!showDeleted && !showChangelog}
+            onClick={() => {
+              if (showDeleted) onToggleDeleted();
+              onOpenChangelog?.(false);
+            }}
             isDrawer={isDrawer}
             isCollapsed={isCollapsed}
             accentColor={sidebarTint}
@@ -519,11 +648,11 @@ export default function DocbookSidebar({
             }}
           >
             <SectionLabel isDrawer={isDrawer} isCollapsed={isCollapsed}>RECENTLY DELETED</SectionLabel>
-            <Typography sx={{ fontSize: 11, color: "#9a8d7f", mb: 1, lineHeight: 1.4, display: isDrawer ? "block" : { xs: "none", lg: "block" }, flexShrink: 0 }}>
+            <Typography sx={{ fontSize: 11, color: "#9a8d7f", mb: 1, lineHeight: 1.4, display: "block", flexShrink: 0 }}>
               Notes are kept for 7 days before automatic removal.
             </Typography>
             {deletedNotes.length === 0 ? (
-              <Box sx={{ display: isDrawer ? "flex" : { xs: "none", lg: "flex" }, alignItems: "center", justifyContent: "center", flex: 1, minHeight: 0, opacity: 0.5 }}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1, minHeight: 0, opacity: 0.5 }}>
                 <Typography sx={{ fontSize: 12.5, color: "#9a8d7f", textAlign: "center" }}>No recently deleted notes</Typography>
               </Box>
             ) : (
@@ -563,7 +692,7 @@ export default function DocbookSidebar({
               overflow: "hidden",
             }}
           >
-            <Stack direction="row" alignItems="center" justifyContent={isDrawer ? "space-between" : { xs: "center", lg: "space-between" }} sx={{ flexShrink: 0 }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ flexShrink: 0 }}>
               <SectionLabel isDrawer={isDrawer} isCollapsed={isCollapsed}>NOTES</SectionLabel>
               {!isCollapsed && (
                 <Tooltip title="Create new note" arrow slotProps={tooltipSlotProps}>
@@ -593,6 +722,7 @@ export default function DocbookSidebar({
                   note={note}
                   stickyNotes={stickyNotes.filter((stickyNote) => stickyNote.noteId === note.id)}
                   active={note.id === activeNoteId}
+                  isCollapsed={isCollapsed}
                   isStickyDragging={Boolean(stickyDragState?.stickyId)}
                   isStickyDropTarget={stickyDragState?.targetNoteId === note.id}
                   disableDelete={notes.length <= 1}
@@ -602,6 +732,9 @@ export default function DocbookSidebar({
                     onDeleteNote(note.id);
                   }}
                   isDrawer={isDrawer}
+                  customEmojis={customEmojis}
+                  reactions={noteReactions[note.id] || []}
+                  onToggleReaction={onToggleReaction}
                 />
               ))}
             </Stack>
@@ -724,6 +857,17 @@ export default function DocbookSidebar({
             borderTop: isCollapsed ? "none" : `1px solid ${alpha(sidebarTint, 0.14)}`,
           }}
         >
+          <SidebarLink
+            label="Changelog"
+            icon={<AutoAwesomeRoundedIcon sx={{ fontSize: 18 }} />}
+            active={showChangelog}
+            onClick={() => {
+              onOpenChangelog?.(true);
+            }}
+            isDrawer={isDrawer}
+            isCollapsed={isCollapsed}
+            accentColor={sidebarTint}
+          />
           <SidebarLink
             label="Cloud Sync"
             icon={<CloudSyncRoundedIcon sx={{ fontSize: 18 }} />}

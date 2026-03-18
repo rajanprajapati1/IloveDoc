@@ -142,6 +142,7 @@ export function createNote(overrides = {}) {
     id: buildId(),
     title: "Untitled",
     content: "<p></p>",
+    links: [],
     color: noteColorOptions[0].value,
     fontScale: 1,
     createdAt: now,
@@ -155,8 +156,8 @@ export function createStickyNote(noteId, overrides = {}) {
   return {
     id: buildId(),
     noteId,
-    title: "New Idea",
-    content: "Write something here...",
+    title: "",
+    content: "",
     color: stickyColorOptions[Math.floor(Math.random() * stickyColorOptions.length)].value,
     x: 100,
     y: 100,

@@ -127,7 +127,7 @@ function NoteTitleLink({
   reactions = [],
   onToggleReaction,
 }) {
-  const title = note.title?.trim() || "Untitled";
+  const title = note.title?.trim() || "";
   const preview = plainTextFromHtml(note.content) || "Empty note";
   const noteColor = note.color || "#F7E36D";
   const stickyNoteCount = stickyNotes.length;
@@ -248,6 +248,40 @@ function NoteTitleLink({
                     No sticky notes linked to this note yet.
                   </Typography>
                 )}
+                {/* <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: stickyNoteCount ? 0.95 : 0 }}>
+                  {customEmojis.map((code) => {
+                    const emoji = ALL_EMOJIS.find((e) => e.code === code);
+                    const selected = code === activeReactionCode;
+
+                    return (
+                      <Tooltip key={code} title={emoji?.label || code} arrow placement="bottom" slotProps={tooltipSlotProps}>
+                        <Box
+                          component="button"
+                          onClick={(e) => { e.stopPropagation(); onToggleReaction?.(note.id, code); }}
+                          sx={{
+                            width: 25,
+                            height: 25,
+                            borderRadius: "50%",
+                            border: selected ? `1px solid ${alpha(noteColor, 0.5)}` : "1px solid rgba(0,0,0,0.06)",
+                            bgcolor: selected ? alpha(noteColor, 0.14) : "rgba(255,255,255,0.7)",
+                            display: "grid",
+                            placeItems: "center",
+                            cursor: "pointer",
+                            p: 0,
+                            transition: "transform 150ms ease, background-color 150ms ease",
+                            "&:hover": { transform: "scale(1.68)", bgcolor: alpha(noteColor, 0.15) },
+                          }}
+                        >
+                          {emoji?.animated ? (
+                            <Box component="img" src={emoji.animated} alt={emoji.label} sx={{ width: 18, height: 18, objectFit: "contain" }} />
+                          ) : (
+                            <Typography sx={{ fontSize: 11, lineHeight: 1 }}>{code}</Typography>
+                          )}
+                        </Box>
+                      </Tooltip>
+                    );
+                  })}
+                </Stack> */}
               </Box>
             </Box>
           }
@@ -262,9 +296,10 @@ function NoteTitleLink({
               justifyContent: isCollapsed ? "center" : "flex-start",
               gap: isCollapsed ? 0 : 0.7,
               borderRadius: 50,
-              px: isCollapsed ? 0 : (isDrawer ? 2 : { xs: 0, lg: 1.35 }),
+              // px: isCollapsed ? 0 : (isDrawer ? 2 : { xs: 0, lg: 1.35 }),
               py: 1,
-              pr: isCollapsed ? 0 : (isDrawer ? 5 : { xs: 0, lg: 5 }),
+              // pr: isCollapsed ? 0 : (isDrawer ? 5 : { xs: 0, lg: 5 }),
+              pl: 1,
               color: active ? "#1d1a17" : "#605951",
               bgcolor: isStickyDropTarget ? alpha(noteColor, 0.28) : active ? alpha(noteColor, 0.2) : "transparent",
               boxShadow: isStickyDropTarget ? `0 0 0 2px ${alpha(noteColor, 0.55)}` : "none",
@@ -304,7 +339,7 @@ function NoteTitleLink({
                       boxShadow: `0 2px 6px ${alpha(noteColor, 0.16)}`,
                       flexShrink: 0,
                       position: 'absolute',
-                      left: 2,
+                      left: 0,
                       bottom: -2
                     }}
                   >
@@ -362,7 +397,7 @@ function NoteTitleLink({
           sx={{
             position: "absolute",
             top: "130%",
-            left: isDrawer ? 30 : { xs: 0, lg: -10 },
+            left: isDrawer ? 30 : { xs: 0, lg: -5 },
             transform: "translateY(-50%)",
             display: isDrawer ? "flex" : { xs: "none", lg: "flex" },
             alignItems: "center",
@@ -380,8 +415,8 @@ function NoteTitleLink({
               opacity: 0,
               pointerEvents: "none",
               transition: "opacity 160ms ease",
-              px: 0.45,
-              py: 0.25,
+              px: 0.65,
+              py: 0.45,
               borderRadius: 999,
               bgcolor: alpha("#fffdf8", 0.9),
               border: "1px solid rgba(0,0,0,0.04)",
@@ -393,13 +428,13 @@ function NoteTitleLink({
               const selected = code === activeReactionCode;
 
               return (
-                <Tooltip key={code} title={emoji?.label || code} arrow placement="top" slotProps={tooltipSlotProps}>
+                <Tooltip key={code} title={emoji?.label || code} arrow placement="bottom" slotProps={tooltipSlotProps}>
                   <Box
                     component="button"
                     onClick={(e) => { e.stopPropagation(); onToggleReaction?.(note.id, code); }}
                     sx={{
-                      width: 20,
-                      height: 20,
+                      width: 25,
+                      height: 25,
                       borderRadius: "50%",
                       border: selected ? `1px solid ${alpha(noteColor, 0.5)}` : "1px solid rgba(0,0,0,0.06)",
                       bgcolor: selected ? alpha(noteColor, 0.14) : "rgba(255,255,255,0.7)",
@@ -408,11 +443,11 @@ function NoteTitleLink({
                       cursor: "pointer",
                       p: 0,
                       transition: "transform 150ms ease, background-color 150ms ease",
-                      "&:hover": { transform: "scale(1.25)", bgcolor: alpha(noteColor, 0.15) },
+                      "&:hover": { transform: "scale(1.68)", bgcolor: alpha(noteColor, 0.15) },
                     }}
                   >
                     {emoji?.animated ? (
-                      <Box component="img" src={emoji.animated} alt={emoji.label} sx={{ width: 14, height: 14, objectFit: "contain" }} />
+                      <Box component="img" src={emoji.animated} alt={emoji.label} sx={{ width: 18, height: 18, objectFit: "contain" }} />
                     ) : (
                       <Typography sx={{ fontSize: 11, lineHeight: 1 }}>{code}</Typography>
                     )}
@@ -710,7 +745,6 @@ export default function DocbookSidebar({
                 overflowY: "auto",
                 overflowX: "hidden",
                 mt: 1,
-                pr: 0.5,
                 pb: 0.5,
                 "&::-webkit-scrollbar": { width: 4 },
                 "&::-webkit-scrollbar-thumb": { bgcolor: alpha("#8f7d66", 0.2), borderRadius: 2 },

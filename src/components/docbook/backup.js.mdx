@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Box, ClickAwayListener, IconButton, Tooltip, Stack, Paper, Typography, Switch } from "@mui/material";
-import { alpha, styled } from "@mui/material/styles";
+import { Box, ClickAwayListener, IconButton, Tooltip, Stack, Paper, Typography } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import CloudDoneRoundedIcon from "@mui/icons-material/CloudDoneRounded";
 import CloudOffRoundedIcon from "@mui/icons-material/CloudOffRounded";
 import ViewSidebarRoundedIcon from "@mui/icons-material/ViewSidebarRounded";
@@ -26,73 +26,11 @@ const richTokenBoundarySelector = "[data-highlight], [data-img-ref], [data-user-
 
 /* mentionDirectory and folderDirectory are now passed as props (customPeople / customFolders) */
 
-const IOSSwitch = styled((props) => (
-  <Switch focusVisibleClassName=".Mui-focusVisible" disableRipple {...props} />
-))(({ theme }) => ({
-  width: 34,
-  height: 20,
-  padding: 0,
-  '& .MuiSwitch-switchBase': {
-    padding: 0,
-    margin: 2,
-    transitionDuration: '300ms',
-    '&.Mui-checked': {
-      transform: 'translateX(14px)',
-      color: '#fff',
-      '& + .MuiSwitch-track': {
-        backgroundColor: '#8b5e3c',
-        opacity: 1,
-        border: 0,
-        ...theme.applyStyles?.('dark', {
-          backgroundColor: '#c4956a',
-        }),
-      },
-      '&.Mui-disabled + .MuiSwitch-track': {
-        opacity: 0.5,
-      },
-    },
-    '&.Mui-focusVisible .MuiSwitch-thumb': {
-      color: '#d97706',
-      border: '6px solid #fff',
-    },
-    '&.Mui-disabled .MuiSwitch-thumb': {
-      color: theme.palette.grey[100],
-      ...theme.applyStyles?.('dark', {
-        color: theme.palette.grey[600],
-      }),
-    },
-    '&.Mui-disabled + .MuiSwitch-track': {
-      opacity: 0.7,
-      ...theme.applyStyles?.('dark', {
-        opacity: 0.3,
-      }),
-    },
-  },
-  '& .MuiSwitch-thumb': {
-    boxSizing: 'border-box',
-    width: 16,
-    height: 16,
-  },
-  '& .MuiSwitch-track': {
-    borderRadius: 20 / 2,
-    backgroundColor: alpha('#8b5e3c', 0.2),
-    opacity: 1,
-    transition: theme.transitions.create(['background-color'], {
-      duration: 500,
-    }),
-    ...theme.applyStyles?.('dark', {
-      backgroundColor: '#39393D',
-    }),
-  },
-}));
-
 export default function DocbookEditorSurface({
   activeNote,
   allNotes = [],
   linkedNotes = [],
   backlinkNotes = [],
-  autoSave = true,
-  onAutoSaveChange,
   editorRef,
   imageUrlMap = {},
   stickyNotes = [],
@@ -131,7 +69,6 @@ export default function DocbookEditorSurface({
   onOpenCustomization,
   onPeopleChange,
   onFoldersChange,
-  aiWorking = false,
 }) {
   const [dropCaret, setDropCaret] = useState({ visible: false, x: 0, y: 0, height: 0 });
   const [slashMenu, setSlashMenu] = useState({ visible: false, x: 0, y: 0, query: "", selectedIndex: 0, token: "" });
@@ -1286,6 +1223,7 @@ export default function DocbookEditorSurface({
         background: "transparent",
       }}
     >
+      {/* Editor wrapper */}
       <Box
         sx={{
           position: "relative",
@@ -1341,7 +1279,6 @@ export default function DocbookEditorSurface({
                 display: 'flex',
                 px: 1.1,
                 py: 0.65,
-                zIndex: 1,
               }}
             >
               <Box
@@ -1421,35 +1358,6 @@ export default function DocbookEditorSurface({
                 </Paper>
               )}
             </Box>
-            {aiWorking ? (
-              <Box
-                sx={{
-                  px: 1,
-                  py: 0.6,
-                  borderRadius: 999,
-                  bgcolor: alpha(activeNoteTint, 0.14),
-                  border: `1px solid ${alpha(activeNoteTint, 0.22)}`,
-                  boxShadow: `0 10px 22px ${alpha(activeNoteTint, 0.16)}`,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 0.65,
-                  zIndex: 1,
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    bgcolor: activeNoteTint,
-                    animation: "docbookAiPulse 1.8s ease-out infinite",
-                  }}
-                />
-                <Typography sx={{ fontSize: 11, fontWeight: 800, color: "#2e261f", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-                  AI Working
-                </Typography>
-              </Box>
-            ) : null}
           </Box>
         </Tooltip>
 
@@ -1459,266 +1367,266 @@ export default function DocbookEditorSurface({
             setConnectionsDockOpen(false);
           }}
         >
+        <Box
+          onMouseEnter={() => setConnectionsDockOpen(true)}
+          onMouseLeave={() => {
+            if (!linkSearchOpen) {
+              setConnectionsDockOpen(false);
+            }
+          }}
+          sx={{
+            position: "fixed",
+            top: 72,
+            right: 0,
+            zIndex: 23,
+            width: connectionsDockOpen ? { xs: 284, md: 320 } : 44,
+            maxWidth: "calc(100% - 12px)",
+            borderRadius: "20px 0 0 20px",
+            overflow: "hidden",
+            border: `1px solid ${alpha(activeNoteTint, 0.2)}`,
+            borderRight: 0,
+            bgcolor: alpha("#fffdf8", 2),
+            boxShadow: `0 14px 30px ${alpha(activeNoteTint, 0.12)}`,
+            backdropFilter: "blur(10px)",
+            transition: "width 220ms ease, box-shadow 180ms ease, background-color 180ms ease",
+          }}
+        >
           <Box
-            onMouseEnter={() => setConnectionsDockOpen(true)}
-            onMouseLeave={() => {
-              if (!linkSearchOpen) {
-                setConnectionsDockOpen(false);
-              }
-            }}
+            onClick={() => setConnectionsDockOpen((prev) => !prev)}
             sx={{
-              position: "fixed",
-              top: 72,
-              right: 0,
-              zIndex: 23,
-              width: connectionsDockOpen ? { xs: 284, md: 320 } : 44,
-              maxWidth: "calc(100% - 12px)",
-              borderRadius: "20px 0 0 20px",
-              overflow: "hidden",
-              border: `1px solid ${alpha(activeNoteTint, 0.2)}`,
-              borderRight: 0,
-              bgcolor: alpha("#fffdf8", 2),
-              boxShadow: `0 14px 30px ${alpha(activeNoteTint, 0.12)}`,
-              backdropFilter: "blur(10px)",
-              transition: "width 220ms ease, box-shadow 180ms ease, background-color 180ms ease",
+              minHeight: 44,
+              px: connectionsDockOpen ? 0.9 : 0.55,
+              py: 0.75,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: connectionsDockOpen ? "space-between" : "center",
+              gap: 0.75,
+              cursor: "pointer",
+              background: `linear-gradient(180deg, ${alpha(activeNoteTint, 0.14)} 0%, rgba(255, 251, 245, 0.94) 100%)`,
             }}
           >
-            <Box
-              onClick={() => setConnectionsDockOpen((prev) => !prev)}
-              sx={{
-                minHeight: 44,
-                px: connectionsDockOpen ? 0.9 : 0.55,
-                py: 0.75,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: connectionsDockOpen ? "space-between" : "center",
-                gap: 0.75,
-                cursor: "pointer",
-                background: `linear-gradient(180deg, ${alpha(activeNoteTint, 0.14)} 0%, rgba(255, 251, 245, 0.94) 100%)`,
-              }}
-            >
-              <Stack direction="row" spacing={0.8} alignItems="center" sx={{ minWidth: 0 }}>
-                <Box
+            <Stack direction="row" spacing={0.8} alignItems="center" sx={{ minWidth: 0 }}>
+              <Box
+                sx={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  display: "grid",
+                  placeItems: "center",
+                  bgcolor: alpha(activeNoteTint, 0.25),
+                  color: "#6d4f36",
+                  flexShrink: 0,
+                }}
+              >
+                <HubRoundedIcon sx={{ fontSize: 16 }} />
+              </Box>
+              {connectionsDockOpen && (
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 11, fontWeight: 800, color: "#6a5a49", letterSpacing: "0.08em", textTransform: "uppercase", lineHeight: 1.1 }}>
+                    Connections
+                  </Typography>
+                  <Typography sx={{ fontSize: 11.5, color: "#7b6c5c", lineHeight: 1.15 }}>
+                    {linkedNotes.length} linked, {backlinkNotes.length} backlinks
+                  </Typography>
+                </Box>
+              )}
+            </Stack>
+            {connectionsDockOpen && (
+              <Tooltip title="Connect note" arrow slotProps={tooltipSlotProps}>
+                <IconButton
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setLinkSearchOpen((prev) => !prev);
+                  }}
+                  size="small"
                   sx={{
                     width: 28,
                     height: 28,
-                    borderRadius: "50%",
-                    display: "grid",
-                    placeItems: "center",
-                    bgcolor: alpha(activeNoteTint, 0.25),
-                    color: "#6d4f36",
-                    flexShrink: 0,
+                    color: linkSearchOpen ? "#8b5e3c" : "#9a7653",
+                    bgcolor: linkSearchOpen ? alpha("#fff2d8", 0.98) : alpha("#fffdf8", 0.9),
+                    border: "1px solid rgba(139,94,60,0.12)",
+                    "&:hover": { bgcolor: alpha("#fff4df", 0.98) },
                   }}
                 >
-                  <HubRoundedIcon sx={{ fontSize: 16 }} />
-                </Box>
-                {connectionsDockOpen && (
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography sx={{ fontSize: 11, fontWeight: 800, color: "#6a5a49", letterSpacing: "0.08em", textTransform: "uppercase", lineHeight: 1.1 }}>
-                      Connections
-                    </Typography>
-                    <Typography sx={{ fontSize: 11.5, color: "#7b6c5c", lineHeight: 1.15 }}>
-                      {linkedNotes.length} linked, {backlinkNotes.length} backlinks
-                    </Typography>
-                  </Box>
-                )}
-              </Stack>
-              {connectionsDockOpen && (
-                <Tooltip title="Connect note" arrow slotProps={tooltipSlotProps}>
-                  <IconButton
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setLinkSearchOpen((prev) => !prev);
-                    }}
-                    size="small"
-                    sx={{
-                      width: 28,
-                      height: 28,
-                      color: linkSearchOpen ? "#8b5e3c" : "#9a7653",
-                      bgcolor: linkSearchOpen ? alpha("#fff2d8", 0.98) : alpha("#fffdf8", 0.9),
-                      border: "1px solid rgba(139,94,60,0.12)",
-                      "&:hover": { bgcolor: alpha("#fff4df", 0.98) },
-                    }}
-                  >
-                    <SearchRoundedIcon sx={{ fontSize: 15 }} />
-                  </IconButton>
-                </Tooltip>
-              )}
-            </Box>
-
-            {connectionsDockOpen && (
-              <Box sx={{ px: 1, pb: 1, pt: 0.2 }}>
-                {linkSearchOpen && (
-                  <Box
-                    sx={{
-                      mb: 0.9,
-                      borderRadius: 2.4,
-                      overflow: "hidden",
-                      border: "1px solid #e2d6c8",
-                      bgcolor: "#fffaf4",
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        px: 1.1,
-                        py: 0.85,
-                        borderBottom: "1px solid #ebe1d4",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 0.8,
-                      }}
-                    >
-                      <SearchRoundedIcon sx={{ fontSize: 16, color: "#6a5a49" }} />
-                      <Box
-                        ref={linkSearchInputRef}
-                        component="input"
-                        value={linkSearchQuery}
-                        onChange={(event) => setLinkSearchQuery(event.target.value)}
-                        placeholder="Search notes..."
-                        sx={{
-                          flex: 1,
-                          minWidth: 0,
-                          border: 0,
-                          outline: 0,
-                          bgcolor: "transparent",
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: "#352f29",
-                          "&::placeholder": { color: "#8a7968", opacity: 1 },
-                        }}
-                      />
-                      <IconButton
-                        size="small"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => {
-                          setLinkSearchOpen(false);
-                          setLinkSearchQuery("");
-                        }}
-                        sx={{ p: 0.25, color: "#8a7968" }}
-                      >
-                        <CloseRoundedIcon sx={{ fontSize: 15 }} />
-                      </IconButton>
-                    </Box>
-                    <Stack spacing={0} sx={{ py: 0.35, maxHeight: 220, overflowY: "auto" }}>
-                      {availableLinkedSearchResults.length > 0 ? (
-                        availableLinkedSearchResults.map((note) => (
-                          <Box
-                            key={note.id}
-                            onMouseDown={(event) => {
-                              event.preventDefault();
-                              onConnectNote?.(note.id);
-                              setLinkSearchQuery("");
-                              setLinkSearchOpen(false);
-                            }}
-                            sx={{
-                              px: 1.1,
-                              py: 0.9,
-                              cursor: "pointer",
-                              transition: "background-color 120ms ease",
-                              "&:hover": { bgcolor: alpha("#c4956a", 0.12) },
-                            }}
-                          >
-                            <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: "#352f29" }}>
-                              {note.title?.trim() || ""}
-                            </Typography>
-                            <Typography sx={{ fontSize: 11, color: "#7b6c5c" }}>
-                              {(plainTextFromHtml(note.content || "") || "Empty note").slice(0, 82)}
-                            </Typography>
-                          </Box>
-                        ))
-                      ) : (
-                        <Box sx={{ px: 1.1, py: 1 }}>
-                          <Typography sx={{ fontSize: 12, color: "#7b6c5c" }}>
-                            No notes found to connect.
-                          </Typography>
-                        </Box>
-                      )}
-                    </Stack>
-                  </Box>
-                )}
-
-                <Stack spacing={0.85}>
-                  <Box>
-                    <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: "#7b6c5c", letterSpacing: "0.08em", textTransform: "uppercase", mb: 0.45 }}>
-                      Connected
-                    </Typography>
-                    {linkedNotes.length > 0 ? (
-                      <Stack spacing={0.5}>
-                        {linkedNotes.map((note) => (
-                          <Stack
-                            key={note.id}
-                            direction="row"
-                            spacing={0.5}
-                            alignItems="center"
-                            sx={{
-                              px: 0.8,
-                              py: 0.55,
-                              borderRadius: 999,
-                              bgcolor: alpha(note.color || activeNoteTint, 0.16),
-                              border: `1px solid ${alpha(note.color || activeNoteTint, 0.18)}`,
-                            }}
-                          >
-                            <Typography
-                              onClick={() => onOpenLinkedNote?.(note.id)}
-                              sx={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 700, color: "#312821", cursor: "pointer" }}
-                              noWrap
-                            >
-                              {note.title?.trim() || ""}
-                            </Typography>
-                            <IconButton
-                              size="small"
-                              onMouseDown={(event) => event.preventDefault()}
-                              onClick={() => onDisconnectNote?.(note.id)}
-                              sx={{ p: 0.2, color: "#7b6c5c" }}
-                            >
-                              <CloseRoundedIcon sx={{ fontSize: 14 }} />
-                            </IconButton>
-                          </Stack>
-                        ))}
-                      </Stack>
-                    ) : (
-                      <Typography sx={{ fontSize: 11.5, color: "#8a7968" }}>No linked notes yet.</Typography>
-                    )}
-                  </Box>
-
-                  <Box>
-                    <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: "#7b6c5c", letterSpacing: "0.08em", textTransform: "uppercase", mb: 0.45 }}>
-                      Linked Here
-                    </Typography>
-                    {backlinkNotes.length > 0 ? (
-                      <Stack spacing={0.5}>
-                        {backlinkNotes.map((note) => (
-                          <Stack
-                            key={note.id}
-                            direction="row"
-                            spacing={0.45}
-                            alignItems="center"
-                            onClick={() => onOpenLinkedNote?.(note.id)}
-                            sx={{
-                              px: 0.8,
-                              py: 0.55,
-                              borderRadius: 999,
-                              bgcolor: alpha("#fff8ef", 0.95),
-                              border: "1px solid rgba(139,94,60,0.14)",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <Typography sx={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 700, color: "#312821" }} noWrap>
-                              {note.title?.trim() || "Untitled"}
-                            </Typography>
-                            <NorthEastRoundedIcon sx={{ fontSize: 14, color: "#8b5e3c" }} />
-                          </Stack>
-                        ))}
-                      </Stack>
-                    ) : (
-                      <Typography sx={{ fontSize: 11.5, color: "#8a7968" }}>No backlinks yet.</Typography>
-                    )}
-                  </Box>
-                </Stack>
-              </Box>
+                  <SearchRoundedIcon sx={{ fontSize: 15 }} />
+                </IconButton>
+              </Tooltip>
             )}
           </Box>
+
+          {connectionsDockOpen && (
+            <Box sx={{ px: 1, pb: 1, pt: 0.2 }}>
+              {linkSearchOpen && (
+                <Box
+                  sx={{
+                    mb: 0.9,
+                    borderRadius: 2.4,
+                    overflow: "hidden",
+                    border: "1px solid #e2d6c8",
+                    bgcolor: "#fffaf4",
+                  }}
+                >
+                  <Box
+                    sx={{
+                      px: 1.1,
+                      py: 0.85,
+                      borderBottom: "1px solid #ebe1d4",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 0.8,
+                    }}
+                  >
+                    <SearchRoundedIcon sx={{ fontSize: 16, color: "#6a5a49" }} />
+                    <Box
+                      ref={linkSearchInputRef}
+                      component="input"
+                      value={linkSearchQuery}
+                      onChange={(event) => setLinkSearchQuery(event.target.value)}
+                      placeholder="Search notes..."
+                      sx={{
+                        flex: 1,
+                        minWidth: 0,
+                        border: 0,
+                        outline: 0,
+                        bgcolor: "transparent",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: "#352f29",
+                        "&::placeholder": { color: "#8a7968", opacity: 1 },
+                      }}
+                    />
+                    <IconButton
+                      size="small"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        setLinkSearchOpen(false);
+                        setLinkSearchQuery("");
+                      }}
+                      sx={{ p: 0.25, color: "#8a7968" }}
+                    >
+                      <CloseRoundedIcon sx={{ fontSize: 15 }} />
+                    </IconButton>
+                  </Box>
+                  <Stack spacing={0} sx={{ py: 0.35, maxHeight: 220, overflowY: "auto" }}>
+                    {availableLinkedSearchResults.length > 0 ? (
+                      availableLinkedSearchResults.map((note) => (
+                        <Box
+                          key={note.id}
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            onConnectNote?.(note.id);
+                            setLinkSearchQuery("");
+                            setLinkSearchOpen(false);
+                          }}
+                          sx={{
+                            px: 1.1,
+                            py: 0.9,
+                            cursor: "pointer",
+                            transition: "background-color 120ms ease",
+                            "&:hover": { bgcolor: alpha("#c4956a", 0.12) },
+                          }}
+                        >
+                          <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: "#352f29" }}>
+                            {note.title?.trim() || "Untitled"}
+                          </Typography>
+                          <Typography sx={{ fontSize: 11, color: "#7b6c5c" }}>
+                            {(plainTextFromHtml(note.content || "") || "Empty note").slice(0, 82)}
+                          </Typography>
+                        </Box>
+                      ))
+                    ) : (
+                      <Box sx={{ px: 1.1, py: 1 }}>
+                        <Typography sx={{ fontSize: 12, color: "#7b6c5c" }}>
+                          No notes found to connect.
+                        </Typography>
+                      </Box>
+                    )}
+                  </Stack>
+                </Box>
+              )}
+
+              <Stack spacing={0.85}>
+                <Box>
+                  <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: "#7b6c5c", letterSpacing: "0.08em", textTransform: "uppercase", mb: 0.45 }}>
+                    Connected
+                  </Typography>
+                  {linkedNotes.length > 0 ? (
+                    <Stack spacing={0.5}>
+                      {linkedNotes.map((note) => (
+                        <Stack
+                          key={note.id}
+                          direction="row"
+                          spacing={0.5}
+                          alignItems="center"
+                          sx={{
+                            px: 0.8,
+                            py: 0.55,
+                            borderRadius: 999,
+                            bgcolor: alpha(note.color || activeNoteTint, 0.16),
+                            border: `1px solid ${alpha(note.color || activeNoteTint, 0.18)}`,
+                          }}
+                        >
+                          <Typography
+                            onClick={() => onOpenLinkedNote?.(note.id)}
+                            sx={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 700, color: "#312821", cursor: "pointer" }}
+                            noWrap
+                          >
+                            {note.title?.trim() || "Untitled"}
+                          </Typography>
+                          <IconButton
+                            size="small"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => onDisconnectNote?.(note.id)}
+                            sx={{ p: 0.2, color: "#7b6c5c" }}
+                          >
+                            <CloseRoundedIcon sx={{ fontSize: 14 }} />
+                          </IconButton>
+                        </Stack>
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Typography sx={{ fontSize: 11.5, color: "#8a7968" }}>No linked notes yet.</Typography>
+                  )}
+                </Box>
+
+                <Box>
+                  <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: "#7b6c5c", letterSpacing: "0.08em", textTransform: "uppercase", mb: 0.45 }}>
+                    Linked Here
+                  </Typography>
+                  {backlinkNotes.length > 0 ? (
+                    <Stack spacing={0.5}>
+                      {backlinkNotes.map((note) => (
+                        <Stack
+                          key={note.id}
+                          direction="row"
+                          spacing={0.45}
+                          alignItems="center"
+                          onClick={() => onOpenLinkedNote?.(note.id)}
+                          sx={{
+                            px: 0.8,
+                            py: 0.55,
+                            borderRadius: 999,
+                            bgcolor: alpha("#fff8ef", 0.95),
+                            border: "1px solid rgba(139,94,60,0.14)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <Typography sx={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 700, color: "#312821" }} noWrap>
+                            {note.title?.trim() || "Untitled"}
+                          </Typography>
+                          <NorthEastRoundedIcon sx={{ fontSize: 14, color: "#8b5e3c" }} />
+                        </Stack>
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Typography sx={{ fontSize: 11.5, color: "#8a7968" }}>No backlinks yet.</Typography>
+                  )}
+                </Box>
+              </Stack>
+            </Box>
+          )}
+        </Box>
         </ClickAwayListener>
 
 
@@ -1738,24 +1646,6 @@ export default function DocbookEditorSurface({
             rowGap: 0.75,
           }}
         >
-          <Stack
-            direction="row"
-            spacing={0.5}
-            alignItems="center"
-            sx={{
-              px: 1,
-              py: 0.55,
-              borderRadius: 999,
-              bgcolor: alpha("#fffdf8", 0.78),
-              border: `1px solid ${alpha(activeNoteTint, 0.28)}`,
-              boxShadow: `0 6px 18px ${alpha(activeNoteTint, 0.12)}`,
-              backdropFilter: "blur(8px)",
-            }}
-          >
-            <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: "#7a5240", ml: 0.4 }}>Auto Save</Typography>
-            <IOSSwitch checked={autoSave} onChange={(e) => onAutoSaveChange?.(e.target.checked)} />
-          </Stack>
-
           {showSyncBadge && (
             <Tooltip
               title={syncBadgeState?.lastSyncAt ? `Last synced: ${new Date(syncBadgeState.lastSyncAt).toLocaleString()}` : "Auto-sync is enabled"}
@@ -2004,51 +1894,17 @@ export default function DocbookEditorSurface({
             "&:empty::before": { content: "attr(data-placeholder)", color: alpha("#221f1a", 0.22), pointerEvents: "none" },
 
             /* Block elements */
-            "& p, & div": { margin: 0, fontSize: "inherit", lineHeight: "inherit", letterSpacing: "inherit" },
-            "& h1, & h2, & h3, & h4, & h5, & h6": {
-              margin: "0.22em 0 0.12em",
-              fontFamily: "inherit",
-              color: alpha("#1f1915", 0.94),
-              letterSpacing: "-0.04em",
-              fontWeight: 800,
-            },
-            "& h1": {
-              fontSize: "1.34em",
-              lineHeight: 1.02,
-            },
-            "& h2": {
-              fontSize: "1.18em",
-              lineHeight: 1.06,
-            },
-            "& h3": {
-              fontSize: "1.04em",
-              lineHeight: 1.1,
-            },
-            "& h4": {
-              fontSize: "0.94em",
-              lineHeight: 1.14,
-            },
-            "& h5": {
-              fontSize: "0.86em",
-              lineHeight: 1.18,
-            },
-            "& h6": {
-              fontSize: "0.8em",
-              lineHeight: 1.2,
-              letterSpacing: "-0.02em",
-              textTransform: "uppercase",
-            },
+            "& p, & div": { margin: 0 },
 
             /* Lists */
-            "& ul, & ol": { margin: "0.18em 0", paddingLeft: "1.22em" },
+            "& ul, & ol": { margin: "0.15em 0", paddingLeft: "1.4em" },
             "& ul": { listStyleType: "disc" },
             "& ol": { listStyleType: "decimal" },
             "& ol[data-list-type='lower-roman']": { listStyleType: "lower-roman" },
             "& ol[data-list-type='upper-roman']": { listStyleType: "upper-roman" },
             "& ol[data-list-type='lower-alpha']": { listStyleType: "lower-alpha" },
             "& ol[data-list-type='upper-alpha']": { listStyleType: "upper-alpha" },
-            "& li": { margin: "0.08em 0", lineHeight: 1.24, paddingLeft: "0.12em" },
-            "& li > p, & li > div": { display: "inline" },
+            "& li": { margin: "0.05em 0", lineHeight: "inherit", paddingLeft: "0.15em" },
 
             /* Highlight (warm gradient pill) */
             "& span[data-highlight]": {
@@ -2388,7 +2244,7 @@ export default function DocbookEditorSurface({
                             ? "transparent"
                             : item.__isHint
                               ? alpha("#c4956a", 0.12)
-                              : `linear-gradient(135deg, ${item.accent} 0%, ${alpha(item.accent, 0.68)} 100%)`,
+                            : `linear-gradient(135deg, ${item.accent} 0%, ${alpha(item.accent, 0.68)} 100%)`,
                           border: item.__isCreate ? "2px dashed #c4956a" : item.__isHint ? "1px dashed #c4956a" : "none",
                           color: item.__isCreate || item.__isHint ? "#c4956a" : "#fffdf8",
                           fontSize: item.__isCreate ? 20 : item.__isHint ? 12 : 13,
@@ -2412,8 +2268,8 @@ export default function DocbookEditorSurface({
                         {item.__isHint
                           ? "@"
                           : item.__isCreate
-                            ? "+"
-                            : item.name
+                          ? "+"
+                          : item.name
                               .split(" ")
                               .map((part) => part[0])
                               .join("")

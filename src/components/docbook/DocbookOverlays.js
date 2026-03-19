@@ -31,16 +31,29 @@ import {
 import { alpha } from "@mui/material/styles";
 import { stickyColorOptions as colorOptions, normalizeUrl, tooltipSlotProps } from "./shared";
 
-function SelectionToolbar({ visible, x, y, onBold, onColor, onFontFamily, onFontSizeIncrease, onFontSizeDecrease, onHighlight, onList, onTodo, onTable, onLink, onImage, onNote, onClear, onViewSelection }) {
+const presetFontSizes = [12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 60, 72];
+const headingOptions = [
+  { label: "Paragraph", value: "p", previewSx: { fontSize: 13, fontWeight: 600 } },
+  { label: "Heading 1", value: "h1", previewSx: { fontSize: 24, fontWeight: 800, lineHeight: 1.05 } },
+  { label: "Heading 2", value: "h2", previewSx: { fontSize: 20, fontWeight: 800, lineHeight: 1.08 } },
+  { label: "Heading 3", value: "h3", previewSx: { fontSize: 17, fontWeight: 800, lineHeight: 1.1 } },
+  { label: "Heading 4", value: "h4", previewSx: { fontSize: 15, fontWeight: 800, lineHeight: 1.12 } },
+  { label: "Heading 5", value: "h5", previewSx: { fontSize: 13.5, fontWeight: 800, lineHeight: 1.14 } },
+  { label: "Heading 6", value: "h6", previewSx: { fontSize: 12.5, fontWeight: 800, lineHeight: 1.16 } },
+];
+
+function SelectionToolbar({ visible, x, y, onBold, onColor, onFontFamily, onFontSizeMenu, onFontSizeIncrease, onFontSizeDecrease, onHeading, onHighlight, onList, onTodo, onTable, onLink, onImage, onNote, onClear, onViewSelection }) {
   const iconSx = { color: "#352f29", "&:hover": { bgcolor: alpha("#8f7d66", 0.12) } };
 
   return (
     <Box sx={{ position: "fixed", top: y, left: x, transform: visible ? "translate(-50%, -100%) scale(1)" : "translate(-50%, -92%) scale(0.96)", opacity: visible ? 1 : 0, transition: "opacity 180ms ease, transform 180ms ease", pointerEvents: visible ? "auto" : "none", zIndex: 1400 }}>
       <Paper elevation={6} sx={{ borderRadius: 999, px: 0.5, py: 0.28, background: "linear-gradient(135deg, #f8efe3 0%, #f0e4d4 100%)", border: "1px solid #d9cab7", boxShadow: "0 12px 30px rgba(58, 46, 34, 0.2)" }}>
         <Stack direction="row" alignItems="center" spacing={0.2}>
+          <Tooltip title="Heading / Paragraph" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onHeading} size="small" sx={iconSx}><Typography sx={{ fontSize: 13, fontWeight: 900, lineHeight: 1, color: "inherit" }}>H</Typography></IconButton></Tooltip>
           <Tooltip title="Bold" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onBold} size="small" sx={iconSx}><FormatBoldRoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
           <Tooltip title="Text Color" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onColor} size="small" sx={iconSx}><ColorLensRoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
           <Tooltip title="Font Family" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onFontFamily} size="small" sx={iconSx}><FontDownloadRoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
+          <Tooltip title="Font Size" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onFontSizeMenu} size="small" sx={iconSx}><Typography sx={{ fontSize: 11.5, fontWeight: 900, lineHeight: 1, color: "inherit" }}>14</Typography></IconButton></Tooltip>
           <Tooltip title="Increase Font Size" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onFontSizeIncrease} size="small" sx={iconSx}><TextIncreaseRoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
           <Tooltip title="Decrease Font Size" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onFontSizeDecrease} size="small" sx={iconSx}><TextDecreaseRoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
           <Tooltip title="Highlight" arrow slotProps={tooltipSlotProps}><IconButton onMouseDown={(e) => e.preventDefault()} onClick={onHighlight} size="small" sx={iconSx}><HighlightRoundedIcon sx={{ fontSize: 18 }} /></IconButton></Tooltip>
@@ -77,9 +90,15 @@ export default function DocbookOverlays({
   setColorAnchorEl,
   fontFamilyAnchorEl,
   setFontFamilyAnchorEl,
+  fontSizeAnchorEl,
+  setFontSizeAnchorEl,
+  headingAnchorEl,
+  setHeadingAnchorEl,
   onFontSizeIncrease,
   onFontSizeDecrease,
   changeFontFamily,
+  onApplyTextFontSize,
+  onApplyBlockFormat,
   linkAnchorEl,
   setLinkAnchorEl,
   linkDraft,
@@ -116,8 +135,16 @@ export default function DocbookOverlays({
           captureSelectionRange();
           setFontFamilyAnchorEl(event.currentTarget);
         }}
+        onFontSizeMenu={(event) => {
+          captureSelectionRange();
+          setFontSizeAnchorEl(event.currentTarget);
+        }}
         onFontSizeIncrease={onFontSizeIncrease}
         onFontSizeDecrease={onFontSizeDecrease}
+        onHeading={(event) => {
+          captureSelectionRange();
+          setHeadingAnchorEl(event.currentTarget);
+        }}
         onHighlight={onHighlight}
         onList={(event) => {
           captureSelectionRange();
@@ -187,6 +214,48 @@ export default function DocbookOverlays({
             sx={{ fontSize: 13, color: "#3b342d", fontFamily: font.value }}
           >
             {font.label}
+          </MenuItem>
+        ))}
+      </Menu>
+
+      <Menu open={Boolean(fontSizeAnchorEl)} anchorEl={fontSizeAnchorEl} onClose={() => setFontSizeAnchorEl(null)} PaperProps={{ sx: { borderRadius: 2.2, border: "1px solid #ddd0c0", bgcolor: "#f6eee3", minWidth: 150, boxShadow: "0 12px 30px rgba(58, 46, 34, 0.18)" } }}>
+        {presetFontSizes.map((fontSize) => (
+          <MenuItem
+            key={fontSize}
+            onClick={() => {
+              onApplyTextFontSize?.(fontSize);
+              setFontSizeAnchorEl(null);
+            }}
+            sx={{ fontSize: 13, color: "#3b342d", gap: 1.2 }}
+          >
+            <Typography sx={{ minWidth: 36, fontSize: 12, fontWeight: 800, color: "#8b5e3c" }}>
+              {fontSize}
+            </Typography>
+            <Typography sx={{ fontSize: `${fontSize}px`, lineHeight: 1, color: "#2f2721" }}>
+              Aa
+            </Typography>
+          </MenuItem>
+        ))}
+      </Menu>
+
+      <Menu open={Boolean(headingAnchorEl)} anchorEl={headingAnchorEl} onClose={() => setHeadingAnchorEl(null)} PaperProps={{ sx: { borderRadius: 2.2, border: "1px solid #ddd0c0", bgcolor: "#f6eee3", minWidth: 210, boxShadow: "0 12px 30px rgba(58, 46, 34, 0.18)" } }}>
+        {headingOptions.map((option) => (
+          <MenuItem
+            key={option.value}
+            onClick={() => {
+              onApplyBlockFormat?.(option.value);
+              setHeadingAnchorEl(null);
+            }}
+            sx={{ alignItems: "flex-end", py: 1, color: "#3b342d" }}
+          >
+            <Stack spacing={0.15}>
+              <Typography sx={option.previewSx}>
+                {option.label}
+              </Typography>
+              <Typography sx={{ fontSize: 11, color: "#7b6c5c" }}>
+                {option.value.toUpperCase()}
+              </Typography>
+            </Stack>
           </MenuItem>
         ))}
       </Menu>

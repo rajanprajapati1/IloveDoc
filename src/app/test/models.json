@@ -1,0 +1,788 @@
+[
+  {
+    "provider": "inception",
+    "model": "Mercury Edit",
+    "apiModel": "inception/mercury-edit",
+    "fullName": "inception/mercury-edit",
+    "link": "/inception/mercury-edit",
+    "icon": null
+  },
+  {
+    "provider": "inception",
+    "model": "Mercury 2",
+    "apiModel": "inception/mercury-2",
+    "fullName": "inception/mercury-2",
+    "link": "/inception/mercury-2",
+    "icon": null
+  },
+  {
+    "provider": "cerebras",
+    "model": "qwen-3-235b-a22b-instruct-2507",
+    "fullName": "cerebras/qwen-3-235b-a22b-instruct-2507",
+    "link": "/cerebras/qwen-3-235b-a22b-instruct-2507",
+    "icon": null
+  },
+  {
+    "provider": "mistralai",
+    "model": "mistral-small-4-119b-2603",
+    "fullName": "mistralai/mistral-small-4-119b-2603",
+    "link": "/mistralai/mistral-small-4-119b-2603",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmistral-color.png&w=150&q=75"
+  },
+  {
+    "provider": "nvidia",
+    "model": "nemotron-3-super-120b-a12b",
+    "fullName": "nvidia/nemotron-3-super-120b-a12b",
+    "link": "/nvidia/nemotron-3-super-120b-a12b",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fnvidia-color.png&w=150&q=75"
+  },
+  {
+    "provider": "qwen",
+    "model": "qwen3.5-122b-a10b",
+    "fullName": "qwen/qwen3.5-122b-a10b",
+    "link": "/qwen/qwen3.5-122b-a10b",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fqwen-color.png&w=150&q=75"
+  },
+  {
+    "provider": "minimaxai",
+    "model": "minimax-m2.5",
+    "fullName": "minimaxai/minimax-m2.5",
+    "link": "/minimaxai/minimax-m2.5",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fminimax-color.png&w=150&q=75"
+  },
+  {
+    "provider": "qwen",
+    "model": "qwen3.5-397b-a17b",
+    "fullName": "qwen/qwen3.5-397b-a17b",
+    "link": "/qwen/qwen3.5-397b-a17b",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fqwen-color.png&w=150&q=75"
+  },
+  {
+    "provider": "z-ai",
+    "model": "glm-5",
+    "fullName": "z-ai/glm-5",
+    "link": "/z-ai/glm5",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fzai.png&w=150&q=75"
+  },
+  {
+    "provider": "minimaxai",
+    "model": "minimax-m2.1",
+    "fullName": "minimaxai/minimax-m2.1",
+    "link": "/minimaxai/minimax-m2_1",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fminimax-color.png&w=150&q=75"
+  },
+  {
+    "provider": "stepfun-ai",
+    "model": "step-3.5-flash",
+    "fullName": "stepfun-ai/step-3.5-flash",
+    "link": "/stepfun-ai/step-3.5-flash",
+    "icon": null
+  },
+  {
+    "provider": "moonshotai",
+    "model": "kimi-k2.5",
+    "fullName": "moonshotai/kimi-k2.5",
+    "link": "/moonshotai/kimi-k2.5",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmoonshot.png&w=150&q=75"
+  },
+  {
+    "provider": "z-ai",
+    "model": "glm-4.7",
+    "fullName": "z-ai/glm-4.7",
+    "link": "/z-ai/glm4_7",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fzai.png&w=150&q=75"
+  },
+  {
+    "provider": "deepseek-ai",
+    "model": "deepseek-v3.2",
+    "fullName": "deepseek-ai/deepseek-v3.2",
+    "link": "/deepseek-ai/deepseek-v3_2",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fdeepseek-color.png&w=150&q=75"
+  },
+  {
+    "provider": "nvidia",
+    "model": "nemotron-3-nano-30b-a3b",
+    "fullName": "nvidia/nemotron-3-nano-30b-a3b",
+    "link": "/nvidia/nemotron-3-nano-30b-a3b",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fnvidia-color.png&w=150&q=75"
+  },
+  {
+    "provider": "mistralai",
+    "model": "devstral-2-123b-instruct-2512",
+    "fullName": "mistralai/devstral-2-123b-instruct-2512",
+    "link": "/mistralai/devstral-2-123b-instruct-2512",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmistral-color.png&w=150&q=75"
+  },
+  {
+    "provider": "moonshotai",
+    "model": "kimi-k2-thinking",
+    "fullName": "moonshotai/kimi-k2-thinking",
+    "link": "/moonshotai/kimi-k2-thinking",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmoonshot.png&w=150&q=75"
+  },
+  {
+    "provider": "mistralai",
+    "model": "mistral-large-3-675b-instruct-2512",
+    "fullName": "mistralai/mistral-large-3-675b-instruct-2512",
+    "link": "/mistralai/mistral-large-3-675b-instruct-2512",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmistral-color.png&w=150&q=75"
+  },
+  {
+    "provider": "mistralai",
+    "model": "ministral-14b-instruct-2512",
+    "fullName": "mistralai/ministral-14b-instruct-2512",
+    "link": "/mistralai/ministral-14b-instruct-2512",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmistral-color.png&w=150&q=75"
+  },
+  {
+    "provider": "nvidia",
+    "model": "nemotron-nano-12b-v2-vl",
+    "fullName": "nvidia/nemotron-nano-12b-v2-vl",
+    "link": "/nvidia/nemotron-nano-12b-v2-vl",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fnvidia-color.png&w=150&q=75"
+  },
+  {
+    "provider": "deepseek-ai",
+    "model": "deepseek-v3.1-terminus",
+    "fullName": "deepseek-ai/deepseek-v3.1-terminus",
+    "link": "/deepseek-ai/deepseek-v3_1-terminus",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fdeepseek-color.png&w=150&q=75"
+  },
+  {
+    "provider": "stockmark",
+    "model": "stockmark-2-100b-instruct",
+    "fullName": "stockmark/stockmark-2-100b-instruct",
+    "link": "/stockmark/stockmark-2-100b-instruct",
+    "icon": null
+  },
+  {
+    "provider": "qwen",
+    "model": "qwen3-next-80b-a3b-instruct",
+    "fullName": "qwen/qwen3-next-80b-a3b-instruct",
+    "link": "/qwen/qwen3-next-80b-a3b-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fqwen-color.png&w=150&q=75"
+  },
+  {
+    "provider": "moonshotai",
+    "model": "kimi-k2-instruct-0905",
+    "fullName": "moonshotai/kimi-k2-instruct-0905",
+    "link": "/moonshotai/kimi-k2-instruct-0905",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmoonshot.png&w=150&q=75"
+  },
+  {
+    "provider": "speakleash",
+    "model": "bielik-11b-v2.6-instruct",
+    "fullName": "speakleash/bielik-11b-v2.6-instruct",
+    "link": "/speakleash/bielik-11b-v2_6-instruct",
+    "icon": null
+  },
+  {
+    "provider": "qwen",
+    "model": "qwen3-next-80b-a3b-thinking",
+    "fullName": "qwen/qwen3-next-80b-a3b-thinking",
+    "link": "/qwen/qwen3-next-80b-a3b-thinking",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fqwen-color.png&w=150&q=75"
+  },
+  {
+    "provider": "bytedance",
+    "model": "seed-oss-36b-instruct",
+    "fullName": "bytedance/seed-oss-36b-instruct",
+    "link": "/bytedance/seed-oss-36b-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fbytedance-color.png&w=150&q=75"
+  },
+  {
+    "provider": "qwen",
+    "model": "qwen3-coder-480b-a35b-instruct",
+    "fullName": "qwen/qwen3-coder-480b-a35b-instruct",
+    "link": "/qwen/qwen3-coder-480b-a35b-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fqwen-color.png&w=150&q=75"
+  },
+  {
+    "provider": "deepseek-ai",
+    "model": "deepseek-v3.1",
+    "fullName": "deepseek-ai/deepseek-v3.1",
+    "link": "/deepseek-ai/deepseek-v3_1",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fdeepseek-color.png&w=150&q=75"
+  },
+  {
+    "provider": "nvidia",
+    "model": "nvidia-nemotron-nano-9b-v2",
+    "fullName": "nvidia/nvidia-nemotron-nano-9b-v2",
+    "link": "/nvidia/nvidia-nemotron-nano-9b-v2",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fnvidia-color.png&w=150&q=75"
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-oss-20b",
+    "fullName": "openai/gpt-oss-20b",
+    "link": "/openai/gpt-oss-20b",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fopenai.png&w=150&q=75"
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-oss-120b",
+    "fullName": "openai/gpt-oss-120b",
+    "link": "/openai/gpt-oss-120b",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fopenai.png&w=150&q=75"
+  },
+  {
+    "provider": "nvidia",
+    "model": "llama-3.3-nemotron-super-49b-v1.5",
+    "fullName": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+    "link": "/nvidia/llama-3_3-nemotron-super-49b-v1_5",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fnvidia-color.png&w=150&q=75"
+  },
+  {
+    "provider": "opengpt-x",
+    "model": "teuken-7b-instruct-commercial-v0.4",
+    "fullName": "opengpt-x/teuken-7b-instruct-commercial-v0.4",
+    "link": "/opengpt-x/teuken-7b-instruct-commercial-v0_4",
+    "icon": null
+  },
+  {
+    "provider": "sarvamai",
+    "model": "sarvam-m",
+    "fullName": "sarvamai/sarvam-m",
+    "link": "/sarvamai/sarvam-m",
+    "icon": null
+  },
+  {
+    "provider": "microsoft",
+    "model": "phi-4-mini-flash-reasoning",
+    "fullName": "microsoft/phi-4-mini-flash-reasoning",
+    "link": "/microsoft/phi-4-mini-flash-reasoning",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmicrosoft-color.png&w=150&q=75"
+  },
+  {
+    "provider": "moonshotai",
+    "model": "kimi-k2-instruct",
+    "fullName": "moonshotai/kimi-k2-instruct",
+    "link": "/moonshotai/kimi-k2-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmoonshot.png&w=150&q=75"
+  },
+  {
+    "provider": "mistralai",
+    "model": "magistral-small-2506",
+    "fullName": "mistralai/magistral-small-2506",
+    "link": "/mistralai/magistral-small-2506",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmistral-color.png&w=150&q=75"
+  },
+  {
+    "provider": "google",
+    "model": "gemma-3n-e4b-it",
+    "fullName": "google/gemma-3n-e4b-it",
+    "link": "/google/gemma-3n-e4b-it",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fgoogle-color.png&w=150&q=75"
+  },
+  {
+    "provider": "google",
+    "model": "gemma-3n-e2b-it",
+    "fullName": "google/gemma-3n-e2b-it",
+    "link": "/google/gemma-3n-e2b-it",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fgoogle-color.png&w=150&q=75"
+  },
+  {
+    "provider": "mistralai",
+    "model": "mistral-nemotron",
+    "fullName": "mistralai/mistral-nemotron",
+    "link": "/mistralai/mistral-nemotron",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmistral-color.png&w=150&q=75"
+  },
+  {
+    "provider": "nvidia",
+    "model": "llama-3.1-nemotron-nano-vl-8b-v1",
+    "fullName": "nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
+    "link": "/nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fnvidia-color.png&w=150&q=75"
+  },
+  {
+    "provider": "nvidia",
+    "model": "llama-3.1-nemotron-nano-4b-v1.1",
+    "fullName": "nvidia/llama-3.1-nemotron-nano-4b-v1.1",
+    "link": "/nvidia/llama-3_1-nemotron-nano-4b-v1_1",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fnvidia-color.png&w=150&q=75"
+  },
+  {
+    "provider": "marin",
+    "model": "marin-8b-instruct",
+    "fullName": "marin/marin-8b-instruct",
+    "link": "/marin/marin-8b-instruct",
+    "icon": null
+  },
+  {
+    "provider": "ibm",
+    "model": "granite-3.3-8b-instruct",
+    "fullName": "ibm/granite-3.3-8b-instruct",
+    "link": "/ibm/granite-3_3-8b-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fibm.png&w=150&q=75"
+  },
+  {
+    "provider": "utter-project",
+    "model": "eurollm-9b-instruct",
+    "fullName": "utter-project/eurollm-9b-instruct",
+    "link": "/utter-project/eurollm-9b-instruct",
+    "icon": null
+  },
+  {
+    "provider": "gotocompany",
+    "model": "gemma-2-9b-cpt-sahabatai-instruct",
+    "fullName": "gotocompany/gemma-2-9b-cpt-sahabatai-instruct",
+    "link": "/gotocompany/gemma-2-9b-cpt-sahabatai-instruct",
+    "icon": null
+  },
+  {
+    "provider": "mistralai",
+    "model": "mistral-small-3.1-24b-instruct-2503",
+    "fullName": "mistralai/mistral-small-3.1-24b-instruct-2503",
+    "link": "/mistralai/mistral-small-3_1-24b-instruct-2503",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmistral-color.png&w=150&q=75"
+  },
+  {
+    "provider": "mistralai",
+    "model": "mistral-medium-3-instruct",
+    "fullName": "mistralai/mistral-medium-3-instruct",
+    "link": "/mistralai/mistral-medium-3-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmistral-color.png&w=150&q=75"
+  },
+  {
+    "provider": "nvidia",
+    "model": "llama-3.1-nemotron-ultra-253b-v1",
+    "fullName": "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+    "link": "/nvidia/llama-3_1-nemotron-ultra-253b-v1",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fnvidia-color.png&w=150&q=75"
+  },
+  {
+    "provider": "meta",
+    "model": "llama-4-maverick-17b-128e-instruct",
+    "fullName": "meta/llama-4-maverick-17b-128e-instruct",
+    "link": "/meta/llama-4-maverick-17b-128e-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmeta-color.png&w=150&q=75"
+  },
+  {
+    "provider": "meta",
+    "model": "llama-4-scout-17b-16e-instruct",
+    "fullName": "meta/llama-4-scout-17b-16e-instruct",
+    "link": "/meta/llama-4-scout-17b-16e-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmeta-color.png&w=150&q=75"
+  },
+  {
+    "provider": "qwen",
+    "model": "qwq-32b",
+    "fullName": "qwen/qwq-32b",
+    "link": "/qwen/qwq-32b",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fqwen-color.png&w=150&q=75"
+  },
+  {
+    "provider": "nvidia",
+    "model": "llama-3.3-nemotron-super-49b-v1",
+    "fullName": "nvidia/llama-3.3-nemotron-super-49b-v1",
+    "link": "/nvidia/llama-3_3-nemotron-super-49b-v1",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fnvidia-color.png&w=150&q=75"
+  },
+  {
+    "provider": "nvidia",
+    "model": "llama-3.1-nemotron-nano-8b-v1",
+    "fullName": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+    "link": "/nvidia/llama-3_1-nemotron-nano-8b-v1",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fnvidia-color.png&w=150&q=75"
+  },
+  {
+    "provider": "deepseek-ai",
+    "model": "deepseek-r1-distill-llama-8b",
+    "fullName": "deepseek-ai/deepseek-r1-distill-llama-8b",
+    "link": "/deepseek-ai/deepseek-r1-distill-llama-8b",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fdeepseek-color.png&w=150&q=75"
+  },
+  {
+    "provider": "google",
+    "model": "gemma-3-27b-it",
+    "fullName": "google/gemma-3-27b-it",
+    "link": "/google/gemma-3-27b-it",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fgoogle-color.png&w=150&q=75"
+  },
+  {
+    "provider": "google",
+    "model": "gemma-3-1b-it",
+    "fullName": "google/gemma-3-1b-it",
+    "link": "/google/gemma-3-1b-it",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fgoogle-color.png&w=150&q=75"
+  },
+  {
+    "provider": "deepseek-ai",
+    "model": "deepseek-r1-distill-qwen-32b",
+    "fullName": "deepseek-ai/deepseek-r1-distill-qwen-32b",
+    "link": "/deepseek-ai/deepseek-r1-distill-qwen-32b",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fdeepseek-color.png&w=150&q=75"
+  },
+  {
+    "provider": "deepseek-ai",
+    "model": "deepseek-r1-distill-qwen-14b",
+    "fullName": "deepseek-ai/deepseek-r1-distill-qwen-14b",
+    "link": "/deepseek-ai/deepseek-r1-distill-qwen-14b",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fdeepseek-color.png&w=150&q=75"
+  },
+  {
+    "provider": "deepseek-ai",
+    "model": "deepseek-r1-distill-qwen-7b",
+    "fullName": "deepseek-ai/deepseek-r1-distill-qwen-7b",
+    "link": "/deepseek-ai/deepseek-r1-distill-qwen-7b",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fdeepseek-color.png&w=150&q=75"
+  },
+  {
+    "provider": "microsoft",
+    "model": "phi-4-mini-instruct",
+    "fullName": "microsoft/phi-4-mini-instruct",
+    "link": "/microsoft/phi-4-mini-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmicrosoft-color.png&w=150&q=75"
+  },
+  {
+    "provider": "microsoft",
+    "model": "phi-4-multimodal-instruct",
+    "fullName": "microsoft/phi-4-multimodal-instruct",
+    "link": "/microsoft/phi-4-multimodal-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmicrosoft-color.png&w=150&q=75"
+  },
+  {
+    "provider": "mistralai",
+    "model": "mistral-small-24b-instruct",
+    "fullName": "mistralai/mistral-small-24b-instruct",
+    "link": "/mistralai/mistral-small-24b-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmistral-color.png&w=150&q=75"
+  },
+  {
+    "provider": "igenius",
+    "model": "colosseum_355b_instruct_16k",
+    "fullName": "igenius/colosseum_355b_instruct_16k",
+    "link": "/igenius/colosseum_355b_instruct_16k",
+    "icon": null
+  },
+  {
+    "provider": "tiiuae",
+    "model": "falcon3-7b-instruct",
+    "fullName": "tiiuae/falcon3-7b-instruct",
+    "link": "/tiiuae/falcon3-7b-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Ftii-color.png&w=150&q=75"
+  },
+  {
+    "provider": "igenius",
+    "model": "italia_10b_instruct_16k",
+    "fullName": "igenius/italia_10b_instruct_16k",
+    "link": "/igenius/italia_10b_instruct_16k",
+    "icon": null
+  },
+  {
+    "provider": "qwen",
+    "model": "qwen2.5-7b-instruct",
+    "fullName": "qwen/qwen2.5-7b-instruct",
+    "link": "/qwen/qwen2_5-7b-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fqwen-color.png&w=150&q=75"
+  },
+  {
+    "provider": "qwen",
+    "model": "qwen2.5-coder-32b-instruct",
+    "fullName": "qwen/qwen2.5-coder-32b-instruct",
+    "link": "/qwen/qwen2_5-coder-32b-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fqwen-color.png&w=150&q=75"
+  },
+  {
+    "provider": "qwen",
+    "model": "qwen2.5-coder-7b-instruct",
+    "fullName": "qwen/qwen2.5-coder-7b-instruct",
+    "link": "/qwen/qwen2_5-coder-7b-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fqwen-color.png&w=150&q=75"
+  },
+  {
+    "provider": "nvidia",
+    "model": "usdcode",
+    "fullName": "nvidia/usdcode",
+    "link": "/nvidia/usdcode",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fnvidia-color.png&w=150&q=75"
+  },
+  {
+    "provider": "meta",
+    "model": "llama-3.3-70b-instruct",
+    "fullName": "meta/llama-3.3-70b-instruct",
+    "link": "/meta/llama-3_3-70b-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmeta-color.png&w=150&q=75"
+  },
+  {
+    "provider": "nvidia",
+    "model": "nemotron-4-mini-hindi-4b-instruct",
+    "fullName": "nvidia/nemotron-4-mini-hindi-4b-instruct",
+    "link": "/nvidia/nemotron-4-mini-hindi-4b-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fnvidia-color.png&w=150&q=75"
+  },
+  {
+    "provider": "institute-of-science-tokyo",
+    "model": "llama-3.1-swallow-70b-instruct-v0.1",
+    "fullName": "institute-of-science-tokyo/llama-3.1-swallow-70b-instruct-v0.1",
+    "link": "/institute-of-science-tokyo/llama-3-1-swallow-70b-instruct-v01",
+    "icon": null
+  },
+  {
+    "provider": "institute-of-science-tokyo",
+    "model": "llama-3.1-swallow-8b-instruct-v0.1",
+    "fullName": "institute-of-science-tokyo/llama-3.1-swallow-8b-instruct-v0.1",
+    "link": "/institute-of-science-tokyo/llama-3-1-swallow-8b-instruct-v01",
+    "icon": null
+  },
+  {
+    "provider": "meta",
+    "model": "llama-3.2-3b-instruct",
+    "fullName": "meta/llama-3.2-3b-instruct",
+    "link": "/meta/llama-3.2-3b-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmeta-color.png&w=150&q=75"
+  },
+  {
+    "provider": "meta",
+    "model": "llama-3.2-11b-vision-instruct",
+    "fullName": "meta/llama-3.2-11b-vision-instruct",
+    "link": "/meta/llama-3.2-11b-vision-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmeta-color.png&w=150&q=75"
+  },
+  {
+    "provider": "meta",
+    "model": "llama-3.2-90b-vision-instruct",
+    "fullName": "meta/llama-3.2-90b-vision-instruct",
+    "link": "/meta/llama-3.2-90b-vision-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmeta-color.png&w=150&q=75"
+  },
+  {
+    "provider": "meta",
+    "model": "llama-3.2-1b-instruct",
+    "fullName": "meta/llama-3.2-1b-instruct",
+    "link": "/meta/llama-3.2-1b-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmeta-color.png&w=150&q=75"
+  },
+  {
+    "provider": "qwen",
+    "model": "qwen2-7b-instruct",
+    "fullName": "qwen/qwen2-7b-instruct",
+    "link": "/qwen/qwen2-7b-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fqwen-color.png&w=150&q=75"
+  },
+  {
+    "provider": "abacusai",
+    "model": "dracarys-llama-3.1-70b-instruct",
+    "fullName": "abacusai/dracarys-llama-3.1-70b-instruct",
+    "link": "/abacusai/dracarys-llama-3_1-70b-instruct",
+    "icon": null
+  },
+  {
+    "provider": "yentinglin",
+    "model": "llama-3-taiwan-70b-instruct",
+    "fullName": "yentinglin/llama-3-taiwan-70b-instruct",
+    "link": "/yentinglin/llama-3-taiwan-70b-instruct",
+    "icon": null
+  },
+  {
+    "provider": "tokyotech-llm",
+    "model": "llama-3-swallow-70b-instruct-v0.1",
+    "fullName": "tokyotech-llm/llama-3-swallow-70b-instruct-v0.1",
+    "link": "/tokyotech-llm/llama-3-swallow-70b-instruct-v01",
+    "icon": null
+  },
+  {
+    "provider": "ai21labs",
+    "model": "jamba-1.5-mini-instruct",
+    "fullName": "ai21labs/jamba-1.5-mini-instruct",
+    "link": "/ai21labs/jamba-1_5-mini-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fai21.png&w=150&q=75"
+  },
+  {
+    "provider": "nvidia",
+    "model": "nemotron-mini-4b-instruct",
+    "fullName": "nvidia/nemotron-mini-4b-instruct",
+    "link": "/nvidia/nemotron-mini-4b-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fnvidia-color.png&w=150&q=75"
+  },
+  {
+    "provider": "microsoft",
+    "model": "phi-3.5-mini-instruct",
+    "fullName": "microsoft/phi-3.5-mini-instruct",
+    "link": "/microsoft/phi-3_5-mini",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmicrosoft-color.png&w=150&q=75"
+  },
+  {
+    "provider": "rakuten",
+    "model": "rakutenai-7b-instruct",
+    "fullName": "rakuten/rakutenai-7b-instruct",
+    "link": "/rakuten/rakutenai-7b-instruct",
+    "icon": null
+  },
+  {
+    "provider": "rakuten",
+    "model": "rakutenai-7b-chat",
+    "fullName": "rakuten/rakutenai-7b-chat",
+    "link": "/rakuten/rakutenai-7b-chat",
+    "icon": null
+  },
+  {
+    "provider": "google",
+    "model": "gemma-2-2b-it",
+    "fullName": "google/gemma-2-2b-it",
+    "link": "/google/gemma-2-2b-it",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fgoogle-color.png&w=150&q=75"
+  },
+  {
+    "provider": "thudm",
+    "model": "chatglm3-6b",
+    "fullName": "thudm/chatglm3-6b",
+    "link": "/thudm/chatglm3-6b",
+    "icon": null
+  },
+  {
+    "provider": "mistralai",
+    "model": "mamba-codestral-7b-v0.1",
+    "fullName": "mistralai/mamba-codestral-7b-v0.1",
+    "link": "/mistralai/mamba-codestral-7b-v01",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmistral-color.png&w=150&q=75"
+  },
+  {
+    "provider": "baichuan-inc",
+    "model": "baichuan2-13b-chat",
+    "fullName": "baichuan-inc/baichuan2-13b-chat",
+    "link": "/baichuan-inc/baichuan2-13b-chat",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fbaichuan-color.png&w=150&q=75"
+  },
+  {
+    "provider": "meta",
+    "model": "llama-3.1-405b-instruct",
+    "fullName": "meta/llama-3.1-405b-instruct",
+    "link": "/meta/llama-3_1-405b-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmeta-color.png&w=150&q=75"
+  },
+  {
+    "provider": "meta",
+    "model": "llama-3.1-70b-instruct",
+    "fullName": "meta/llama-3.1-70b-instruct",
+    "link": "/meta/llama-3_1-70b-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmeta-color.png&w=150&q=75"
+  },
+  {
+    "provider": "meta",
+    "model": "llama-3.1-8b-instruct",
+    "fullName": "meta/llama-3.1-8b-instruct",
+    "link": "/meta/llama-3_1-8b-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmeta-color.png&w=150&q=75"
+  },
+  {
+    "provider": "microsoft",
+    "model": "phi-3-medium-128k-instruct",
+    "fullName": "microsoft/phi-3-medium-128k-instruct",
+    "link": "/microsoft/phi-3-medium-128k-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmicrosoft-color.png&w=150&q=75"
+  },
+  {
+    "provider": "google",
+    "model": "gemma-2-27b-it",
+    "fullName": "google/gemma-2-27b-it",
+    "link": "/google/gemma-2-27b-it",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fgoogle-color.png&w=150&q=75"
+  },
+  {
+    "provider": "google",
+    "model": "gemma-2-9b-it",
+    "fullName": "google/gemma-2-9b-it",
+    "link": "/google/gemma-2-9b-it",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fgoogle-color.png&w=150&q=75"
+  },
+  {
+    "provider": "nvidia",
+    "model": "llama3-chatqa-1.5-8b",
+    "fullName": "nvidia/llama3-chatqa-1.5-8b",
+    "link": "/nvidia/chatqa-1-5-8b",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fnvidia-color.png&w=150&q=75"
+  },
+  {
+    "provider": "mistralai",
+    "model": "mistral-7b-instruct-v0.3",
+    "fullName": "mistralai/mistral-7b-instruct-v0.3",
+    "link": "/mistralai/mistral-7b-instruct-v03",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmistral-color.png&w=150&q=75"
+  },
+  {
+    "provider": "mediatek",
+    "model": "breeze-7b-instruct",
+    "fullName": "mediatek/breeze-7b-instruct",
+    "link": "/mediatek/breeze-7b-instruct",
+    "icon": null
+  },
+  {
+    "provider": "microsoft",
+    "model": "phi-3-small-8k-instruct",
+    "fullName": "microsoft/phi-3-small-8k-instruct",
+    "link": "/microsoft/phi-3-small-8k-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmicrosoft-color.png&w=150&q=75"
+  },
+  {
+    "provider": "microsoft",
+    "model": "phi-3-small-128k-instruct",
+    "fullName": "microsoft/phi-3-small-128k-instruct",
+    "link": "/microsoft/phi-3-small-128k-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmicrosoft-color.png&w=150&q=75"
+  },
+  {
+    "provider": "microsoft",
+    "model": "phi-3-medium-4k-instruct",
+    "fullName": "microsoft/phi-3-medium-4k-instruct",
+    "link": "/microsoft/phi-3-medium-4k-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmicrosoft-color.png&w=150&q=75"
+  },
+  {
+    "provider": "microsoft",
+    "model": "phi-3-mini-4k-instruct",
+    "fullName": "microsoft/phi-3-mini-4k-instruct",
+    "link": "/microsoft/phi-3-mini-4k",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmicrosoft-color.png&w=150&q=75"
+  },
+  {
+    "provider": "microsoft",
+    "model": "phi-3-mini-128k-instruct",
+    "fullName": "microsoft/phi-3-mini-128k-instruct",
+    "link": "/microsoft/phi-3-mini",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmicrosoft-color.png&w=150&q=75"
+  },
+  {
+    "provider": "mistralai",
+    "model": "mixtral-8x22b-instruct-v0.1",
+    "fullName": "mistralai/mixtral-8x22b-instruct-v0.1",
+    "link": "/mistralai/mixtral-8x22b-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmistral-color.png&w=150&q=75"
+  },
+  {
+    "provider": "meta",
+    "model": "llama3-70b-instruct",
+    "fullName": "meta/llama3-70b-instruct",
+    "link": "/meta/llama3-70b",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmeta-color.png&w=150&q=75"
+  },
+  {
+    "provider": "meta",
+    "model": "llama3-8b-instruct",
+    "fullName": "meta/llama3-8b-instruct",
+    "link": "/meta/llama3-8b",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmeta-color.png&w=150&q=75"
+  },
+  {
+    "provider": "google",
+    "model": "gemma-7b",
+    "fullName": "google/gemma-7b",
+    "link": "/google/gemma-7b",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fgoogle-color.png&w=150&q=75"
+  },
+  {
+    "provider": "mistralai",
+    "model": "mistral-7b-instruct-v0.2",
+    "fullName": "mistralai/mistral-7b-instruct-v0.2",
+    "link": "/mistralai/mistral-7b-instruct-v2",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmistral-color.png&w=150&q=75"
+  },
+  {
+    "provider": "mistralai",
+    "model": "mixtral-8x7b-instruct-v0.1",
+    "fullName": "mistralai/mixtral-8x7b-instruct-v0.1",
+    "link": "/mistralai/mixtral-8x7b-instruct",
+    "icon": "https://build.nvidia.com/_next/image?url=https%3A%2F%2Funpkg.com%2F%40lobehub%2Ficons-static-png%40latest%2Fdark%2Fmistral-color.png&w=150&q=75"
+  }
+]

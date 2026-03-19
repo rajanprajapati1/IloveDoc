@@ -5,7 +5,9 @@ import { Box, Paper, Drawer, IconButton, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import FavoriteRoundedIcon from "@mui/icons-material/FavoriteRounded";
+import DocbookAIPanel from "@/components/docbook/DocbookAIPanel";
 import DocbookEditorSurface from "@/components/docbook/DocbookEditorSurface";
 import DocbookOverlays from "@/components/docbook/DocbookOverlays";
 import DocbookSidebar from "@/components/docbook/DocbookSidebar";
@@ -50,7 +52,10 @@ export default function Home() {
   const autoSyncTimerRef = useRef(null);
   const hasHydratedChangeTrackerRef = useRef(false);
   const commandSearchInputRef = useRef(null);
+  const aiWriteSessionRef = useRef(null);
+  const aiCancelButtonRef = useRef(null);
 
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
   const [notes, setNotes] = useState([]);
   const [stickyNotes, setStickyNotes] = useState([]);
   const [activeNoteId, setActiveNoteId] = useState("");
@@ -63,6 +68,8 @@ export default function Home() {
   const [colorAnchorEl, setColorAnchorEl] = useState(null);
   const [linkAnchorEl, setLinkAnchorEl] = useState(null);
   const [fontFamilyAnchorEl, setFontFamilyAnchorEl] = useState(null);
+  const [fontSizeAnchorEl, setFontSizeAnchorEl] = useState(null);
+  const [headingAnchorEl, setHeadingAnchorEl] = useState(null);
   const [imageAnchorEl, setImageAnchorEl] = useState(null);
   const [listMenuAnchorEl, setListMenuAnchorEl] = useState(null);
   const [noteAnchorEl, setNoteAnchorEl] = useState(null);
@@ -96,6 +103,9 @@ export default function Home() {
   const [commandSearchOpen, setCommandSearchOpen] = useState(false);
   const [commandSearchQuery, setCommandSearchQuery] = useState("");
   const [commandSearchIndex, setCommandSearchIndex] = useState(0);
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [aiWorking, setAiWorking] = useState(false);
+  const [aiDocumentWriting, setAiDocumentWriting] = useState(false);
 
   const activeNotes = useMemo(() => notes.filter((note) => !note.deletedAt), [notes]);
   const deletedNotes = useMemo(() => notes.filter((note) => note.deletedAt && !isExpiredDelete(note.deletedAt)), [notes]);
@@ -147,6 +157,11 @@ export default function Home() {
     }
   }, []);
 
+  const handleAutoSaveChange = useCallback((enabled) => {
+    setAutoSaveEnabled(enabled);
+    localStorage.setItem("docbook_local_autosave", String(enabled));
+  }, []);
+
   const hideSelectionMenu = useCallback(() => {
     setSelectionMenu((prev) => (prev.visible ? { ...prev, visible: false } : prev));
   }, []);
@@ -178,7 +193,7 @@ export default function Home() {
     if (!range || !selection) return false;
 
     selection.removeAllRanges();
-    selection.addRange(range);
+    selection.addRange(range.cloneRange());
     return true;
   }, []);
 
@@ -271,9 +286,20 @@ export default function Home() {
       const nextRange = range.cloneRange();
       selection.removeAllRanges();
       selection.addRange(nextRange);
+      savedSelectionRangeRef.current = nextRange.cloneRange();
       return nextRange;
     },
     [isRangeInsideEditor]
+  );
+
+  const selectNodeContents = useCallback(
+    (node) => {
+      if (!node) return null;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      return selectEditorRange(range);
+    },
+    [selectEditorRange]
   );
 
   const persistImageFile = useCallback(
@@ -1091,7 +1117,55 @@ export default function Home() {
     restoreSelectionRange();
     document.execCommand("fontName", false, fontFamily);
     syncEditorHtml();
-  }, [restoreSelectionRange, syncEditorHtml]);
+    window.requestAnimationFrame(() => {
+      captureSelectionRange();
+      updateSelectionMenuPosition();
+    });
+  }, [captureSelectionRange, restoreSelectionRange, syncEditorHtml, updateSelectionMenuPosition]);
+
+  const applySelectedFontSize = useCallback(
+    (fontSizePx) => {
+      restoreSelectionRange();
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return false;
+
+      if (sel.isCollapsed) {
+        updateCurrentNote((note) => ({ ...note, fontScale: clamp(fontSizePx / 52, 0.72, 1.55) }));
+        return false;
+      }
+
+      const range = sel.getRangeAt(0);
+      const span = document.createElement("span");
+      span.style.fontSize = `${fontSizePx}px`;
+
+      try {
+        range.surroundContents(span);
+      } catch {
+        const frag = range.extractContents();
+        span.appendChild(frag);
+        range.insertNode(span);
+      }
+
+      selectNodeContents(span);
+      syncEditorHtml();
+      window.requestAnimationFrame(updateSelectionMenuPosition);
+      return true;
+    },
+    [restoreSelectionRange, selectNodeContents, syncEditorHtml, updateCurrentNote, updateSelectionMenuPosition]
+  );
+
+  const handleTextBlockFormatChange = useCallback(
+    (blockTag) => {
+      restoreSelectionRange();
+      document.execCommand("formatBlock", false, `<${blockTag}>`);
+      syncEditorHtml();
+      window.requestAnimationFrame(() => {
+        captureSelectionRange();
+        updateSelectionMenuPosition();
+      });
+    },
+    [captureSelectionRange, restoreSelectionRange, syncEditorHtml, updateSelectionMenuPosition]
+  );
 
   const handleFontSizeIncrease = useCallback(() => {
     restoreSelectionRange();
@@ -1102,23 +1176,11 @@ export default function Home() {
     }
 
     const range = sel.getRangeAt(0);
-    const span = document.createElement("span");
-    span.style.fontSize = "larger";
-    try {
-      range.surroundContents(span);
-    } catch {
-      const frag = range.extractContents();
-      span.appendChild(frag);
-      range.insertNode(span);
-    }
-    sel.removeAllRanges();
-    const after = document.createRange();
-    after.setStartAfter(span);
-    after.collapse(true);
-    sel.addRange(after);
-    syncEditorHtml();
-    window.requestAnimationFrame(updateSelectionMenuPosition);
-  }, [restoreSelectionRange, syncEditorHtml, updateCurrentNote, updateSelectionMenuPosition]);
+    const startElement =
+      range.startContainer.nodeType === 3 ? range.startContainer.parentElement : range.startContainer;
+    const currentSize = parseFloat(window.getComputedStyle(startElement).fontSize) || 16;
+    void applySelectedFontSize(clamp(Math.round(currentSize + 2), 10, 96));
+  }, [applySelectedFontSize, restoreSelectionRange, updateCurrentNote]);
 
   const handleFontSizeDecrease = useCallback(() => {
     restoreSelectionRange();
@@ -1129,23 +1191,11 @@ export default function Home() {
     }
 
     const range = sel.getRangeAt(0);
-    const span = document.createElement("span");
-    span.style.fontSize = "smaller";
-    try {
-      range.surroundContents(span);
-    } catch {
-      const frag = range.extractContents();
-      span.appendChild(frag);
-      range.insertNode(span);
-    }
-    sel.removeAllRanges();
-    const after = document.createRange();
-    after.setStartAfter(span);
-    after.collapse(true);
-    sel.addRange(after);
-    syncEditorHtml();
-    window.requestAnimationFrame(updateSelectionMenuPosition);
-  }, [restoreSelectionRange, syncEditorHtml, updateCurrentNote, updateSelectionMenuPosition]);
+    const startElement =
+      range.startContainer.nodeType === 3 ? range.startContainer.parentElement : range.startContainer;
+    const currentSize = parseFloat(window.getComputedStyle(startElement).fontSize) || 16;
+    void applySelectedFontSize(clamp(Math.round(currentSize - 2), 10, 96));
+  }, [applySelectedFontSize, restoreSelectionRange, updateCurrentNote]);
 
   const handleNoteFontScaleIncrease = useCallback(() => {
     updateCurrentNote((note) => ({ ...note, fontScale: clamp((note.fontScale || 1) + 0.08, 0.72, 1.55) }));
@@ -1364,6 +1414,9 @@ export default function Home() {
       setCustomEmojis(loadCustomEmojis());
       setNoteReactions(loadNoteReactions());
 
+      const storedAutoSave = localStorage.getItem("docbook_local_autosave");
+      if (storedAutoSave !== null) setAutoSaveEnabled(storedAutoSave === "true");
+
       await docbookDb.meta.put({ key: "activeNoteId", value: initialActiveId });
     };
 
@@ -1401,12 +1454,12 @@ export default function Home() {
   }, [refreshSyncBadgeState]);
 
   useEffect(() => {
-    if (!ready || notes.length === 0) return;
+    if (!ready || notes.length === 0 || !autoSaveEnabled) return;
     const timeoutId = setTimeout(() => {
       void docbookDb.notes.bulkPut(notes);
     }, 250);
     return () => clearTimeout(timeoutId);
-  }, [ready, notes]);
+  }, [ready, notes, autoSaveEnabled]);
 
   useEffect(() => {
     if (!ready) return;
@@ -1500,6 +1553,131 @@ export default function Home() {
     setCommandSearchIndex(0);
   }, []);
 
+  const openAiPanel = useCallback(() => {
+    setAiPanelOpen(true);
+  }, []);
+
+  const closeAiPanel = useCallback(() => {
+    setAiPanelOpen(false);
+  }, []);
+
+  const startAiDraftWrite = useCallback(() => {
+    if (!activeNoteId || !activeNote) return false;
+
+    const currentContent = activeNote.content?.trim() ? activeNote.content : "<p></p>";
+    const isEmpty = currentContent === "<p></p>" || currentContent === "<div><br></div>";
+
+    aiWriteSessionRef.current = {
+      noteId: activeNoteId,
+      baseContent: isEmpty ? "" : currentContent,
+      separator: isEmpty ? "" : "<p><br></p>",
+    };
+
+    setAiDocumentWriting(true);
+    setAiWorking(true);
+    return true;
+  }, [activeNote, activeNoteId]);
+
+  const streamAiDraftToActiveNote = useCallback((contentHtml) => {
+    const session = aiWriteSessionRef.current;
+    if (!session || !session.noteId) return false;
+
+    const incomingContent = contentHtml?.trim() ? contentHtml : "";
+    const normalizedContent = `${session.baseContent}${session.separator}${incomingContent}` || "<p></p>";
+
+    if (editorRef.current) {
+      editorRef.current.innerHTML = normalizedContent;
+    }
+
+    setNotes((prev) =>
+      prev.map((note) =>
+        note.id === session.noteId
+          ? {
+              ...note,
+              content: normalizedContent,
+            }
+          : note
+      )
+    );
+
+    window.requestAnimationFrame(updateSelectionMenuPosition);
+    return true;
+  }, [updateSelectionMenuPosition]);
+
+  const applyAiDraftToActiveNote = useCallback(
+    async (contentHtml) => {
+      const session = aiWriteSessionRef.current;
+      if (!activeNoteId || !activeNote) return false;
+
+      const incomingContent = contentHtml?.trim() ? contentHtml : "";
+      if (!incomingContent) return false;
+
+      const normalizedContent = session
+        ? `${session.baseContent}${session.separator}${incomingContent}` || "<p></p>"
+        : incomingContent;
+      const updatedAt = new Date().toISOString();
+
+      if (editorRef.current) {
+        editorRef.current.innerHTML = normalizedContent;
+      }
+
+      setNotes((prev) =>
+        prev.map((note) =>
+          note.id === activeNoteId
+            ? {
+                ...note,
+                content: normalizedContent,
+                updatedAt,
+              }
+            : note
+        )
+      );
+
+      await docbookDb.notes.update(activeNoteId, {
+        content: normalizedContent,
+        updatedAt,
+      });
+
+      aiWriteSessionRef.current = null;
+      setAiDocumentWriting(false);
+      setAiWorking(false);
+      window.requestAnimationFrame(updateSelectionMenuPosition);
+      return true;
+    },
+    [activeNote, activeNoteId, updateSelectionMenuPosition]
+  );
+
+  const cancelAiDraftWrite = useCallback(() => {
+    const session = aiWriteSessionRef.current;
+    if (!session?.noteId) {
+      setAiDocumentWriting(false);
+      setAiWorking(false);
+      return;
+    }
+
+    const restoredContent = session.baseContent || "<p></p>";
+
+    if (editorRef.current) {
+      editorRef.current.innerHTML = restoredContent;
+    }
+
+    setNotes((prev) =>
+      prev.map((note) =>
+        note.id === session.noteId
+          ? {
+              ...note,
+              content: restoredContent,
+            }
+          : note
+      )
+    );
+
+    aiWriteSessionRef.current = null;
+    setAiDocumentWriting(false);
+    setAiWorking(false);
+    window.requestAnimationFrame(updateSelectionMenuPosition);
+  }, [updateSelectionMenuPosition]);
+
   const activateSearchResult = useCallback(
     (noteId) => {
       if (!noteId) return;
@@ -1510,7 +1688,7 @@ export default function Home() {
     [closeCommandSearch]
   );
 
-  /* Keyboard shortcuts: Ctrl+S (save), Ctrl+H (settings), Ctrl+K (command search) */
+  /* Keyboard shortcuts: Ctrl+S save, Ctrl+H settings, Ctrl+K search, Ctrl+D AI */
   useEffect(() => {
     const handler = (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
@@ -1529,15 +1707,60 @@ export default function Home() {
         event.preventDefault();
         openCommandSearch();
       }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "d") {
+        event.preventDefault();
+        setAiPanelOpen((prev) => !prev);
+      }
       if (event.key === "Escape" && commandSearchOpen) {
         event.preventDefault();
         closeCommandSearch();
+      }
+      if (event.key === "Escape" && aiPanelOpen) {
+        event.preventDefault();
+        closeAiPanel();
       }
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [closeCommandSearch, commandSearchOpen, openCommandSearch, saveCurrentNote]);
+  }, [aiPanelOpen, closeAiPanel, closeCommandSearch, commandSearchOpen, openCommandSearch, saveCurrentNote]);
+
+  useEffect(() => {
+    if (!aiDocumentWriting) return undefined;
+
+    const shouldAllowTarget = (target) => {
+      if (!(target instanceof Node)) return false;
+      return Boolean(aiCancelButtonRef.current?.contains(target));
+    };
+
+    const blockPointerEvent = (event) => {
+      if (shouldAllowTarget(event.target)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+    };
+
+    const blockKeyboardEvent = (event) => {
+      if (shouldAllowTarget(event.target)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+    };
+
+    document.addEventListener("pointerdown", blockPointerEvent, true);
+    document.addEventListener("mousedown", blockPointerEvent, true);
+    document.addEventListener("click", blockPointerEvent, true);
+    document.addEventListener("touchstart", blockPointerEvent, true);
+    document.addEventListener("keydown", blockKeyboardEvent, true);
+
+    return () => {
+      document.removeEventListener("pointerdown", blockPointerEvent, true);
+      document.removeEventListener("mousedown", blockPointerEvent, true);
+      document.removeEventListener("click", blockPointerEvent, true);
+      document.removeEventListener("touchstart", blockPointerEvent, true);
+      document.removeEventListener("keydown", blockKeyboardEvent, true);
+    };
+  }, [aiDocumentWriting]);
 
   /* Auto-sync timer */
   useEffect(() => {
@@ -1801,12 +2024,15 @@ export default function Home() {
               onNoteFontSizeDecrease={handleNoteFontScaleDecrease}
               onFontSizeIncrease={handleFontSizeIncrease}
               onFontSizeDecrease={handleFontSizeDecrease}
+              autoSave={autoSaveEnabled}
+              onAutoSaveChange={handleAutoSaveChange}
               syncBadgeState={syncBadgeState}
               customPeople={customPeople}
               customFolders={customFolders}
               onOpenCustomization={() => setCustomizationPanelOpen(true)}
               onPeopleChange={setCustomPeople}
               onFoldersChange={setCustomFolders}
+              aiWorking={aiWorking}
             />
           )}
         </Box>
@@ -1875,7 +2101,13 @@ export default function Home() {
           setColorAnchorEl={setColorAnchorEl}
           fontFamilyAnchorEl={fontFamilyAnchorEl}
           setFontFamilyAnchorEl={setFontFamilyAnchorEl}
+          fontSizeAnchorEl={fontSizeAnchorEl}
+          setFontSizeAnchorEl={setFontSizeAnchorEl}
+          headingAnchorEl={headingAnchorEl}
+          setHeadingAnchorEl={setHeadingAnchorEl}
           changeFontFamily={handleFontFamilyChange}
+          onApplyTextFontSize={applySelectedFontSize}
+          onApplyBlockFormat={handleTextBlockFormatChange}
           onFontSizeIncrease={handleFontSizeIncrease}
           onFontSizeDecrease={handleFontSizeDecrease}
           linkAnchorEl={linkAnchorEl}
@@ -2167,6 +2399,43 @@ export default function Home() {
           </Box>
         </Box>
       )}
+
+      <DocbookAIPanel
+        open={aiPanelOpen}
+        onClose={closeAiPanel}
+        accentColor={activeNoteTint}
+        activeNote={activeNote}
+        onDirectWriteStart={startAiDraftWrite}
+        onDirectWriteChunk={streamAiDraftToActiveNote}
+        onApplyDraft={applyAiDraftToActiveNote}
+        onDirectWriteCancel={cancelAiDraftWrite}
+        onWorkingChange={setAiWorking}
+      />
+
+      {aiDocumentWriting ? (
+        <IconButton
+          ref={aiCancelButtonRef}
+          onClick={cancelAiDraftWrite}
+          sx={{
+            position: "fixed",
+            top: { xs: 14, md: 18 },
+            right: { xs: 14, md: 18 },
+            zIndex: 2600,
+            width: 44,
+            height: 44,
+            borderRadius: 2.5,
+            background: "rgba(255,255,255,0.94)",
+            border: "1px solid rgba(20,18,16,0.12)",
+            boxShadow: "0 18px 42px rgba(20,18,16,0.16)",
+            color: "#2e241d",
+            "&:hover": {
+              background: "rgba(255,255,255,1)",
+            },
+          }}
+        >
+          <CloseRoundedIcon />
+        </IconButton>
+      ) : null}
 
       {/* Settings Panel (Ctrl+H) */}
       <SettingsPanel

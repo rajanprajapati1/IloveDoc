@@ -1685,6 +1685,8 @@ export default function Home() {
          }
       }
 
+      const updatedAt = new Date().toISOString();
+
       setNotes((prev) =>
         prev.map((note) =>
           note.id === activeNoteId
@@ -2476,6 +2478,7 @@ export default function Home() {
         open={aiPanelOpen}
         onClose={closeAiPanel}
         accentColor={activeNoteTint}
+        activeNote={activeNote}
         docbookNotes={notes}
         activeStickyNotes={activeNoteStickyNotes}
         onDirectWriteStart={startAiDraftWrite}

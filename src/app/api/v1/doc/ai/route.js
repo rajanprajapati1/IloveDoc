@@ -177,9 +177,10 @@ function estimateMessageTokens(messages) {
 }
 
 function buildUsageHeaders(usage) {
+  const totalPromptLimit = DAILY_PROMPT_LIMIT + (usage.bonusPromptCount || 0);
   return {
-    "x-docbook-prompts-limit": String(DAILY_PROMPT_LIMIT),
-    "x-docbook-prompts-remaining": String(Math.max(0, DAILY_PROMPT_LIMIT - usage.promptCount)),
+    "x-docbook-prompts-limit": String(totalPromptLimit),
+    "x-docbook-prompts-remaining": String(Math.max(0, totalPromptLimit - usage.promptCount)),
     "x-docbook-tokens-limit": String(DAILY_TOKEN_LIMIT),
     "x-docbook-tokens-remaining": String(Math.max(0, DAILY_TOKEN_LIMIT - usage.tokenBudgetUsed)),
   };
@@ -198,12 +199,16 @@ async function reserveUsage(db, usageIdentity) {
       clientId: usageIdentity.clientId,
       promptCount: 0,
       tokenBudgetUsed: 0,
+      bonusPromptCount: 0,
     };
 
-  if (existing.promptCount + 1 > DAILY_PROMPT_LIMIT) {
+  const totalPromptLimit = DAILY_PROMPT_LIMIT + (existing.bonusPromptCount || 0);
+
+  if (existing.promptCount + 1 > totalPromptLimit) {
     const nextUsage = {
       promptCount: existing.promptCount,
       tokenBudgetUsed: existing.tokenBudgetUsed,
+      bonusPromptCount: existing.bonusPromptCount || 0,
     };
 
     return {
@@ -225,6 +230,7 @@ async function reserveUsage(db, usageIdentity) {
     const nextUsage = {
       promptCount: existing.promptCount,
       tokenBudgetUsed: existing.tokenBudgetUsed,
+      bonusPromptCount: existing.bonusPromptCount || 0,
     };
 
     return {
@@ -245,6 +251,7 @@ async function reserveUsage(db, usageIdentity) {
   const updatedUsage = {
     promptCount: existing.promptCount + 1,
     tokenBudgetUsed: existing.tokenBudgetUsed + usageIdentity.reservedTokens,
+    bonusPromptCount: existing.bonusPromptCount || 0,
   };
 
   await collection.updateOne(
@@ -361,6 +368,7 @@ export async function POST(request) {
           ...buildUsageHeaders({
             promptCount: Math.max(0, reservation.usage.promptCount - 1),
             tokenBudgetUsed: Math.max(0, reservation.usage.tokenBudgetUsed - usageIdentity.reservedTokens),
+            bonusPromptCount: reservation.usage.bonusPromptCount || 0,
           }),
         },
       });

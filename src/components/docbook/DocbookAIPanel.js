@@ -6,8 +6,18 @@ import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import KeyboardCommandKeyRoundedIcon from "@mui/icons-material/KeyboardCommandKeyRounded";
 import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
+import GestureRoundedIcon from "@mui/icons-material/GestureRounded";
 import StopRoundedIcon from "@mui/icons-material/StopRounded";
 import TipsAndUpdatesRoundedIcon from "@mui/icons-material/TipsAndUpdatesRounded";
+import AttachFileRoundedIcon from "@mui/icons-material/AttachFileRounded";
+import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
+import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
+import MicRoundedIcon from "@mui/icons-material/MicRounded";
+import DocbookRedeemModal from "./DocbookRedeemModal";
+import ReplyRoundedIcon from "@mui/icons-material/ReplyRounded";
+import CachedRoundedIcon from "@mui/icons-material/CachedRounded";
+import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
+import PlaylistAddRoundedIcon from "@mui/icons-material/PlaylistAddRounded";
 import {
   Box,
   Button,
@@ -15,8 +25,14 @@ import {
   Paper,
   Stack,
   Typography,
+  Tooltip,
 } from "@mui/material";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { checkedIconSvg, plainTextFromHtml, uncheckedIconSvg } from "./shared";
+import { AiSvg, BrainSvg, ChatSvg, NotesSvg, WriteSvg } from "@/assets/icon";
 
 const CLIENT_ID_KEY = "docbook_ai_client_id";
 
@@ -111,39 +127,85 @@ async function streamSseResponse(response, onChunk) {
   }
 }
 
-function buildChatMessages(activeNote, prompt) {
+function buildChatMessages(activeNote, prompt, docbookNotes = [], activeStickyNotes = []) {
   const noteTitle = activeNote?.title?.trim() || "Untitled";
   const noteText = plainTextFromHtml(activeNote?.content || "").trim();
+
+  const noteListText = docbookNotes
+    .slice(0, 30)
+    .map(n => `- ID: ${n.id} ${n.id === activeNote?.id ? '(ACTIVE)' : ''} | Title: ${n.title || 'Untitled'} | Snippet: ${plainTextFromHtml(n.content || "").slice(0, 80).replace(/\n/g, " ")}`)
+    .join("\n");
+
+  const stickyListText = activeStickyNotes
+    .map(s => `- ID: ${s.id} | Content: ${s.content?.slice(0, 50)} | Pos: (${Math.round(s.x)}, ${Math.round(s.y)})`)
+    .join("\n");
+
+  const systemContent = `You are DocBook AI. Reply briefly, clearly, and practically.
+You are assisting the user inside a rich note-taking app.
+
+Currently Active Note: ${noteTitle}
+Text: ${noteText || "(empty)"}
+
+Available Notes in workspace:
+${noteListText}
+
+Sticky Notes on this page:
+${stickyListText || "(none)"}
+
+**ACTIONS ALLOWED:**
+You can perform special actions on behalf of the user by outputting exact HTML action tags IN ADDITION TO your conversational reply.
+1. Create Note: <action type="create_note" title="Note Title">Note Content HTML</action>
+2. Edit Note: <action type="edit_note" note_id="ID_HERE">New Note Content HTML</action>
+3. Change Theme of ACTIVE NOTE: <action type="change_theme" color="#f28b82" />
+4. Create Sticky Note: <action type="create_sticky_note" x="150" y="200">Sticky Content</action>
+5. Edit Sticky Note: <action type="edit_sticky_note" sticky_id="ID_HERE">New Sticky Content</action>
+
+If the user asks you to create a note/sticky, edit a note/sticky, or change the theme, you MUST output the corresponding action tag. Do NOT ask for permission, just execute the action inside the tag!`;
 
   return [
     {
       role: "system",
-      content:
-        "You are DocBook AI. Reply briefly, clearly, and practically. Help the user work inside a note-taking editor with notes, todos, tables, highlights, links, images, sticky notes, mentions, and folder references. Do not mention models or providers.",
+      content: systemContent,
     },
     {
       role: "user",
-      content: `Active note title: ${noteTitle}\nActive note text:\n${noteText || "(empty)"}\n\nUser request:\n${prompt}`,
+      content: prompt,
     },
   ];
 }
 
-function buildEditMessages(activeNote, prompt) {
+function buildEditMessages(activeNote, prompt, selectedHtml = "") {
   const noteTitle = activeNote?.title?.trim() || "Untitled";
   const noteHtml = activeNote?.content || "<p></p>";
 
-  return [
-    {
-      role: "system",
-      content: `You are DocBook AI working as a document editor. Return only a rich HTML fragment that can be appended into the current note. Do not wrap in markdown fences. Do not explain anything. Preserve existing custom DocBook spans and attributes when possible, including data-highlight, data-img-ref, data-user-mention, data-folder-ref, and data-note-ref.
+  let systemContent = `You are DocBook AI working as an expert document editor. Return ONLY a rich HTML fragment that can be inserted into the current note. DO NOT wrap in markdown fences (no \`\`\`html). DO NOT explain anything.
+
+Preserve existing custom DocBook spans and attributes when possible, including data-highlight, data-img-ref, data-user-mention, data-folder-ref, and data-note-ref.
+
+You have full access to rich text formatting. Use it! 
+- Bold: <strong>...</strong>
+- Italic: <em>...</em>
+- Highlights: <mark data-highlight="true" style="background-color: #ffeb3b;">...</mark>
+- Links: <a href="..." target="_blank">...</a>
+- Headings: <h1>, <h2>, <h3>
+- Lists: <ul><li>...</li></ul> or <ol><li>...</li></ol>
 
 For an unchecked todo, use exactly:
 <div data-todo="false" style="display: flex; align-items: flex-start; gap: 8px; margin: 4px 0;"><span data-todo-checkbox="true" style="cursor: pointer; color: #8b5e3c; display: flex; align-items: center; justify-content: center; user-select: none;" contenteditable="false">${uncheckedIconSvg}</span><div style="flex: 1; outline: none; min-width: 50px;">Task text</div></div><p><br></p>
 
 For a completed todo, use exactly:
-<div data-todo="true" style="display: flex; align-items: flex-start; gap: 8px; margin: 4px 0;"><span data-todo-checkbox="true" style="cursor: pointer; color: #8b5e3c; display: flex; align-items: center; justify-content: center; user-select: none;" contenteditable="false">${checkedIconSvg}</span><div style="flex: 1; outline: none; min-width: 50px; text-decoration: line-through; opacity: 0.6;">Task text</div></div><p><br></p>
+<div data-todo="true" style="display: flex; align-items: flex-start; gap: 8px; margin: 4px 0;"><span data-todo-checkbox="true" style="cursor: pointer; color: #8b5e3c; display: flex; align-items: center; justify-content: center; user-select: none;" contenteditable="false">${checkedIconSvg}</span><div style="flex: 1; outline: none; min-width: 50px; text-decoration: line-through; opacity: 0.6;">Task text</div></div><p><br></p>`;
 
-Use normal HTML for headings, paragraphs, lists, tables, and links. The fragment should be ready to append inside a contentEditable editor. Use the current note only as context for what to generate.`,
+  if (selectedHtml) {
+    systemContent += `\n\nCRITICAL INSTRUCTION: The user has SELECTED a specific part of the text. You must rewrite/replace ONLY this selected text according to their prompt. Return ONLY the new HTML that will perfectly replace the selection.\n\n[SELECTED TEXT START]\n${selectedHtml}\n[SELECTED TEXT END]`;
+  } else {
+    systemContent += `\n\nCRITICAL INSTRUCTION: The user wants to APPEND to the document. Return ONLY the new HTML to append.`;
+  }
+
+  return [
+    {
+      role: "system",
+      content: systemContent,
     },
     {
       role: "user",
@@ -152,20 +214,144 @@ Use normal HTML for headings, paragraphs, lists, tables, and links. The fragment
   ];
 }
 
+function MarkdownMessage({ content, accentColor }) {
+  return (
+    <Box
+      sx={{
+        color: "#1c1c1e",
+        fontSize: 14.5,
+        lineHeight: 1.7,
+        wordBreak: "break-word",
+        "& p": { my: 0 },
+        "& p + p": { mt: 1.2 },
+        "& ul, & ol": { my: 1, pl: 3 },
+        "& li + li": { mt: 0.45 },
+        "& blockquote": {
+          my: 1.2,
+          pl: 1.5,
+          py: 0.25,
+          borderLeft: `3px solid ${alpha(accentColor, 0.5)}`,
+          color: "rgba(28, 28, 30, 0.78)",
+          backgroundColor: alpha(accentColor, 0.05),
+          borderRadius: "0 10px 10px 0",
+        },
+        "& table": {
+          width: "100%",
+          my: 1.25,
+          borderCollapse: "collapse",
+          overflow: "hidden",
+          borderRadius: "12px",
+          border: "1px solid rgba(28, 28, 30, 0.08)",
+          display: "block",
+          overflowX: "auto",
+        },
+        "& th, & td": {
+          border: "1px solid rgba(28, 28, 30, 0.08)",
+          px: 1.2,
+          py: 0.85,
+          fontSize: 13.5,
+          textAlign: "left",
+        },
+        "& th": {
+          backgroundColor: "rgba(20, 18, 16, 0.05)",
+          fontWeight: 700,
+        },
+        "& a": {
+          color: accentColor,
+          textDecorationColor: alpha(accentColor, 0.4),
+        },
+        "& hr": {
+          border: 0,
+          borderTop: "1px solid rgba(28, 28, 30, 0.1)",
+          my: 1.5,
+        },
+      }}
+    >
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          code({ inline, className, children, ...props }) {
+            const match = /language-(\w+)/.exec(className || "");
+            const code = String(children).replace(/\n$/, "");
+
+            if (inline || !match) {
+              return (
+                <Box
+                  component="code"
+                  sx={{
+                    px: 0.7,
+                    py: 0.25,
+                    borderRadius: "8px",
+                    backgroundColor: "rgba(20, 18, 16, 0.06)",
+                    fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace",
+                    fontSize: "0.9em",
+                  }}
+                  {...props}
+                >
+                  {children}
+                </Box>
+              );
+            }
+
+            return (
+              <Box sx={{ my: 1.2, overflow: "hidden", borderRadius: "14px" }}>
+                <SyntaxHighlighter
+                  {...props}
+                  language={match[1]}
+                  style={oneLight}
+                  customStyle={{
+                    margin: 0,
+                    borderRadius: "14px",
+                    padding: "14px 16px",
+                    fontSize: "13px",
+                    lineHeight: 1.55,
+                    background: "#f8f8fb",
+                    border: "1px solid rgba(28, 28, 30, 0.08)",
+                  }}
+                  codeTagProps={{
+                    style: {
+                      fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace",
+                    },
+                  }}
+                >
+                  {code}
+                </SyntaxHighlighter>
+              </Box>
+            );
+          },
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </Box>
+  );
+}
+
 export default function DocbookAIPanel({
   open,
   onClose,
   accentColor,
   activeNote,
+  docbookNotes = [],
+  activeStickyNotes = [],
   onDirectWriteStart,
   onDirectWriteChunk,
   onApplyDraft,
   onDirectWriteCancel,
   onWorkingChange,
+  onStartCircleToEdit,
+  onAppendToNote,
+  onActionCreateNote,
+  onActionEditNote,
+  onActionCreateStickyNote,
+  onActionUpdateStickyNote,
+  onActionChangeTheme,
 }) {
-  const [mode, setMode] = useState("edit");
+  const noteTitle = activeNote?.title || "Untitled";
+  const [mode, setMode] = useState("chat");
   const [input, setInput] = useState("");
   const [chatMessages, setChatMessages] = useState([]);
+  const [showRedeemModal, setShowRedeemModal] = useState(false);
   const [draftHtml, setDraftHtml] = useState("");
   const [usage, setUsage] = useState({
     promptsRemaining: null,
@@ -198,7 +384,6 @@ export default function DocbookAIPanel({
   }, [isStreaming, onDirectWriteCancel, open]);
 
   const canSend = input.trim().length > 0 && !isStreaming;
-  const noteTitle = activeNote?.title?.trim() || "Untitled";
 
   const handleStop = () => {
     abortRef.current?.abort();
@@ -216,16 +401,21 @@ export default function DocbookAIPanel({
     setIsStreaming(true);
 
     const requestMode = mode;
-    const requestMessages =
-      requestMode === "chat" ? buildChatMessages(activeNote, prompt) : buildEditMessages(activeNote, prompt);
+    let requestMessages;
+    let selectedHtml = "";
 
     if (requestMode === "chat") {
+      requestMessages = buildChatMessages(activeNote, prompt, docbookNotes, activeStickyNotes);
       setChatMessages((prev) => prev.concat({ role: "user", content: prompt }, { role: "assistant", content: "" }));
     } else {
       setLastEditPrompt(prompt);
       setDraftHtml("");
       setEditStatus("Writing into the note...");
-      onDirectWriteStart?.();
+      const startResult = onDirectWriteStart?.();
+      if (typeof startResult === "string" && startResult.trim() !== "") {
+        selectedHtml = startResult;
+      }
+      requestMessages = buildEditMessages(activeNote, prompt, selectedHtml);
     }
 
     const controller = new AbortController();
@@ -249,7 +439,15 @@ export default function DocbookAIPanel({
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(errorText || "AI request failed.");
+        let parsed;
+        try {
+          parsed = JSON.parse(errorText);
+        } catch { }
+        if (response.status === 429 && parsed?.error?.includes("limit reached")) {
+          setShowRedeemModal(true);
+          throw new Error("RATE_LIMIT");
+        }
+        throw new Error(parsed?.error || errorText || "AI request failed.");
       }
 
       let accumulated = "";
@@ -272,6 +470,38 @@ export default function DocbookAIPanel({
         onDirectWriteChunk?.(sanitizeHtmlFragment(accumulated));
       });
 
+      if (requestMode === "chat") {
+        const parser = new DOMParser();
+        const tempDoc = parser.parseFromString(accumulated, "text/html");
+        const actions = tempDoc.querySelectorAll("action");
+
+        actions.forEach(node => {
+          const type = node.getAttribute("type");
+          if (type === "create_note") {
+            onActionCreateNote?.(node.getAttribute("title") || "New Note", node.innerHTML);
+          } else if (type === "edit_note") {
+            onActionEditNote?.(node.getAttribute("note_id"), node.innerHTML);
+          } else if (type === "change_theme") {
+            onActionChangeTheme?.(node.getAttribute("color"));
+          } else if (type === "create_sticky_note") {
+            onActionCreateStickyNote?.(node.innerHTML, parseFloat(node.getAttribute("x")), parseFloat(node.getAttribute("y")));
+          } else if (type === "edit_sticky_note") {
+            onActionUpdateStickyNote?.(node.getAttribute("sticky_id"), node.innerHTML);
+          }
+        });
+
+        const cleanText = accumulated.replace(/<action[\s\S]*?<\/action>/gi, "").replace(/<action[^>]*\/>/gi, "").trim();
+
+        setChatMessages((prev) => {
+          const next = [...prev];
+          const lastIndex = next.length - 1;
+          if (lastIndex >= 0 && next[lastIndex].role === "assistant") {
+            next[lastIndex] = { ...next[lastIndex], content: cleanText || "Done!" };
+          }
+          return next;
+        });
+      }
+
       if (requestMode === "edit" && !accumulated.trim()) {
         throw new Error("The AI returned an empty document.");
       }
@@ -286,7 +516,9 @@ export default function DocbookAIPanel({
         onDirectWriteCancel?.();
       }
 
-      if (error?.name !== "AbortError") {
+      if (error?.message === "RATE_LIMIT") {
+        setErrorMessage("Daily prompt limit reached. Please redeem a code.");
+      } else if (error?.name !== "AbortError") {
         setErrorMessage(error?.message || "AI request failed.");
         if (requestMode === "edit") {
           setEditStatus("Write failed.");
@@ -304,340 +536,329 @@ export default function DocbookAIPanel({
         sx={{
           position: "fixed",
           left: "50%",
-          transform: open ? "translate(-50%, 0)" : "translate(-50%, calc(100% + 18px))",
-          width: "min(640px, calc(100vw - 24px))",
-          bottom: { xs: 10, md: 18 },
-          zIndex: 2450,
+          bottom: { xs: 16, md: 32 },
+          transform: open ? "translate(-50%, 0)" : "translate(-50%, calc(100% + 40px))",
+          width: "min(680px, calc(100vw - 32px))",
+          zIndex: 1200,
           opacity: open ? 1 : 0,
           pointerEvents: open ? "auto" : "none",
-          transition: "transform 260ms cubic-bezier(0.16, 1, 0.3, 1), opacity 180ms ease",
+          transition: "transform 400ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms ease",
         }}
       >
         <Paper
           elevation={0}
           sx={{
             overflow: "hidden",
-            borderRadius: 3,
-            border: "1px solid rgba(20, 18, 16, 0.14)",
-            background: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(252,249,246,0.98) 100%)",
-            backdropFilter: "blur(18px)",
+            borderRadius: "24px",
+            border: "1px solid rgba(255,255,255,0.5)",
+            background: "linear-gradient(145deg, rgba(246, 246, 249, 0.96) 0%, rgba(240, 240, 245, 0.96) 100%)",
+            backdropFilter: "blur(40px)",
             boxShadow: `
-              0 22px 70px rgba(18, 16, 12, 0.18),
-              0 8px 22px rgba(18, 16, 12, 0.08)
+              0 24px 80px rgba(0, 0, 0, 0.12),
+              0 8px 24px rgba(0, 0, 0, 0.04),
+              inset 0 1px 1px rgba(255, 255, 255, 0.8)
             `,
+            p: 1.5,
+            display: "flex",
+            flexDirection: "column",
           }}
         >
-          <Box
-            sx={{
-              px: 1.4,
-              py: 0.9,
-              borderBottom: "1px solid rgba(20, 18, 16, 0.08)",
-              display: "flex",
-              alignItems: "center",
-              gap: 0.75,
-            }}
-          >
+          <Box sx={{ display: "flex", alignItems: "center", mb: 1.5, px: 0.5 }}>
             <Box
               sx={{
-                width: 26,
-                height: 26,
-                borderRadius: 1.5,
-                display: "grid",
-                placeItems: "center",
-                background: alpha(accentColor, 0.1),
-                border: `1px solid ${alpha(accentColor, 0.16)}`,
+                width: 28,
+                height: 28,
+                borderRadius: 2,
+                background: `linear-gradient(135deg, ${alpha(accentColor, 0.6)} 0%, ${alpha(accentColor, 0.2)} 100%)`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                mr: 1.2
               }}
             >
-              <TipsAndUpdatesRoundedIcon sx={{ color: alpha("#2d2119", 0.82), fontSize: 16 }} />
+              {/* <AutoAwesomeRoundedIcon sx={{ fontSize: 16, color: "#fff" }} /> */}
+              <NotesSvg />
             </Box>
-
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography sx={{ fontSize: 12, fontWeight: 800, color: "#201915", letterSpacing: "-0.02em" }}>
-                DocBook AI
-              </Typography>
-              <Typography noWrap sx={{ fontSize: 10.5, color: alpha("#2d241d", 0.52), letterSpacing: "-0.01em" }}>
-                Working on {noteTitle}
-              </Typography>
-            </Box>
-
-            <Stack direction="row" spacing={0.75} alignItems="center">
-              <Box
-                sx={{
-                  px: 0.8,
-                  py: 0.4,
-                  borderRadius: 1.8,
-                  bgcolor: "rgba(20, 18, 16, 0.04)",
-                  border: "1px solid rgba(20, 18, 16, 0.08)",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 0.55,
-                }}
-              >
-                <KeyboardCommandKeyRoundedIcon sx={{ fontSize: 14, color: alpha("#3b2e25", 0.7) }} />
-                <Typography sx={{ fontSize: 10, fontWeight: 800, color: alpha("#3b2e25", 0.7) }}>Ctrl+D</Typography>
-              </Box>
-
-              <IconButton onClick={onClose} sx={{ color: "#473a31", width: 28, height: 28 }}>
+            <Typography sx={{ fontSize: 14, color: "#2d241d" }}>
+              Working on <Box component="span" sx={{ fontWeight: 700 }}>{noteTitle}</Box>
+            </Typography>
+            <Box sx={{ flex: 1 }} />
+            <Stack direction="row" spacing={0.5}>
+              <IconButton onClick={onClose} sx={{ color: "#777", width: 28, height: 28 }}>
                 <CloseRoundedIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Stack>
           </Box>
 
-          <Box
-            sx={{
-              px: 1.4,
-              py: 0.75,
-              borderBottom: "1px solid rgba(20, 18, 16, 0.08)",
-              display: "flex",
-              gap: 0.7,
-              flexWrap: "wrap",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <Stack direction="row" spacing={0.8}>
-              <Button
-                size="small"
-                onClick={() => setMode("edit")}
-                startIcon={<BoltRoundedIcon />}
-                sx={{
-                  px: 1,
-                  minWidth: 0,
-                  borderRadius: 1.9,
-                  textTransform: "none",
-                  fontWeight: 800,
-                  bgcolor: mode === "edit" ? alpha(accentColor, 0.12) : "transparent",
-                  color: "#2d231c",
-                  border: `1px solid ${mode === "edit" ? alpha(accentColor, 0.2) : "rgba(20, 18, 16, 0.08)"}`,
-                }}
-              >
-                Append
-              </Button>
-              <Button
-                size="small"
-                onClick={() => setMode("chat")}
-                startIcon={<TipsAndUpdatesRoundedIcon />}
-                sx={{
-                  px: 1,
-                  minWidth: 0,
-                  borderRadius: 1.9,
-                  textTransform: "none",
-                  fontWeight: 800,
-                  bgcolor: mode === "chat" ? alpha(accentColor, 0.12) : "transparent",
-                  color: "#2d231c",
-                  border: `1px solid ${mode === "chat" ? alpha(accentColor, 0.2) : "rgba(20, 18, 16, 0.08)"}`,
-                }}
-              >
-                Chat
-              </Button>
-            </Stack>
-
-            <Stack direction="row" spacing={0.8} flexWrap="wrap" useFlexGap>
-              {usage.promptsRemaining !== null && usage.promptsLimit !== null ? (
-                <Typography sx={{ fontSize: 10.5, color: alpha("#342820", 0.62), fontWeight: 700 }}>
-                  Prompts left: {usage.promptsRemaining}/{usage.promptsLimit}
-                </Typography>
-              ) : null}
-            </Stack>
-          </Box>
-
-          <Box
-            ref={scrollRef}
-            sx={{
-              px: 1.4,
-              py: 1.05,
-              height: 156,
-              overflowY: "auto",
-              background: "rgba(255,255,255,0.5)",
-              "&::-webkit-scrollbar": { width: 6 },
-              "&::-webkit-scrollbar-thumb": {
-                backgroundColor: "rgba(20, 18, 16, 0.14)",
-                borderRadius: 999,
-              },
-            }}
-          >
-            {mode === "chat" ? (
-              <Stack spacing={1}>
-                {chatMessages.length === 0 ? (
-                  <Box
-                    sx={{
-                      p: 1.1,
-                      borderRadius: 2,
-                      background: "#ffffff",
-                      border: "1px solid rgba(20, 18, 16, 0.08)",
-                    }}
-                  >
-                    <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: "#2e241d" }}>
-                      Ask anything about this note.
-                    </Typography>
-                    <Typography sx={{ mt: 0.45, fontSize: 11.5, color: alpha("#2e241d", 0.62), lineHeight: 1.55 }}>
-                      Use append to generate rich note blocks, todos, tables, and formatted sections from your current note context.
-                    </Typography>
-                  </Box>
-                ) : null}
-
-                {chatMessages.map((message, index) => (
-                  <Box
-                    key={`${message.role}-${index}`}
-                    sx={{
-                      ml: message.role === "assistant" ? 0 : "auto",
-                      maxWidth: "92%",
-                      px: 1,
-                      py: 0.8,
-                      borderRadius: 2,
-                      background:
-                        message.role === "assistant"
-                          ? "#ffffff"
-                          : alpha(accentColor, 0.12),
-                      border: `1px solid ${message.role === "assistant" ? "rgba(20, 18, 16, 0.08)" : alpha(accentColor, 0.16)}`,
-                    }}
-                  >
-                    <Typography
-                      sx={{
-                        whiteSpace: "pre-wrap",
-                        fontSize: 12,
-                        lineHeight: 1.55,
-                        color: "#261f19",
-                      }}
-                    >
-                      {message.content || (isStreaming && message.role === "assistant" ? "Writing..." : "")}
-                    </Typography>
-                  </Box>
-                ))}
-              </Stack>
-            ) : (
-              <Stack spacing={1}>
-                <Box
-                  sx={{
-                    p: 1.35,
-                    borderRadius: 2,
-                    background: "#ffffff",
-                    border: "1px solid rgba(20, 18, 16, 0.08)",
-                  }}
-                >
-                  <Typography sx={{ fontSize: 11.5, color: alpha("#2d241d", 0.66), lineHeight: 1.5 }}>
-                    {lastEditPrompt
-                      ? `Request: ${lastEditPrompt}`
-                      : "Describe what to generate from this note. AI will write directly into the active note as rich text."}
-                  </Typography>
-                </Box>
-
-                <Box
-                  sx={{
-                    minHeight: 84,
-                    borderRadius: 2,
-                    border: "1px solid rgba(20, 18, 16, 0.08)",
-                    background: "#ffffff",
-                    display: "flex",
-                    alignItems: "center",
-                  }}
-                >
-                  <Box sx={{ p: 1.5 }}>
-                    <Typography sx={{ fontSize: 11.5, color: alpha("#2d241d", 0.48), lineHeight: 1.5 }}>
-                      {isStreaming ? "AI is writing directly into your note..." : editStatus || "No preview here. Generated content goes straight into the document."}
-                    </Typography>
-                  </Box>
-                </Box>
-              </Stack>
-            )}
-          </Box>
-
-          <Box sx={{ px: 1.4, py: 1, borderTop: "1px solid rgba(20, 18, 16, 0.08)" }}>
-            {errorMessage ? (
-              <Typography sx={{ mb: 0.8, fontSize: 11.5, color: "#a33d2f", fontWeight: 700 }}>
-                {errorMessage}
-              </Typography>
-            ) : null}
-
+          {mode === "chat" && chatMessages.length > 0 && (
             <Box
+              ref={scrollRef}
               sx={{
-                borderRadius: 2,
-                border: "1px solid rgba(20, 18, 16, 0.12)",
-                background: "#ffffff",
-                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.75)",
-                p: 0.7,
+                maxHeight: "35vh",
+                overflowY: "auto",
+                px: 1,
+                pb: 2,
+                display: "flex",
+                flexDirection: "column",
+                gap: 2.5,
+                "&::-webkit-scrollbar": { width: 5 },
+                "&::-webkit-scrollbar-thumb": { backgroundColor: "rgba(0,0,0,0.1)", borderRadius: 10 },
               }}
             >
-              <Box
-                component="textarea"
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    void handleSubmit();
-                  }
-                }}
-                placeholder={
-                  mode === "edit"
-                    ? "Create todos, rewrite this note, complete tasks, build a table, or structure content..."
-                    : "Ask about the active note or what to do next..."
+              {chatMessages.map((message, index) => (
+                <Box key={`${message.role}-${index}`} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                  <Box
+                    sx={{
+                      px: 1.2,
+                      py: 0.25,
+                      borderRadius: '12px',
+                      bgcolor: message.role === "assistant" ? alpha(accentColor, 0.15) : "rgba(20, 18, 16, 0.06)",
+                      mb: 0.8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.5,
+                      width: '100%',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, width: 'auto' }}>
+                      {message.role === "assistant" && <AiSvg fontsize={18} />}
+                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: message.role === "assistant" ? "orange" : "#555" }}>
+                        {message.role === "assistant" ? "Dockie" : "You"}
+                      </Typography>
+                    </Box>
+                    {message.role === "assistant" && !isStreaming && (
+                      <Stack direction="row" spacing={0.5}>
+                        <Tooltip title="Copy to clipboard" placement="top" arrow>
+                          <IconButton
+                            size="small"
+                            onClick={() => navigator.clipboard.writeText(message.content)}
+                            sx={{ width: 22, height: 22, color: accentColor }}
+                          >
+                            <ContentCopyRoundedIcon sx={{ fontSize: 13 }} />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Append this response to active note" placement="top" arrow>
+                          <IconButton
+                            size="small"
+                            onClick={() => onAppendToNote?.(message.content)}
+                            sx={{ width: 22, height: 22, color: accentColor }}
+                          >
+                            <PlaylistAddRoundedIcon sx={{ fontSize: 15 }} />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                    )}
+                  </Box>
+                  <Box sx={{ display: 'flex', width: '100%', alignItems: 'flex-start' }}>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      {message.role === "assistant" ? (
+                        <MarkdownMessage
+                          content={message.content || (isStreaming ? "Generating..." : "")}
+                          accentColor={accentColor}
+                        />
+                      ) : (
+                        <Typography
+                          sx={{
+                            whiteSpace: "pre-wrap",
+                            fontSize: 14.5,
+                            lineHeight: 1.6,
+                            color: "#1c1c1e",
+                          }}
+                        >
+                          {message.content}
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+          )}
+
+          <Box
+            sx={{
+              background: "#ffffff",
+              borderRadius: "20px",
+              p: 1.2,
+              border: "1px solid rgba(0, 0, 0, 0.04)",
+              boxShadow: "0 2px 12px rgba(0,0,0,0.03)"
+            }}
+          >
+            {errorMessage && (
+              <Typography sx={{ mb: 1, px: 1, fontSize: 12, color: "#d93025", fontWeight: 600 }}>
+                {errorMessage}
+              </Typography>
+            )}
+
+            <Box
+              component="textarea"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  void handleSubmit();
                 }
-                sx={{
-                  width: "100%",
-                  minHeight: 58,
-                  resize: "none",
-                  border: 0,
-                  outline: 0,
-                  background: "transparent",
-                  color: "#201915",
-                  fontFamily: "inherit",
-                  fontSize: 12.5,
-                  lineHeight: 1.5,
-                  px: 0.4,
-                  py: 0.35,
-                  "&::placeholder": {
-                    color: alpha("#2d241d", 0.38),
-                  },
-                }}
-              />
+              }}
+              placeholder={mode === "edit" ? "What should AI append to this note?" : "Type a note prompt"}
+              sx={{
+                width: "100%",
+                minHeight: 52,
+                border: "none",
+                outline: "none",
+                resize: "none",
+                background: "transparent",
+                fontSize: 15,
+                lineHeight: 1.5,
+                color: "#1c1c1e",
+                fontFamily: "inherit",
+                px: 0.5,
+                "&::placeholder": { color: "#aaa" }
+              }}
+            />
 
-              <Stack direction="row" spacing={0.9} justifyContent="space-between" alignItems="center" sx={{ pt: 0.5 }}>
-                <Typography sx={{ fontSize: 10.5, color: alpha("#2d241d", 0.48), fontWeight: 700, maxWidth: 155, lineHeight: 1.35 }}>
-                  {mode === "edit" ? "Direct write into active note." : "Live stream from note context."}
-                </Typography>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mt: 1 }}>
+              <Stack direction="row" spacing={1}>
+                <Tooltip title="AI Context & Memory" placement="top" arrow>
+                  <Button
+                    size="small"
+                    startIcon={<BrainSvg fontsize={24} />}
+                    sx={{ color: "#666", textTransform: "none", fontSize: 13, fontWeight: 500, minWidth: 0, px: 1.5, borderRadius: "14px", bgcolor: "rgba(0,0,0,0.04)" }}
+                  >
+                    Context
+                  </Button>
+                </Tooltip>
 
-                <Stack direction="row" spacing={0.8}>
-                  {isStreaming ? (
+                <Tooltip title={mode === "chat" ? "Switch to Append Mode" : "Switch to Chat Mode"} placement="top" arrow>
+                  <Button
+                    size="small"
+                    onClick={() => setMode(mode === "chat" ? "edit" : "chat")}
+                    startIcon={mode === "chat" ? <ChatSvg fontsize={24} /> : <WriteSvg fontsize={24} />}
+                    endIcon={<KeyboardArrowDownRoundedIcon sx={{ fontSize: 16 }} />}
+                    sx={{ color: "#666", textTransform: "none", fontSize: 13, fontWeight: 500, minWidth: 0, px: 1.5, borderRadius: "14px", "&:hover": { bgcolor: "rgba(0,0,0,0.04)" }, bgcolor: "rgba(0,0,0,0.02)" }}
+                  >
+                    {mode === "chat" ? "Chat Mode" : "Append Mode"}
+                  </Button>
+                </Tooltip>
+
+                {mode === "edit" && (
+                  <Tooltip title="Circle any part of the note to edit" placement="top" arrow>
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        onStartCircleToEdit?.();
+                        onClose?.();
+                      }}
+                      startIcon={<GestureRoundedIcon sx={{ fontSize: 16 }} />}
+                      sx={{ color: "#666", textTransform: "none", fontSize: 13, fontWeight: 500, minWidth: 0, px: 1.5, borderRadius: "14px", "&:hover": { bgcolor: "rgba(0,0,0,0.04)" } }}
+                    >
+                      Circle
+                    </Button>
+                  </Tooltip>
+                )}
+              </Stack>
+
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                <Tooltip title="Voice Input" placement="top" arrow>
+                  <IconButton size="small" sx={{ color: "#666", mr: 0.5 }}>
+                    <MicRoundedIcon sx={{ fontSize: 20 }} />
+                  </IconButton>
+                </Tooltip>
+                {isStreaming ? (
+                  <Tooltip title="Stop AI Generation" placement="top" arrow>
                     <Button
                       onClick={handleStop}
-                      variant="outlined"
-                      startIcon={<StopRoundedIcon />}
                       sx={{
-                        borderRadius: 2.2,
+                        bgcolor: "rgba(0,0,0,0.05)",
+                        color: "#111",
+                        borderRadius: "16px",
+                        px: 2,
+                        py: 0.6,
                         textTransform: "none",
-                        fontWeight: 800,
-                        color: "#2a211b",
-                        borderColor: "rgba(20, 18, 16, 0.12)",
+                        fontWeight: 600,
+                        "&:hover": { bgcolor: "rgba(0,0,0,0.1)" }
                       }}
                     >
                       Stop
                     </Button>
-                  ) : (
+                  </Tooltip>
+                ) : (
+                  <Tooltip title="Send Prompt (Enter)" placement="top" arrow>
                     <Button
-                      onClick={() => void handleSubmit()}
                       disabled={!canSend}
-                      variant="contained"
+                      onClick={() => void handleSubmit()}
                       endIcon={<PlayArrowRoundedIcon />}
                       sx={{
-                        borderRadius: 2.2,
+                        bgcolor: canSend ? "rgba(0,0,0,0.05)" : "transparent",
+                        color: canSend ? "#111" : "#aaa",
+                        borderRadius: "16px",
+                        px: 2,
+                        py: 0.6,
                         textTransform: "none",
-                        fontWeight: 900,
-                        color: "#1d1713",
-                        background: `linear-gradient(135deg, ${alpha(accentColor, 0.18)} 0%, #fff7ef 100%)`,
-                        border: `1px solid ${alpha(accentColor, 0.18)}`,
-                        boxShadow: `0 8px 18px ${alpha(accentColor, 0.12)}`,
+                        fontWeight: 700,
+                        "&:hover": { bgcolor: canSend ? "rgba(0,0,0,0.1)" : "transparent" },
+                        transition: "all 0.2s ease"
                       }}
                     >
-                      Send
+                      Ask
                     </Button>
-                  )}
-                </Stack>
+                  </Tooltip>
+                )}
               </Stack>
-            </Box>
+            </Stack>
           </Box>
+
+          {!isStreaming && mode === "chat" && chatMessages.length === 0 && (
+            <Stack direction="row" spacing={1} sx={{ mt: 1.5, overflowX: "auto", px: 0.5, "&::-webkit-scrollbar": { display: "none" } }}>
+              {["Suggest improvements", "Fix grammar and spelling", "Extract action items"].map(label => (
+                <Box
+                  key={label}
+                  onClick={() => setInput(label)}
+                  sx={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 0.8,
+                    bgcolor: "#ffffff",
+                    border: "1px solid rgba(0,0,0,0.06)",
+                    borderRadius: "14px",
+                    px: 1.5,
+                    py: 0.8,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+                    transition: "all 0.2s ease",
+                    "&:hover": { bgcolor: "#f1f1f1" }
+                  }}
+                >
+                  <AutoAwesomeRoundedIcon sx={{ fontSize: 13, color: "#888" }} />
+                  <Typography sx={{ fontSize: 12.5, color: "#444", fontWeight: 600 }}>
+                    {label}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+          )}
+
+          {mode === "edit" && editStatus && (
+            <Typography sx={{ mt: 1.5, px: 1, fontSize: 12.5, color: "#666", fontWeight: 500 }}>
+              {editStatus}
+            </Typography>
+          )}
         </Paper>
       </Box>
+
+      <DocbookRedeemModal
+        open={showRedeemModal}
+        onClose={(success) => {
+          setShowRedeemModal(false);
+          if (success) {
+            setErrorMessage("");
+            setEditStatus("");
+          }
+        }}
+        accentColor={accentColor}
+      />
     </>
   );
 }

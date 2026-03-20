@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import modelsData from './models.json';
+import Dashboard from '@/components/ads/Adsboard';
 
 export default function Home() {
  const [messages, setMessages] = useState([
@@ -121,6 +122,7 @@ export default function Home() {
 
  return (
   <div className="chat-container" ref={containerRef}>
+   <Dashboard />
    <header className="chat-header">
 
     <div className="model-selector" ref={dropdownRef}>

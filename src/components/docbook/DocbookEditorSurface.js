@@ -1295,10 +1295,39 @@ export default function DocbookEditorSurface({
           overflow: "hidden",
           borderRadius: 5,
           background: `linear-gradient(160deg, ${alpha(activeNoteTint, 0.18)} 0%, rgba(255,251,245,0.9) 32%, rgba(246,239,229,0.9) 100%)`,
-          border: `1px solid ${alpha(activeNoteTint, 0.16)}`,
-          boxShadow: `inset 0 1px 0 rgba(255,255,255,0.62), 0 18px 40px ${alpha("#7b5f39", 0.08)}`,
+          boxShadow: `inset 0 1px 0 rgba(255,255,255,0.62), 0 18px 40px ${alpha("#7b5f39", 0.08)}`
         }}
       >
+        <Box
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: 'inherit',
+            padding: '6px',
+            WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+            WebkitMaskComposite: 'xor',
+            maskComposite: 'exclude',
+            pointerEvents: 'none',
+            zIndex: 1,
+            opacity: aiWorking ? 1 : 0,
+            transition: 'opacity 0.4s ease-in-out',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              width: '300%',
+              height: '300%',
+              background: 'conic-gradient(from 0deg, transparent 25%, #1976d2 40%, #1c77f0ff 50%, #d22519ff 60%, transparent 75%)',
+              animation: aiWorking ? 'spinBorder 5s linear infinite' : 'none',
+              transform: 'translate(-50%, -50%)',
+            },
+            '@keyframes spinBorder': {
+              '0%': { transform: 'translate(-50%, -50%) rotate(0deg)' },
+              '100%': { transform: 'translate(-50%, -50%) rotate(360deg)' }
+            }
+          }}
+        />
 
         <Tooltip
           arrow

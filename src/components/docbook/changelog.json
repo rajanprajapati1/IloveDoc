@@ -1,8 +1,45 @@
 {
   "title": "Changelog",
-  "subtitle": "Recent product updates and how to use the main features in DocBook.",
-  "status": "In Review",
+  "subtitle": "Implemented product updates and a practical guide to the features currently available in DocBook.",
+  "status": "Updated",
   "releases": [
+    {
+      "date": "March 20, 2026",
+      "title": "AI writing and circle select",
+      "summary": "DocBook now includes an in-app AI workspace with streaming responses, direct note writing, and circle-to-select editing.",
+      "changes": [
+        "Added DocBook AI chat mode for note-aware conversations inside the editor.",
+        "Added append mode so AI can write rich HTML directly into the active note.",
+        "Added circle-to-edit overlay so you can draw around text to select it before continuing your AI workflow.",
+        "Improved the AI writing flow with in-editor streaming and stop controls."
+      ],
+      "how_to_use": [
+        "Press Ctrl+D to open the AI panel.",
+        "Use Chat Mode to ask for suggestions, rewrites, summaries, or action items based on the active note.",
+        "Switch to Append Mode when you want AI to write formatted content directly into the note.",
+        "Use Circle in Append Mode, draw around text, and continue editing with that selection active."
+      ]
+    },
+    {
+      "date": "March 19, 2026",
+      "title": "Customization, reactions, and workspace polish",
+      "summary": "The editor now supports customizable people, folder references, emoji reactions, onboarding, install prompts, and richer workspace navigation.",
+      "changes": [
+        "Added customization panel for people, folders, and emoji reaction sets.",
+        "Added create-on-the-fly @mentions and #folder references from the editor suggestion menus.",
+        "Added sidebar emoji reactions for notes using a selectable emoji set.",
+        "Added welcome intro modal for first-run onboarding.",
+        "Added install prompt handling so the app can be installed as a PWA from supported browsers.",
+        "Added feedback and plan screens in the workspace flow."
+      ],
+      "how_to_use": [
+        "Type @ in the editor to search people or create a new person inline.",
+        "Type # in the editor to search folders or create a new folder reference inline.",
+        "Open Customization from the mention or folder picker to manage saved people, folders, and emojis.",
+        "Hover a note in the sidebar and click an emoji to react to it.",
+        "Use Download App from the sidebar when the browser exposes an install prompt."
+      ]
+    },
     {
       "date": "March 18, 2026",
       "title": "Connections and changelog",
@@ -28,6 +65,9 @@
       "changes": [
         "Improved editor toolbar spacing and reduced header clutter.",
         "Added slash commands for notes, dates, and todo insertion.",
+        "Added /map insertion for quick location references.",
+        "Added inline table insertion and richer block formatting controls.",
+        "Added highlight and clear actions for selections and rich chips.",
         "Added mention and folder reference chips inside notes.",
         "Improved image handling and selection panel flow."
       ],
@@ -35,6 +75,7 @@
         "Type /note to create or open a sticky note from the editor.",
         "Type /date to insert formatted dates like today, tomorrow, or custom day phrases.",
         "Type /todo to insert todo rows.",
+        "Type /map and continue with a place name to insert a location line.",
         "Type @ to insert a person mention chip.",
         "Type # to insert a folder/path reference chip.",
         "Click the image/selection button when images are attached to inspect them."
@@ -80,7 +121,8 @@
       "how_to_use": [
         "Click the sticky note button in the editor header or type /note.",
         "Drag sticky notes around the page to reposition them.",
-        "Drop a sticky note on another note in the sidebar to move it to that note."
+        "Drop a sticky note on another note in the sidebar to move it to that note.",
+        "Use the eye toggle in the editor header to hide or show the sticky note board."
       ]
     },
     {
@@ -91,6 +133,35 @@
         "Use the tray search to find another note.",
         "Click a result to connect it.",
         "Click a connected note to jump there, or remove it with the close icon."
+      ]
+    },
+    {
+      "name": "DocBook AI",
+      "description": "Ask note-aware questions or have AI stream formatted content directly into the active note.",
+      "how_to_use": [
+        "Press Ctrl+D to open the AI panel.",
+        "Use Chat Mode for suggestions, summaries, edits, and brainstorming.",
+        "Use Append Mode to let AI write structured HTML content into the active note.",
+        "Stop generation with the Stop button or the floating cancel button while AI is writing."
+      ]
+    },
+    {
+      "name": "Circle to edit",
+      "description": "Select text by drawing around it, then continue editing with the AI workflow.",
+      "how_to_use": [
+        "Open the AI panel and switch to Append Mode.",
+        "Click Circle and draw around the text you want selected.",
+        "After the selection is captured, continue your AI editing flow on that content."
+      ]
+    },
+    {
+      "name": "Keyboard shortcuts",
+      "description": "Use quick shortcuts to navigate core parts of the workspace faster.",
+      "how_to_use": [
+        "Press Ctrl+K or Cmd+K to open command search.",
+        "Press Ctrl+D to open DocBook AI.",
+        "Press Ctrl+H to open Cloud Sync settings.",
+        "Press Ctrl+S to save the current note manually."
       ]
     },
     {
@@ -108,7 +179,17 @@
       "how_to_use": [
         "Type /date to insert a date.",
         "Type /todo to insert todo rows.",
-        "Type /note to open or create sticky notes."
+        "Type /note to open or create sticky notes.",
+        "Type /map to insert a location prompt."
+      ]
+    },
+    {
+      "name": "Rich editor tools",
+      "description": "Format selections with highlights, links, headings, lists, tables, images, and interactive todos.",
+      "how_to_use": [
+        "Select text to open the floating formatting controls.",
+        "Use the toolbar to highlight, clear styling, add links, change text format, or insert tables.",
+        "Click a todo checkbox in the editor to toggle it between complete and incomplete."
       ]
     },
     {
@@ -117,7 +198,8 @@
       "how_to_use": [
         "Type @ to search people.",
         "Type # to search folder references.",
-        "Use arrow keys and Enter to insert the selected chip."
+        "Use arrow keys and Enter to insert the selected chip.",
+        "If there is no match, create a new person or folder directly from the suggestion menu."
       ]
     },
     {
@@ -149,12 +231,29 @@
     },
     {
       "name": "Customization",
-      "description": "Customize people, folders, and emoji reactions used in the editor.",
+      "description": "Customize people, folders, and emoji reactions used in the editor and sidebar.",
       "how_to_use": [
         "Open the customization panel from the mention or folder suggestion menu.",
         "Add or edit people for @mentions.",
         "Add or edit folders for #references.",
         "Choose which emoji reactions are available in the sidebar."
+      ]
+    },
+    {
+      "name": "Feedback",
+      "description": "Send product feedback directly from inside the app.",
+      "how_to_use": [
+        "Open Feedback from the sidebar.",
+        "Enter your message in the feedback panel.",
+        "Submit it from the modal."
+      ]
+    },
+    {
+      "name": "Install and onboarding",
+      "description": "Start with a guided intro and install the app for a more native workspace experience.",
+      "how_to_use": [
+        "Use the welcome screen on first open to enter the workspace.",
+        "Choose Download App from the sidebar when installation is available in your browser."
       ]
     }
   ]

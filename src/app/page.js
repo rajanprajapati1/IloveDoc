@@ -11,6 +11,7 @@ import DocbookAIPanel from "@/components/docbook/DocbookAIPanel";
 import DocbookEditorSurface from "@/components/docbook/DocbookEditorSurface";
 import DocbookOverlays from "@/components/docbook/DocbookOverlays";
 import DocbookSidebar from "@/components/docbook/DocbookSidebar";
+import DocbookCircleToEditOverlay from "@/components/docbook/DocbookCircleToEditOverlay";
 import SettingsPanel from "@/components/docbook/SettingsPanel";
 import SelectionPanel from "@/components/docbook/SelectionPanel";
 import FeedbackModal from "@/components/docbook/FeedbackModal";
@@ -106,6 +107,7 @@ export default function Home() {
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [aiWorking, setAiWorking] = useState(false);
   const [aiDocumentWriting, setAiDocumentWriting] = useState(false);
+  const [circleToEditMode, setCircleToEditMode] = useState(false);
 
   const activeNotes = useMemo(() => notes.filter((note) => !note.deletedAt), [notes]);
   const deletedNotes = useMemo(() => notes.filter((note) => note.deletedAt && !isExpiredDelete(note.deletedAt)), [notes]);
@@ -1505,7 +1507,11 @@ export default function Home() {
 
   useEffect(() => {
     if (!editorRef.current || !activeNote) return;
-    if (editorRef.current.innerHTML !== activeNote.content) editorRef.current.innerHTML = activeNote.content || "";
+    const normCurrent = editorRef.current.innerHTML.replace(/[\u200B-\u200D\uFEFF]/g, "");
+    const normActive = (activeNote.content || "").replace(/[\u200B-\u200D\uFEFF]/g, "");
+    if (normCurrent !== normActive) {
+      editorRef.current.innerHTML = activeNote.content || "";
+    }
   }, [activeNote, activeNoteId]);
 
   useEffect(() => {
@@ -1564,18 +1570,51 @@ export default function Home() {
   const startAiDraftWrite = useCallback(() => {
     if (!activeNoteId || !activeNote) return false;
 
+    const selection = window.getSelection();
+    let isTargetedEdit = false;
+    let targetId = "docbook-ai-stream-target-" + Date.now();
+    let selectedHtml = "";
+
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+       if (editorRef.current && editorRef.current.contains(selection.anchorNode)) {
+           const range = selection.getRangeAt(0);
+           const div = document.createElement("div");
+           div.appendChild(range.cloneContents());
+           selectedHtml = div.innerHTML;
+
+           const streamNode = document.createElement("span");
+           streamNode.id = targetId;
+           streamNode.className = "ai-streaming-text";
+           range.deleteContents();
+           range.insertNode(streamNode);
+           
+           isTargetedEdit = true;
+       }
+    }
+
     const currentContent = activeNote.content?.trim() ? activeNote.content : "<p></p>";
     const isEmpty = currentContent === "<p></p>" || currentContent === "<div><br></div>";
 
-    aiWriteSessionRef.current = {
-      noteId: activeNoteId,
-      baseContent: isEmpty ? "" : currentContent,
-      separator: isEmpty ? "" : "<p><br></p>",
-    };
+    if (isTargetedEdit) {
+        aiWriteSessionRef.current = {
+            noteId: activeNoteId,
+            mode: "replace",
+            targetId,
+            baseContent: currentContent,
+            originalSelectionHtml: selectedHtml,
+        };
+    } else {
+        aiWriteSessionRef.current = {
+            noteId: activeNoteId,
+            mode: "append",
+            baseContent: isEmpty ? "" : currentContent,
+            separator: isEmpty ? "" : "<p><br></p>",
+        };
+    }
 
     setAiDocumentWriting(true);
     setAiWorking(true);
-    return true;
+    return selectedHtml || true;
   }, [activeNote, activeNoteId]);
 
   const streamAiDraftToActiveNote = useCallback((contentHtml) => {
@@ -1583,10 +1622,23 @@ export default function Home() {
     if (!session || !session.noteId) return false;
 
     const incomingContent = contentHtml?.trim() ? contentHtml : "";
-    const normalizedContent = `${session.baseContent}${session.separator}${incomingContent}` || "<p></p>";
+    let normalizedContent = "";
 
-    if (editorRef.current) {
-      editorRef.current.innerHTML = normalizedContent;
+    if (session.mode === "replace") {
+       if (editorRef.current) {
+           const targetSpan = editorRef.current.querySelector(`#${session.targetId}`);
+           if (targetSpan) {
+               targetSpan.innerHTML = incomingContent;
+           }
+           normalizedContent = editorRef.current.innerHTML.replace(/\u200B/g, "");
+       } else {
+           normalizedContent = session.baseContent;
+       }
+    } else {
+       normalizedContent = `${session.baseContent}${session.separator}${incomingContent}` || "<p></p>";
+       if (editorRef.current) {
+         editorRef.current.innerHTML = normalizedContent;
+       }
     }
 
     setNotes((prev) =>
@@ -1607,18 +1659,30 @@ export default function Home() {
   const applyAiDraftToActiveNote = useCallback(
     async (contentHtml) => {
       const session = aiWriteSessionRef.current;
-      if (!activeNoteId || !activeNote) return false;
+      if (!activeNoteId || !activeNote || !session) return false;
 
       const incomingContent = contentHtml?.trim() ? contentHtml : "";
       if (!incomingContent) return false;
 
-      const normalizedContent = session
-        ? `${session.baseContent}${session.separator}${incomingContent}` || "<p></p>"
-        : incomingContent;
-      const updatedAt = new Date().toISOString();
+      let normalizedContent = "";
 
       if (editorRef.current) {
-        editorRef.current.innerHTML = normalizedContent;
+        if (session.mode === "replace") {
+            const targetSpan = editorRef.current.querySelector(`#${session.targetId}`);
+            if (targetSpan) {
+                targetSpan.outerHTML = incomingContent;
+            }
+        } else {
+            const newHtml = `${session.baseContent}${session.separator}${incomingContent}` || "<p></p>";
+            editorRef.current.innerHTML = newHtml;
+        }
+        normalizedContent = editorRef.current.innerHTML.replace(/\u200B/g, "");
+      } else {
+         if (session.mode === "replace") {
+             normalizedContent = session.baseContent;
+         } else {
+             normalizedContent = `${session.baseContent}${session.separator}${incomingContent}` || "<p></p>";
+         }
       }
 
       setNotes((prev) =>
@@ -1655,10 +1719,18 @@ export default function Home() {
       return;
     }
 
-    const restoredContent = session.baseContent || "<p></p>";
+    let restoredContent = session.baseContent || "<p></p>";
 
     if (editorRef.current) {
-      editorRef.current.innerHTML = restoredContent;
+        if (session.mode === "replace") {
+            const targetSpan = editorRef.current.querySelector(`#${session.targetId}`);
+            if (targetSpan) {
+                targetSpan.outerHTML = session.originalSelectionHtml || "";
+            }
+            restoredContent = editorRef.current.innerHTML.replace(/\u200B/g, "");
+        } else {
+            editorRef.current.innerHTML = restoredContent;
+        }
     }
 
     setNotes((prev) =>
@@ -2404,12 +2476,65 @@ export default function Home() {
         open={aiPanelOpen}
         onClose={closeAiPanel}
         accentColor={activeNoteTint}
-        activeNote={activeNote}
+        docbookNotes={notes}
+        activeStickyNotes={activeNoteStickyNotes}
         onDirectWriteStart={startAiDraftWrite}
         onDirectWriteChunk={streamAiDraftToActiveNote}
         onApplyDraft={applyAiDraftToActiveNote}
         onDirectWriteCancel={cancelAiDraftWrite}
         onWorkingChange={setAiWorking}
+        onStartCircleToEdit={() => setCircleToEditMode(true)}
+        onAppendToNote={async (content) => {
+            const session = {
+                noteId: activeNoteId,
+                mode: "append",
+                baseContent: activeNote.content || "",
+                separator: (activeNote.content?.trim() && activeNote.content !== "<p></p>") ? "<p><br></p>" : "",
+            };
+            const normalizedContent = `${session.baseContent}${session.separator}${content}`;
+            const updatedAt = new Date().toISOString();
+            
+            if (editorRef.current) {
+                editorRef.current.innerHTML = normalizedContent;
+            }
+            setNotes((prev) => prev.map(n => n.id === activeNoteId ? { ...n, content: normalizedContent, updatedAt } : n));
+            await docbookDb.notes.update(activeNoteId, { content: normalizedContent, updatedAt });
+        }}
+        onActionCreateNote={async (title, content) => {
+            const fresh = createNote({ title: title || "New Note", content: content || "<p></p>" });
+            setNotes((prev) => [fresh, ...prev]);
+            setActiveNoteId(fresh.id);
+            await docbookDb.notes.put(fresh);
+            await docbookDb.meta.put({ key: "activeNoteId", value: fresh.id });
+        }}
+        onActionEditNote={async (noteId, content) => {
+            const updatedAt = new Date().toISOString();
+            setNotes((prev) => prev.map(n => n.id === noteId ? { ...n, content, updatedAt } : n));
+            await docbookDb.notes.update(noteId, { content, updatedAt });
+        }}
+        onActionCreateStickyNote={async (content, x, y) => {
+            if (!activeNoteId) return;
+            const fresh = createStickyNote(activeNoteId, {
+                content: content || "",
+                x: x ?? 150,
+                y: y ?? 160,
+            });
+            setStickyNotes((prev) => [...prev, fresh]);
+            await docbookDb.stickyNotes.put(fresh);
+        }}
+        onActionUpdateStickyNote={async (stickyId, content) => {
+            setStickyNotes((prev) =>
+                prev.map((note) => (note.id === stickyId ? { ...note, content } : note))
+            );
+            await docbookDb.stickyNotes.update(stickyId, { content });
+        }}
+        onActionChangeTheme={async (color) => {
+            if (!activeNoteId) return;
+            // using handleUpdateNote directly here simulates user action
+            const updates = { color };
+            setNotes((prev) => prev.map((n) => (n.id === activeNoteId ? { ...n, ...updates } : n)));
+            await docbookDb.notes.update(activeNoteId, updates);
+        }}
       />
 
       {aiDocumentWriting ? (
@@ -2476,6 +2601,20 @@ export default function Home() {
         onPeopleChange={setCustomPeople}
         onFoldersChange={setCustomFolders}
         onEmojisChange={setCustomEmojis}
+      />
+
+      <DocbookCircleToEditOverlay
+        active={circleToEditMode}
+        editorRef={editorRef}
+        onCancel={() => {
+          setCircleToEditMode(false);
+          setAiPanelOpen(true);
+        }}
+        onSelectionFound={() => {
+          setCircleToEditMode(false);
+          setAiPanelOpen(true);
+          window.requestAnimationFrame(updateSelectionMenuPosition);
+        }}
       />
     </Box>
   );

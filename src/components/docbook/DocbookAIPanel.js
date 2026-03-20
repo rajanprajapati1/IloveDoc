@@ -140,7 +140,7 @@ function buildChatMessages(activeNote, prompt, docbookNotes = [], activeStickyNo
     .map(s => `- ID: ${s.id} | Content: ${s.content?.slice(0, 50)} | Pos: (${Math.round(s.x)}, ${Math.round(s.y)})`)
     .join("\n");
 
-  const systemContent = `You are DocBook AI. Reply briefly, clearly, and practically.
+  const systemContent = `You are Dockie. Reply briefly, clearly, and practically.
 You are assisting the user inside a rich note-taking app.
 
 Currently Active Note: ${noteTitle}
@@ -178,7 +178,7 @@ function buildEditMessages(activeNote, prompt, selectedHtml = "") {
   const noteTitle = activeNote?.title?.trim() || "Untitled";
   const noteHtml = activeNote?.content || "<p></p>";
 
-  let systemContent = `You are DocBook AI working as an expert document editor. Return ONLY a rich HTML fragment that can be inserted into the current note. DO NOT wrap in markdown fences (no \`\`\`html). DO NOT explain anything.
+  let systemContent = `You are Dockie working as an expert document editor. Return ONLY a rich HTML fragment that can be inserted into the current note. DO NOT wrap in markdown fences (no \`\`\`html). DO NOT explain anything.
 
 Preserve existing custom DocBook spans and attributes when possible, including data-highlight, data-img-ref, data-user-mention, data-folder-ref, and data-note-ref.
 

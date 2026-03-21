@@ -1,0 +1,2508 @@
+import { useState, useCallback, useEffect, useRef } from "react";
+import { Box, ClickAwayListener, IconButton, Tooltip, Stack, Paper, Typography, Switch } from "@mui/material";
+import { alpha, styled } from "@mui/material/styles";
+import CloudDoneRoundedIcon from "@mui/icons-material/CloudDoneRounded";
+import CloudOffRoundedIcon from "@mui/icons-material/CloudOffRounded";
+import ViewSidebarRoundedIcon from "@mui/icons-material/ViewSidebarRounded";
+import TextDecreaseRoundedIcon from "@mui/icons-material/TextDecreaseRounded";
+import StickyNote2RoundedIcon from "@mui/icons-material/StickyNote2Rounded";
+import { buildId, noteColorOptions, plainTextFromHtml, tooltipSlotProps, uncheckedIconSvg } from "./shared";
+import TextIncreaseRoundedIcon from "@mui/icons-material/TextIncreaseRounded";
+import StickyNoteBoard from "./StickyNoteBoard";
+import ViewCarouselRoundedIcon from "@mui/icons-material/ViewCarouselRounded";
+import KeyboardOptionKeyRoundedIcon from "@mui/icons-material/KeyboardOptionKeyRounded";
+import WorkspacesRoundedIcon from "@mui/icons-material/WorkspacesRounded";
+import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
+import HubRoundedIcon from "@mui/icons-material/HubRounded";
+import NorthEastRoundedIcon from "@mui/icons-material/NorthEastRounded";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+const richTokenBoundarySelector = "[data-highlight], [data-img-ref], [data-user-mention], [data-folder-ref]";
+
+/* mentionDirectory and folderDirectory are now passed as props (customPeople / customFolders) */
+
+const IOSSwitch = styled((props) => (
+  <Switch focusVisibleClassName=".Mui-focusVisible" disableRipple {...props} />
+))(({ theme }) => ({
+  width: 34,
+  height: 20,
+  padding: 0,
+  '& .MuiSwitch-switchBase': {
+    padding: 0,
+    margin: 2,
+    transitionDuration: '300ms',
+    '&.Mui-checked': {
+      transform: 'translateX(14px)',
+      color: '#fff',
+      '& + .MuiSwitch-track': {
+        backgroundColor: '#8b5e3c',
+        opacity: 1,
+        border: 0,
+        ...theme.applyStyles?.('dark', {
+          backgroundColor: '#c4956a',
+        }),
+      },
+      '&.Mui-disabled + .MuiSwitch-track': {
+        opacity: 0.5,
+      },
+    },
+    '&.Mui-focusVisible .MuiSwitch-thumb': {
+      color: '#d97706',
+      border: '6px solid #fff',
+    },
+    '&.Mui-disabled .MuiSwitch-thumb': {
+      color: theme.palette.grey[100],
+      ...theme.applyStyles?.('dark', {
+        color: theme.palette.grey[600],
+      }),
+    },
+    '&.Mui-disabled + .MuiSwitch-track': {
+      opacity: 0.7,
+      ...theme.applyStyles?.('dark', {
+        opacity: 0.3,
+      }),
+    },
+  },
+  '& .MuiSwitch-thumb': {
+    boxSizing: 'border-box',
+    width: 16,
+    height: 16,
+  },
+  '& .MuiSwitch-track': {
+    borderRadius: 20 / 2,
+    backgroundColor: alpha('#8b5e3c', 0.2),
+    opacity: 1,
+    transition: theme.transitions.create(['background-color'], {
+      duration: 500,
+    }),
+    ...theme.applyStyles?.('dark', {
+      backgroundColor: '#39393D',
+    }),
+  },
+}));
+
+export default function DocbookEditorSurface({
+  activeNote,
+  allNotes = [],
+  linkedNotes = [],
+  backlinkNotes = [],
+  autoSave = true,
+  onAutoSaveChange,
+  editorRef,
+  imageUrlMap = {},
+  stickyNotes = [],
+  activeStickyNoteId,
+  onOpenLinkedNote,
+  onConnectNote,
+  onDisconnectNote,
+  onTitleChange,
+  onEditorInput,
+  onEditorBlur,
+  onEditorSelectionChange,
+  onEditorClick,
+  onEditorDoubleClick,
+  onEditorMouseMove,
+  onEditorMouseLeave,
+  onEditorDragOver,
+  onEditorDragLeave,
+  onEditorDrop,
+  onOpenSelectionPanel,
+  onPasteImage,
+  onNoteFontSizeDecrease,
+  onFontSizeDecrease,
+  onAddStickyNote,
+  onOpenStickyNote,
+  onUpdateStickyNote,
+  onMoveStickyNote,
+  onStickyDragStateChange,
+  onDeleteStickyNote,
+  onNoteColorChange,
+  onNoteFontSizeIncrease,
+  onFontSizeIncrease,
+  syncBadgeState,
+  collapseSidebar,
+  customPeople = [],
+  customFolders = [],
+  onOpenCustomization,
+  onPeopleChange,
+  onFoldersChange,
+  aiWorking = false,
+}) {
+  const [dropCaret, setDropCaret] = useState({ visible: false, x: 0, y: 0, height: 0 });
+  const [slashMenu, setSlashMenu] = useState({ visible: false, x: 0, y: 0, query: "", selectedIndex: 0, token: "" });
+  const [tokenMenu, setTokenMenu] = useState({ visible: false, x: 0, y: 0, query: "", selectedIndex: 0, token: "", tokenType: "" });
+  const [titleSlashMenu, setTitleSlashMenu] = useState({ visible: false, query: "", selectedIndex: 0 });
+  const [linkSearchOpen, setLinkSearchOpen] = useState(false);
+  const [linkSearchQuery, setLinkSearchQuery] = useState("");
+  const [connectionsDockOpen, setConnectionsDockOpen] = useState(false);
+  const titleInputRef = useRef(null);
+  const linkSearchInputRef = useRef(null);
+  const [stickyNotesVisible, setStickyNotesVisible] = useState(true);
+  const [editorScrollState, setEditorScrollState] = useState({
+    scrollTop: 0,
+    viewportHeight: 0,
+    contentHeight: 0,
+  });
+  const activeNoteTint = activeNote?.color || noteColorOptions[0].value;
+  const editorFontScale = activeNote?.fontScale || 1;
+  const activeNoteLinks = Array.isArray(activeNote?.links) ? activeNote.links : [];
+  const availableLinkedSearchResults = allNotes
+    .filter((note) => {
+      if (!activeNote?.id || note.id === activeNote.id) return false;
+      if (activeNoteLinks.includes(note.id)) return false;
+
+      const normalizedQuery = linkSearchQuery.trim().toLowerCase();
+      if (!normalizedQuery) return true;
+
+      const title = (note.title || "").toLowerCase();
+      const content = plainTextFromHtml(note.content || "").toLowerCase();
+      return title.includes(normalizedQuery) || content.includes(normalizedQuery);
+    })
+    .slice(0, 6);
+
+  const imageEntries = Object.entries(imageUrlMap);
+  const showSyncBadge = Boolean(syncBadgeState?.enabled && syncBadgeState?.hasPin && syncBadgeState?.interval > 0);
+  const lastSyncTime = syncBadgeState?.lastSyncAt ? new Date(syncBadgeState.lastSyncAt).getTime() : 0;
+  const lastLocalChangeTime = syncBadgeState?.lastLocalChangeAt ? new Date(syncBadgeState.lastLocalChangeAt).getTime() : 0;
+  const syncIsCurrent = showSyncBadge && lastSyncTime > 0 && lastSyncTime >= lastLocalChangeTime;
+
+  const getRelativeSyncLabel = () => {
+    if (!showSyncBadge) return "";
+    if (!lastSyncTime) return "Not synced";
+    if (!syncIsCurrent) return "Not synced";
+
+    const diffMs = Math.max(0, Date.now() - lastSyncTime);
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 1) return "Synced just now";
+    if (diffMins < 60) return `Synced ${diffMins}m ago`;
+
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `Synced ${diffHours}h ago`;
+
+    const diffDays = Math.floor(diffHours / 24);
+    return `Synced ${diffDays}d ago`;
+  };
+
+  const handleTopFontDecrease = onNoteFontSizeDecrease || onFontSizeDecrease;
+  const handleTopFontIncrease = onNoteFontSizeIncrease || onFontSizeIncrease;
+
+  const refreshEditorScrollState = useCallback(() => {
+    const editor = editorRef?.current;
+    if (!editor) return;
+
+    setEditorScrollState((prev) => {
+      const next = {
+        scrollTop: editor.scrollTop,
+        viewportHeight: editor.clientHeight,
+        contentHeight: Math.max(editor.scrollHeight, editor.clientHeight),
+      };
+
+      if (
+        prev.scrollTop === next.scrollTop &&
+        prev.viewportHeight === next.viewportHeight &&
+        prev.contentHeight === next.contentHeight
+      ) {
+        return prev;
+      }
+
+      return next;
+    });
+  }, [editorRef]);
+  // -- Date Suggestions Logic --
+  const getDateSuggestions = useCallback((query) => {
+    const today = new Date();
+
+    // Helper to format date in different ways
+    const getFormatsForDate = (date) => {
+      return [
+        date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), // Mar 16, 2026
+        date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }), // Monday, March 16, 2026
+        `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`, // 3/16/2026
+        `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` // 2026-03-16
+      ];
+    };
+
+    let targetDate = new Date(today);
+    let dateLabelPrefix = "";
+    let isRelativeQuery = false;
+
+    // Handle relative queries or default to today
+    const lowerQuery = query.toLowerCase();
+    if (lowerQuery.includes('tom')) {
+      targetDate.setDate(today.getDate() + 1);
+      dateLabelPrefix = "Tomorrow";
+      isRelativeQuery = true;
+    } else if (lowerQuery.includes('yes')) {
+      targetDate.setDate(today.getDate() - 1);
+      dateLabelPrefix = "Yesterday";
+      isRelativeQuery = true;
+    } else {
+      // Check for 'X days ago' or 'in X days'
+      let match = lowerQuery.match(/(\d+)\s*d(?:ay(?:s)?)?\s*ago/);
+      if (match) {
+        targetDate.setDate(today.getDate() - parseInt(match[1], 10));
+        dateLabelPrefix = `${match[1]} Days Ago`;
+        isRelativeQuery = true;
+      } else {
+        match = lowerQuery.match(/in\s*(\d+)\s*d(?:ay(?:s)?)?/);
+        if (match) {
+          targetDate.setDate(today.getDate() + parseInt(match[1], 10));
+          dateLabelPrefix = `In ${match[1]} Days`;
+          isRelativeQuery = true;
+        } else if (!lowerQuery.replace(/[\/date\s]/g, "")) {
+          dateLabelPrefix = "Today";
+        }
+      }
+    }
+
+    const formats = getFormatsForDate(targetDate);
+    return formats.map((format, index) => ({
+      id: `date-${index}`,
+      kind: "date",
+      label: format,
+      description: dateLabelPrefix ? `${dateLabelPrefix} (${format})` : format,
+      value: format
+    }));
+  }, []);
+
+  const activeSuggestions = (() => {
+    // Determine which suggestions to show based on the token/query
+    let results = [];
+    const cleanQuery = slashMenu.query.toLowerCase().replace("/", "");
+
+    if (slashMenu.query.startsWith("/note") || "note".includes(cleanQuery)) {
+      results.push(
+        { id: "create-sticky-note", kind: "create", label: "Create sticky note", description: "Open a new sticky note for this page" },
+        ...stickyNotes
+          .filter((note) => note.noteId === activeNote?.id)
+          .map((note) => ({
+            id: note.id,
+            kind: "existing",
+            label: note.title?.trim() || "Untitled sticky note",
+            description: "Open existing sticky note",
+          }))
+      );
+    }
+
+    if (slashMenu.query.startsWith("/date") || "date".includes(cleanQuery)) {
+      results.push(...getDateSuggestions(cleanQuery.replace("date", "").trim()));
+    }
+
+    if (slashMenu.query.startsWith("/todo") || "todo".includes(cleanQuery)) {
+      results.push(
+        { id: "todo-1", kind: "todo", label: "Insert 1 Todo", description: "Add a single todo checkbox", count: 1 },
+        { id: "todo-3", kind: "todo", label: "Insert 3 Todos", description: "Add three todo checkboxes", count: 3 },
+        { id: "todo-5", kind: "todo", label: "Insert 5 Todos", description: "Add five todo checkboxes", count: 5 }
+      );
+    }
+
+    if (slashMenu.query.startsWith("/map") || "map".includes(cleanQuery)) {
+      const mapQuery = cleanQuery.replace("map", "").trim();
+      if (mapQuery) {
+        results.push(
+          { id: "map-pin", kind: "map", label: `📍 ${mapQuery}`, description: `Insert location: ${mapQuery}`, value: mapQuery }
+        );
+      } else {
+        results.push(
+          { id: "map-hint", kind: "map", label: "📍 Insert Location", description: "Type /map followed by a place name", value: "" }
+        );
+      }
+    }
+
+    return results;
+  })();
+
+  const activeTokenSuggestions = (() => {
+    if (!tokenMenu.visible) return [];
+
+    const normalizedQuery = tokenMenu.query.toLowerCase().trim();
+
+    if (tokenMenu.tokenType === "mention") {
+      const matches = customPeople.filter((person) => {
+        if (!normalizedQuery) return true;
+        return (
+          person.name.toLowerCase().includes(normalizedQuery) ||
+          person.handle.toLowerCase().includes(normalizedQuery) ||
+          person.role.toLowerCase().includes(normalizedQuery)
+        );
+      });
+      if (!normalizedQuery && matches.length === 0) {
+        matches.push({ id: "__mention_hint__", name: "Type a name to create or search", handle: "", role: "No people added yet", accent: "#8b5e3c", __isHint: true });
+      }
+      if (normalizedQuery && !customPeople.some((p) => p.handle.toLowerCase() === normalizedQuery || p.name.toLowerCase() === normalizedQuery)) {
+        matches.push({ id: "__create_person__", name: normalizedQuery, handle: normalizedQuery, role: "", accent: "#8b5e3c", __isCreate: true });
+      }
+      return matches;
+    }
+
+    if (tokenMenu.tokenType === "folder") {
+      const matches = customFolders.filter((folder) => {
+        if (!normalizedQuery) return true;
+        return (
+          folder.name.toLowerCase().includes(normalizedQuery) ||
+          folder.path.toLowerCase().includes(normalizedQuery) ||
+          folder.description.toLowerCase().includes(normalizedQuery)
+        );
+      });
+      if (!normalizedQuery && matches.length === 0) {
+        matches.push({ id: "__folder_hint__", name: "Type a path to create or search", path: "", description: "No folders added yet", accent: "#6d4c41", __isHint: true });
+      }
+      if (normalizedQuery && !customFolders.some((f) => f.path.toLowerCase() === normalizedQuery || f.name.toLowerCase() === normalizedQuery)) {
+        matches.push({ id: "__create_folder__", name: normalizedQuery, path: normalizedQuery, description: "", accent: "#6d4c41", __isCreate: true });
+      }
+      return matches;
+    }
+
+    return [];
+  })();
+
+  const closeSlashMenu = useCallback(() => {
+    setSlashMenu((prev) => (prev.visible ? { ...prev, visible: false, selectedIndex: 0 } : prev));
+  }, []);
+
+  const closeTokenMenu = useCallback(() => {
+    setTokenMenu((prev) => (prev.visible ? { ...prev, visible: false, selectedIndex: 0 } : prev));
+  }, []);
+
+  // -- Title Slash Menu Logic --
+  const titleActiveSuggestions = (() => {
+    if (!titleSlashMenu.visible) return [];
+    const cleanQuery = titleSlashMenu.query.toLowerCase().replace("/", "");
+    if ("date".includes(cleanQuery.split(/\s/)[0] || "")) {
+      return getDateSuggestions(cleanQuery.replace(/^date\s*/, "").trim());
+    }
+    return [];
+  })();
+
+  const closeTitleSlashMenu = useCallback(() => {
+    setTitleSlashMenu((prev) => (prev.visible ? { visible: false, query: "", selectedIndex: 0 } : prev));
+  }, []);
+
+  const handleTitleChange = useCallback(
+    (event) => {
+      if (onTitleChange) onTitleChange(event);
+
+      const value = event.target.value;
+      const match = value.match(/(\/[a-z][a-z0-9 ]*)$/i);
+      if (match) {
+        const token = match[1].toLowerCase();
+        const command = token.replace("/", "").split(/\s/)[0];
+        if ("date".startsWith(command) || command === "date") {
+          setTitleSlashMenu({ visible: true, query: token, selectedIndex: 0 });
+          return;
+        }
+      }
+      closeTitleSlashMenu();
+    },
+    [onTitleChange, closeTitleSlashMenu]
+  );
+
+  const applyTitleSlashSuggestion = useCallback(
+    (item) => {
+      const currentTitle = activeNote?.title ?? "";
+      const match = currentTitle.match(/(\/[a-z][a-z0-9 ]*)$/i);
+      if (!match) return;
+
+      const newTitle = currentTitle.slice(0, match.index) + item.value;
+      // Synthesize an event-like object for onTitleChange
+      if (onTitleChange) onTitleChange({ target: { value: newTitle } });
+      closeTitleSlashMenu();
+
+      // Refocus and move cursor to end
+      requestAnimationFrame(() => {
+        const input = titleInputRef.current;
+        if (input) {
+          input.focus();
+          input.setSelectionRange(newTitle.length, newTitle.length);
+        }
+      });
+    },
+    [activeNote?.title, onTitleChange, closeTitleSlashMenu]
+  );
+
+  const handleTitleKeyDown = useCallback(
+    (event) => {
+      if (!titleSlashMenu.visible || titleActiveSuggestions.length === 0) return;
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setTitleSlashMenu((prev) => ({ ...prev, selectedIndex: (prev.selectedIndex + 1) % titleActiveSuggestions.length }));
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setTitleSlashMenu((prev) => ({ ...prev, selectedIndex: (prev.selectedIndex - 1 + titleActiveSuggestions.length) % titleActiveSuggestions.length }));
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeTitleSlashMenu();
+        return;
+      }
+      if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        applyTitleSlashSuggestion(titleActiveSuggestions[titleSlashMenu.selectedIndex] || titleActiveSuggestions[0]);
+      }
+    },
+    [titleSlashMenu.visible, titleSlashMenu.selectedIndex, titleActiveSuggestions, closeTitleSlashMenu, applyTitleSlashSuggestion]
+  );
+
+  const getSlashCommandContext = useCallback(() => {
+    const sel = window.getSelection();
+    if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return null;
+
+    const node = sel.anchorNode;
+    if (!node || node.nodeType !== 3) return null;
+
+    const beforeText = node.textContent?.slice(0, sel.anchorOffset) || "";
+    const match = beforeText.match(/(?:^|\s)(\/[a-z]*)$/i);
+    if (!match) return null;
+
+    const caretRange = sel.getRangeAt(0).cloneRange();
+    caretRange.collapse(true);
+    const rect = caretRange.getBoundingClientRect();
+    const token = match[1];
+    const startIndex = beforeText.lastIndexOf(token);
+
+    return {
+      textNode: node,
+      token,
+      startIndex,
+      endIndex: startIndex + token.length,
+      rect,
+    };
+  }, []);
+
+  const getTokenContext = useCallback(() => {
+    const sel = window.getSelection();
+    if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return null;
+
+    const node = sel.anchorNode;
+    if (!node || node.nodeType !== 3) return null;
+
+    const beforeText = node.textContent?.slice(0, sel.anchorOffset) || "";
+    const match = beforeText.match(/(^|\s)([@#])([a-z0-9_./-]*)$/i);
+    if (!match) return null;
+
+    const prefix = match[2];
+    const query = match[3] || "";
+    const token = `${prefix}${query}`;
+    const startIndex = beforeText.length - token.length;
+
+    const caretRange = sel.getRangeAt(0).cloneRange();
+    caretRange.collapse(true);
+    const rect = caretRange.getBoundingClientRect();
+
+    return {
+      textNode: node,
+      prefix,
+      query,
+      token,
+      startIndex,
+      endIndex: startIndex + token.length,
+      rect,
+    };
+  }, []);
+
+  const refreshSlashMenu = useCallback(() => {
+    const context = getSlashCommandContext();
+    if (!context) {
+      closeSlashMenu();
+      return;
+    }
+
+    const query = context.token.toLowerCase();
+    const noSlash = query.replace("/", "");
+    if (!"note".includes(noSlash) && !"date".includes(noSlash) && !"todo".includes(noSlash) && !"map".includes(noSlash)) {
+      closeSlashMenu();
+      return;
+    }
+
+    setSlashMenu((prev) => ({
+      visible: true,
+      x: context.rect.left,
+      y: context.rect.bottom + 10,
+      query,
+      token: context.token,
+      // Reset selectedIndex if the token changed, otherwise keep it but clamp it to the activeSuggestions length
+      selectedIndex: prev.token === context.token ? Math.min(prev.selectedIndex, Math.max(0, 10)) : 0,
+    }));
+  }, [closeSlashMenu, getSlashCommandContext]); // NOTE: activeSuggestions length handling moved to render/apply time constraints since it's derived now
+
+  const refreshTokenMenu = useCallback(() => {
+    const context = getTokenContext();
+    if (!context) {
+      closeTokenMenu();
+      return;
+    }
+
+    const tokenType = context.prefix === "@" ? "mention" : context.prefix === "#" ? "folder" : "";
+    if (!tokenType) {
+      closeTokenMenu();
+      return;
+    }
+
+    setTokenMenu((prev) => ({
+      visible: true,
+      x: context.rect.left,
+      y: context.rect.bottom + 10,
+      query: context.query,
+      token: context.token,
+      tokenType,
+      selectedIndex: prev.token === context.token && prev.tokenType === tokenType ? prev.selectedIndex : 0,
+    }));
+  }, [closeTokenMenu, getTokenContext]);
+
+  const applySlashSuggestion = useCallback(
+    (item) => {
+      const context = getSlashCommandContext();
+      if (context?.textNode) {
+        const currentText = context.textNode.textContent || "";
+        let newTextContent = "";
+
+        if (item.kind === "date") {
+          newTextContent = `${currentText.slice(0, context.startIndex)}${item.value}${currentText.slice(context.endIndex)}`;
+        } else {
+          newTextContent = `${currentText.slice(0, context.startIndex)}${currentText.slice(context.endIndex)}`;
+        }
+
+        context.textNode.textContent = newTextContent;
+
+        const nextRange = document.createRange();
+        const nextSelection = window.getSelection();
+
+        let cursorOffset = context.startIndex;
+        if (item.kind === "date") {
+          cursorOffset += item.value.length;
+        }
+
+        nextRange.setStart(context.textNode, Math.min(cursorOffset, context.textNode.textContent.length));
+        nextRange.collapse(true);
+        nextSelection?.removeAllRanges();
+        nextSelection?.addRange(nextRange);
+      }
+
+      if (onEditorInput) onEditorInput();
+      closeSlashMenu();
+
+      if (item.kind === "todo") {
+        // Insert N todo items at cursor position
+        const count = item.count || 1;
+        const singleTodo = `<div data-todo="false" style="display: flex; align-items: flex-start; gap: 8px; margin: 4px 0;"><span data-todo-checkbox="true" style="cursor: pointer; color: #8b5e3c; display: flex; align-items: center; justify-content: center; user-select: none;" contenteditable="false">${uncheckedIconSvg}</span><div style="flex: 1; outline: none; min-width: 50px;"><br></div></div>`;
+        const todosHtml = singleTodo.repeat(count);
+        document.execCommand("insertHTML", false, todosHtml);
+        if (onEditorInput) onEditorInput();
+        return;
+      }
+
+      if (item.kind === "map" && item.value) {
+        const mapUrl = `https://www.google.com/maps/search/${encodeURIComponent(item.value)}`;
+        const mapHtml = `<span data-location="${item.value.replace(/"/g, '&quot;')}" data-location-url="${mapUrl}" contenteditable="false" style="display:inline-flex;align-items:center;gap:0.25em;vertical-align:middle;border-radius:999px;padding:0.08em 0.34em;margin:0 0.04em;background:rgba(255,252,247,0.92);border:1px solid rgba(139,94,60,0.16);box-shadow:0 8px 18px rgba(92,61,46,0.12);color:#3e2f24;line-height:1;user-select:none;cursor:pointer;font-size:0.42em;font-weight:700">📍 ${item.value}</span>\u00A0`;
+        document.execCommand("insertHTML", false, mapHtml);
+        if (onEditorInput) onEditorInput();
+        return;
+      }
+
+      if (item.kind === "create") {
+        onAddStickyNote?.();
+        return;
+      }
+
+      if (item.kind === "existing") {
+        onOpenStickyNote?.(item.id);
+      }
+    },
+    [closeSlashMenu, getSlashCommandContext, onAddStickyNote, onEditorInput, onOpenStickyNote]
+  );
+
+  const applyTokenSuggestion = useCallback(
+    (item) => {
+      if (item.__isHint) return;
+
+      const context = getTokenContext();
+      if (!context?.textNode) return;
+
+      /* If this is a 'create new' entry, auto-save to the custom list first */
+      let resolvedItem = item;
+      if (item.__isCreate && tokenMenu.tokenType === "mention") {
+        const newPerson = { id: buildId(), name: item.name, handle: item.handle, role: "", accent: "#8b5e3c" };
+        resolvedItem = newPerson;
+        const updatedPeople = [...customPeople, newPerson];
+        localStorage.setItem("docbook_custom_people", JSON.stringify(updatedPeople));
+        onPeopleChange?.(updatedPeople);
+      } else if (item.__isCreate && tokenMenu.tokenType === "folder") {
+        const newFolder = { id: buildId(), name: item.name, path: item.path, description: "", accent: "#6d4c41" };
+        resolvedItem = newFolder;
+        const updatedFolders = [...customFolders, newFolder];
+        localStorage.setItem("docbook_custom_folders", JSON.stringify(updatedFolders));
+        onFoldersChange?.(updatedFolders);
+      }
+
+      const selection = window.getSelection();
+      const replaceRange = document.createRange();
+      replaceRange.setStart(context.textNode, context.startIndex);
+      replaceRange.setEnd(context.textNode, context.endIndex);
+
+      const chip = document.createElement("span");
+      chip.contentEditable = "false";
+
+      if (tokenMenu.tokenType === "mention") {
+        chip.setAttribute("data-user-mention", resolvedItem.id);
+        chip.setAttribute("data-user-name", resolvedItem.name);
+        chip.setAttribute("data-user-handle", resolvedItem.handle);
+        chip.setAttribute("data-user-role", resolvedItem.role);
+
+        const avatar = document.createElement("span");
+        avatar.setAttribute("data-chip-avatar", "true");
+        avatar.style.background = `linear-gradient(135deg, ${alpha(resolvedItem.accent, 0.95)} 0%, ${alpha(resolvedItem.accent, 0.72)} 100%)`;
+        avatar.textContent = resolvedItem.name
+          .split(" ")
+          .map((part) => part[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase();
+
+        const content = document.createElement("span");
+        content.setAttribute("data-chip-content", "true");
+
+        const primary = document.createElement("span");
+        primary.setAttribute("data-chip-primary", "true");
+        primary.textContent = resolvedItem.name;
+
+        const secondaryRow = document.createElement("span");
+        secondaryRow.setAttribute("data-chip-secondary-row", "true");
+
+        const secondary = document.createElement("span");
+        secondary.setAttribute("data-chip-secondary", "true");
+        secondary.textContent = `@${resolvedItem.handle}`;
+
+        const dot = document.createElement("span");
+        dot.setAttribute("data-chip-dot", "true");
+
+        secondaryRow.append(secondary, dot);
+        content.append(primary, secondaryRow);
+
+        chip.append(avatar, content);
+      } else {
+        chip.setAttribute("data-folder-ref", resolvedItem.id);
+        chip.setAttribute("data-folder-name", resolvedItem.name);
+        chip.setAttribute("data-folder-path", resolvedItem.path);
+        chip.setAttribute("data-folder-description", resolvedItem.description);
+
+        const icon = document.createElement("span");
+        icon.setAttribute("data-chip-folder-icon", "true");
+        icon.textContent = "#";
+
+        const label = document.createElement("span");
+        label.setAttribute("data-chip-label", "true");
+        label.textContent = resolvedItem.path;
+
+        chip.append(icon, label);
+      }
+
+      const spacer = document.createTextNode("\u00A0");
+      const fragment = document.createDocumentFragment();
+      fragment.append(chip, spacer);
+      replaceRange.deleteContents();
+      replaceRange.insertNode(fragment);
+
+      const nextRange = document.createRange();
+      nextRange.setStart(spacer, spacer.textContent.length);
+      nextRange.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(nextRange);
+
+      if (onEditorInput) onEditorInput();
+      closeTokenMenu();
+    },
+    [closeTokenMenu, getTokenContext, onEditorInput, tokenMenu.tokenType, customPeople, customFolders, onPeopleChange, onFoldersChange]
+  );
+
+  const handleDragOver = useCallback(
+    (event) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+
+      let range;
+      if (document.caretRangeFromPoint) {
+        range = document.caretRangeFromPoint(event.clientX, event.clientY);
+      } else if (document.caretPositionFromPoint) {
+        const pos = document.caretPositionFromPoint(event.clientX, event.clientY);
+        if (pos) {
+          range = document.createRange();
+          range.setStart(pos.offsetNode, pos.offset);
+          range.collapse(true);
+        }
+      }
+
+      if (range) {
+        const rect = range.getBoundingClientRect();
+        if (rect && (rect.height || rect.width)) {
+          setDropCaret({ visible: true, x: rect.left, y: rect.top, height: rect.height || 24 });
+        }
+      }
+
+      if (onEditorDragOver) onEditorDragOver(event);
+    },
+    [onEditorDragOver]
+  );
+
+  const handleDragLeave = useCallback(
+    (event) => {
+      setDropCaret((prev) => (prev.visible ? { ...prev, visible: false } : prev));
+      if (onEditorDragLeave) onEditorDragLeave(event);
+    },
+    [onEditorDragLeave]
+  );
+
+  const handleDrop = useCallback(
+    (event) => {
+      setDropCaret((prev) => (prev.visible ? { ...prev, visible: false } : prev));
+      if (onEditorDrop) onEditorDrop(event);
+    },
+    [onEditorDrop]
+  );
+
+  const handleEditorScroll = useCallback(() => {
+    refreshEditorScrollState();
+  }, [refreshEditorScrollState]);
+
+  const toggleStickyNotesVisibility = useCallback(() => {
+    setStickyNotesVisible((prev) => {
+      const next = !prev;
+      if (!next) {
+        onStickyDragStateChange?.({ stickyId: "", targetNoteId: "" });
+      }
+      return next;
+    });
+  }, [onStickyDragStateChange]);
+
+  /* ── Handle paste: intercept image pastes from clipboard (PrtSc, Ctrl+V) ── */
+  const handlePaste = useCallback(
+    (event) => {
+      const clipboardData = event.clipboardData;
+      if (!clipboardData) return;
+
+      const items = clipboardData.items;
+      if (!items || items.length === 0) return;
+
+      /* Scan ALL items first — check if ANY is an image */
+      let imageItem = null;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith("image/")) {
+          imageItem = items[i];
+          break;
+        }
+      }
+
+      if (!imageItem) return;
+
+      /* IMMEDIATELY prevent browser from embedding the actual image */
+      event.preventDefault();
+      event.stopPropagation();
+
+      const file = imageItem.getAsFile();
+      if (file && onPasteImage) {
+        onPasteImage(file);
+      }
+    },
+    [onPasteImage]
+  );
+
+  /* ── Click handler: escape cursor from highlight/img-ref spans ── */
+  const handleClick = useCallback(
+    (event) => {
+      const editor = editorRef?.current;
+      if (!editor) return;
+
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+
+      /* If click is NOT on a highlight/img-ref span, but cursor ended up inside one,
+         move cursor outside */
+      const clickTarget = event.target;
+      const isOnSpecialSpan = clickTarget.closest?.(richTokenBoundarySelector);
+
+      if (!isOnSpecialSpan && sel.isCollapsed) {
+        const node = sel.anchorNode;
+        const el = node?.nodeType === 3 ? node.parentElement : node;
+        const enclosingSpan = el?.closest?.(richTokenBoundarySelector);
+
+        if (enclosingSpan && editor.contains(enclosingSpan)) {
+          /* Move cursor after the span */
+          const newRange = document.createRange();
+          if (enclosingSpan.nextSibling) {
+            /* If there's a text node after, place at its start */
+            if (enclosingSpan.nextSibling.nodeType === 3) {
+              newRange.setStart(enclosingSpan.nextSibling, 0);
+            } else {
+              newRange.setStartAfter(enclosingSpan);
+            }
+          } else {
+            /* Create a zero-width space after the span to park the cursor */
+            const zws = document.createTextNode("\u200B");
+            enclosingSpan.parentNode.appendChild(zws);
+            newRange.setStart(zws, 1);
+          }
+          newRange.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+        }
+      }
+
+      setConnectionsDockOpen(false);
+      setLinkSearchOpen(false);
+
+      /* Delegate to parent handler */
+      if (onEditorClick) onEditorClick(event);
+      window.requestAnimationFrame(refreshSlashMenu);
+      window.requestAnimationFrame(refreshTokenMenu);
+    },
+    [editorRef, onEditorClick, refreshSlashMenu, refreshTokenMenu]
+  );
+
+  const handleInput = useCallback(
+    (event) => {
+      if (onEditorInput) onEditorInput(event);
+      window.requestAnimationFrame(refreshEditorScrollState);
+      window.requestAnimationFrame(refreshSlashMenu);
+      window.requestAnimationFrame(refreshTokenMenu);
+    },
+    [onEditorInput, refreshEditorScrollState, refreshSlashMenu, refreshTokenMenu]
+  );
+
+  const handleKeyUp = useCallback(
+    (event) => {
+      if (onEditorSelectionChange) onEditorSelectionChange(event);
+      window.requestAnimationFrame(refreshEditorScrollState);
+      window.requestAnimationFrame(refreshSlashMenu);
+      window.requestAnimationFrame(refreshTokenMenu);
+    },
+    [onEditorSelectionChange, refreshEditorScrollState, refreshSlashMenu, refreshTokenMenu]
+  );
+
+  const handleMouseUp = useCallback(
+    (event) => {
+      if (onEditorSelectionChange) onEditorSelectionChange(event);
+      window.requestAnimationFrame(refreshEditorScrollState);
+      window.requestAnimationFrame(refreshSlashMenu);
+    },
+    [onEditorSelectionChange, refreshEditorScrollState, refreshSlashMenu]
+  );
+
+  const handleBlur = useCallback(
+    (event) => {
+      closeSlashMenu();
+      closeTokenMenu();
+      if (onEditorBlur) onEditorBlur(event);
+      window.requestAnimationFrame(refreshEditorScrollState);
+    },
+    [closeSlashMenu, closeTokenMenu, onEditorBlur, refreshEditorScrollState]
+  );
+
+  useEffect(() => {
+    const editor = editorRef?.current;
+    if (!editor) return undefined;
+
+    refreshEditorScrollState();
+
+    const handleResize = () => refreshEditorScrollState();
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [activeNote?.id, activeNote?.content, editorFontScale, editorRef, refreshEditorScrollState]);
+
+  useEffect(() => {
+    if (!linkSearchOpen) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      linkSearchInputRef.current?.focus();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [linkSearchOpen]);
+
+  useEffect(() => {
+    setLinkSearchOpen(false);
+    setLinkSearchQuery("");
+    setConnectionsDockOpen(false);
+  }, [activeNote?.id]);
+
+  useEffect(() => {
+    if (!linkSearchOpen) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setLinkSearchOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [linkSearchOpen]);
+
+  /* ── Escape highlight/img-ref spans when typing at their boundary ── */
+  const handleEditorKeyDown = useCallback(
+    (event) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      if (slashMenu.visible && activeSuggestions.length > 0) {
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          setSlashMenu((prev) => ({ ...prev, selectedIndex: (prev.selectedIndex + 1) % activeSuggestions.length }));
+          return;
+        }
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          setSlashMenu((prev) => ({ ...prev, selectedIndex: (prev.selectedIndex - 1 + activeSuggestions.length) % activeSuggestions.length }));
+          return;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeSlashMenu();
+          return;
+        }
+        if (event.key === "Enter" || event.key === "Tab") {
+          event.preventDefault();
+          applySlashSuggestion(activeSuggestions[slashMenu.selectedIndex] || activeSuggestions[0]);
+          return;
+        }
+      }
+
+      if (tokenMenu.visible && activeTokenSuggestions.length > 0) {
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          setTokenMenu((prev) => ({ ...prev, selectedIndex: (prev.selectedIndex + 1) % activeTokenSuggestions.length }));
+          return;
+        }
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          setTokenMenu((prev) => ({ ...prev, selectedIndex: (prev.selectedIndex - 1 + activeTokenSuggestions.length) % activeTokenSuggestions.length }));
+          return;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeTokenMenu();
+          return;
+        }
+        if (event.key === "Enter" || event.key === "Tab") {
+          event.preventDefault();
+          applyTokenSuggestion(activeTokenSuggestions[tokenMenu.selectedIndex] || activeTokenSuggestions[0]);
+          return;
+        }
+      }
+
+      const sel = window.getSelection();
+      if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return;
+
+      const node = sel.anchorNode;
+      if (!node) return;
+
+      const isEnter = event.key === "Enter";
+
+      /* ── Escape standard lists (ul/ol) on Enter if empty ── */
+      if (isEnter) {
+        const liNode = node.nodeType === 3 ? node.parentElement : node;
+        const li = liNode?.closest?.("li");
+        if (li) {
+          const list = li.closest("ul, ol");
+          // If the list item is effectively empty (just whitespace or zero width space or empty br)
+          const isEmpty = !li.textContent.trim() || li.textContent === "\u200B";
+
+          if (isEmpty) {
+            event.preventDefault();
+
+            // Create a new paragraph to place cursor
+            const p = document.createElement("p");
+            p.innerHTML = "<br>";
+
+            // Insert it after the entire list
+            if (list && list.parentNode) {
+              list.parentNode.insertBefore(p, list.nextSibling);
+            }
+
+            // Remove the empty list item
+            li.parentNode.removeChild(li);
+
+            // If the list is now empty, remove the whole list element
+            if (list && list.children.length === 0 && list.parentNode) {
+              list.parentNode.removeChild(list);
+            }
+
+            // Move cursor to the new paragraph
+            const newRange = document.createRange();
+            newRange.setStart(p, 0);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+
+            if (onEditorInput) onEditorInput();
+            return;
+          }
+        }
+      }
+
+      /* ── Escape Table on Enter or add new line inside td/th ── */
+      if (isEnter) {
+        const cellNode = node.nodeType === 3 ? node.parentElement : node;
+        const cell = cellNode?.closest?.("td, th");
+        if (cell) {
+          event.preventDefault();
+          const tr = cell.closest("tr");
+          const table = cell.closest("table");
+          const tbody = tr.parentNode;
+
+          // If the row is completely empty, consider it a "double enter" and exit table
+          const isRowEmpty = Array.from(tr.cells).every(c => c.textContent.trim() === "" && !c.querySelector('img'));
+
+          if (isRowEmpty) {
+            const p = document.createElement("p");
+            p.innerHTML = "<br>";
+            table.parentNode.insertBefore(p, table.nextSibling);
+
+            tr.parentNode.removeChild(tr);
+            if (tbody.children.length === 0) {
+              table.parentNode.removeChild(table);
+            }
+
+            const newRange = document.createRange();
+            newRange.setStart(p, 0);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          } else {
+            const isLastColumn = cell === tr.lastElementChild;
+            if (isLastColumn) {
+              const newTr = document.createElement("tr");
+              const numCols = tr.cells.length;
+              for (let i = 0; i < numCols; i++) {
+                const newTd = document.createElement("td");
+                newTd.style.border = "1px solid #d9cab7";
+                newTd.style.padding = "6px";
+                newTd.style.minWidth = "50px";
+                newTd.innerHTML = "<br>";
+                newTr.appendChild(newTd);
+              }
+              tr.parentNode.insertBefore(newTr, tr.nextSibling);
+
+              const newRange = document.createRange();
+              newRange.setStart(newTr.firstElementChild, 0);
+              newRange.collapse(true);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            } else {
+              document.execCommand("insertLineBreak", false, null);
+            }
+          }
+
+          if (onEditorInput) onEditorInput();
+          return;
+        }
+      }
+
+      /* ── Escape Todo list on Enter or add new ── */
+      if (isEnter) {
+        const todoNode = node.nodeType === 3 ? node.parentElement : node;
+        const todoDiv = todoNode?.closest?.("[data-todo]");
+        if (todoDiv) {
+          event.preventDefault();
+          const textContainer = todoDiv.querySelector("div[style*='flex: 1']");
+          const textContent = textContainer ? textContainer.innerText.trim() : "";
+
+          if (!textContent) {
+            /* Empty todo -> remove it and insert <p><br></p> */
+            const p = document.createElement("p");
+            p.innerHTML = "<br>";
+            todoDiv.parentNode.insertBefore(p, todoDiv.nextSibling);
+            todoDiv.parentNode.removeChild(todoDiv);
+
+            const newRange = document.createRange();
+            newRange.setStart(p, 0);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          } else {
+            /* Insert new empty todo after the current one */
+            const newTodoHtml = `<div data-todo="false" style="display: flex; align-items: flex-start; gap: 8px; margin: 4px 0;"><span data-todo-checkbox="true" style="cursor: pointer; color: #8b5e3c; display: flex; align-items: center; justify-content: center; user-select: none;" contenteditable="false">${uncheckedIconSvg}</span><div style="flex: 1; outline: none; min-width: 50px;"><br></div></div>`;
+            todoDiv.insertAdjacentHTML("afterend", newTodoHtml);
+            const newTodo = todoDiv.nextElementSibling;
+            const newTextContainer = newTodo.querySelector("div[style*='flex: 1']");
+
+            const newRange = document.createRange();
+            newRange.setStart(newTextContainer, 0);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          }
+          if (onEditorInput) onEditorInput();
+          return;
+        }
+      }
+
+      const el = node.nodeType === 3 ? node.parentElement : node;
+      const span = el?.closest?.(richTokenBoundarySelector);
+      if (!span) return;
+
+      /* Handle Space, Enter, and all printable characters */
+      const isPrintable = event.key.length === 1;
+      const isSpace = event.key === " ";
+      const isArrowRight = event.key === "ArrowRight";
+      const isArrowLeft = event.key === "ArrowLeft";
+
+      if (!isPrintable && !isEnter && !isArrowRight && !isArrowLeft) return;
+
+      /* Use Range to check if cursor is at start or end of the span */
+      const spanRange = document.createRange();
+      spanRange.selectNodeContents(span);
+      const cursorRange = sel.getRangeAt(0);
+
+      const isAtStart = cursorRange.compareBoundaryPoints(Range.START_TO_START, spanRange) <= 0;
+      const isAtEnd = cursorRange.compareBoundaryPoints(Range.START_TO_END, spanRange) >= 0;
+
+      /* Arrow keys: move cursor outside the span boundary */
+      if (isArrowRight && isAtEnd) {
+        event.preventDefault();
+        const newRange = document.createRange();
+        if (span.nextSibling) {
+          if (span.nextSibling.nodeType === 3) {
+            newRange.setStart(span.nextSibling, 0);
+          } else {
+            newRange.setStartAfter(span);
+          }
+        } else {
+          const zws = document.createTextNode("\u200B");
+          span.parentNode.appendChild(zws);
+          newRange.setStart(zws, 1);
+        }
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        return;
+      }
+
+      if (isArrowLeft && isAtStart) {
+        event.preventDefault();
+        const newRange = document.createRange();
+        if (span.previousSibling) {
+          if (span.previousSibling.nodeType === 3) {
+            newRange.setStart(span.previousSibling, span.previousSibling.length);
+          } else {
+            newRange.setStartBefore(span);
+          }
+        } else {
+          const zws = document.createTextNode("\u200B");
+          span.parentNode.insertBefore(zws, span);
+          newRange.setStart(zws, 0);
+        }
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        return;
+      }
+
+      if (!isAtEnd && !isAtStart) return;
+      if (isArrowRight || isArrowLeft) return;
+
+      event.preventDefault();
+
+      if (isEnter) {
+        const newRange = document.createRange();
+        if (isAtEnd) {
+          newRange.setStartAfter(span);
+        } else {
+          newRange.setStartBefore(span);
+        }
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        document.execCommand("insertLineBreak", false, null);
+        if (onEditorInput) onEditorInput();
+        return;
+      }
+
+      /* Create text node outside the span */
+      const content = event.key;
+      const textNode = document.createTextNode(content);
+
+      if (isAtEnd) {
+        if (span.nextSibling) {
+          span.parentNode.insertBefore(textNode, span.nextSibling);
+        } else {
+          span.parentNode.appendChild(textNode);
+        }
+      } else {
+        span.parentNode.insertBefore(textNode, span);
+      }
+
+      const newRange = document.createRange();
+      newRange.setStart(textNode, textNode.length);
+      newRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+
+      if (onEditorInput) onEditorInput();
+    },
+    [
+      activeSuggestions,
+      activeTokenSuggestions,
+      applySlashSuggestion,
+      applyTokenSuggestion,
+      closeSlashMenu,
+      closeTokenMenu,
+      onEditorInput,
+      slashMenu.selectedIndex,
+      slashMenu.visible,
+      tokenMenu.selectedIndex,
+      tokenMenu.visible,
+    ]
+  );
+
+  return (
+    <Box
+      sx={{
+        order: { xs: 1, lg: 2 },
+        minWidth: 0,
+        width: "100%",
+        height: "100%",
+        minHeight: 0,
+        p: "10px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 0,
+        overflow: "hidden",
+        background: "transparent",
+      }}
+    >
+      <Box
+        sx={{
+          position: "relative",
+          flex: 1,
+          minHeight: { xs: 360, lg: 0 },
+          width: "100%",
+          overflow: "hidden",
+          borderRadius: 5,
+          background: `linear-gradient(160deg, ${alpha(activeNoteTint, 0.18)} 0%, rgba(255,251,245,0.9) 32%, rgba(246,239,229,0.9) 100%)`,
+          boxShadow: `inset 0 1px 0 rgba(255,255,255,0.62), 0 18px 40px ${alpha("#7b5f39", 0.08)}`
+        }}
+      >
+        <Box
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: 'inherit',
+            padding: '6px',
+            WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+            WebkitMaskComposite: 'xor',
+            maskComposite: 'exclude',
+            pointerEvents: 'none',
+            zIndex: 1,
+            opacity: aiWorking ? 1 : 0,
+            transition: 'opacity 0.4s ease-in-out',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              width: '300%',
+              height: '300%',
+              background: 'conic-gradient(from 0deg, transparent 25%, #1976d2 40%, #1c77f0ff 50%, #d22519ff 60%, transparent 75%)',
+              animation: aiWorking ? 'spinBorder 5s linear infinite' : 'none',
+              transform: 'translate(-50%, -50%)',
+            },
+            '@keyframes spinBorder': {
+              '0%': { transform: 'translate(-50%, -50%) rotate(0deg)' },
+              '100%': { transform: 'translate(-50%, -50%) rotate(360deg)' }
+            }
+          }}
+        />
+
+        <Tooltip
+          arrow
+          placement="bottom-start"
+          slotProps={tooltipSlotProps}
+          title={activeNote?.title?.trim() || "Untitled"}
+        >
+          <Box
+            sx={{
+              position: "absolute",
+              top: 10,
+              left: 10,
+              zIndex: 22,
+              maxWidth: { xs: "calc(100% - 140px)", md: 460 },
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1
+            }}
+          >
+            <IconButton
+              sx={{
+                bgcolor: alpha("#fffdf8", 0.78),
+                border: `1px solid ${alpha(activeNoteTint, 0.22)}`,
+                "&:hover": {
+                  bgcolor: alpha("#fffdf8", 0.78),
+                }
+              }}
+              onClick={collapseSidebar}
+            >
+              <ViewCarouselRoundedIcon sx={{ fontSize: 17 }} />
+            </IconButton>
+            <Box
+              sx={{
+                position: 'relative',
+                borderRadius: 999,
+                bgcolor: alpha("#fffdf8", 0.78),
+                border: `1px solid ${alpha(activeNoteTint, 0.22)}`,
+                boxShadow: `0 10px 24px ${alpha(activeNoteTint, 0.12)}`,
+                backdropFilter: "blur(8px)",
+                display: 'flex',
+                px: 1.1,
+                py: 0.65,
+                zIndex: 1,
+              }}
+            >
+              <Box
+                ref={titleInputRef}
+                component="input"
+                value={activeNote?.title ?? ""}
+                placeholder="Untitled"
+                onChange={handleTitleChange}
+                onKeyDown={handleTitleKeyDown}
+                onBlur={() => { setTimeout(closeTitleSlashMenu, 150); }}
+                sx={{
+                  width: "100%",
+                  border: 0,
+                  outline: 0,
+                  bgcolor: "transparent",
+                  fontFamily: "inherit",
+                  fontSize: 16,
+                  lineHeight: 1.25,
+                  fontWeight: 800,
+                  color: "#2e261f",
+                  textOverflow: "ellipsis",
+                  "&::placeholder": { color: alpha("#2e261f", 0.4), fontWeight: 600 },
+                }}
+              />
+
+              {/* Title Slash Command Dropdown */}
+              {titleSlashMenu.visible && titleActiveSuggestions.length > 0 && (
+                <Paper
+                  elevation={8}
+                  sx={{
+                    position: 'absolute',
+                    top: 'calc(100% + 8px)',
+                    left: 0,
+                    minWidth: 260,
+                    maxWidth: 320,
+                    borderRadius: 3,
+                    overflow: 'hidden',
+                    border: '1px solid #ddd0c0',
+                    bgcolor: '#fdf8f1',
+                    boxShadow: '0 16px 34px rgba(58, 46, 34, 0.18)',
+                    zIndex: 1600,
+                  }}
+                >
+                  <Box sx={{
+                    px: 1.4, py: 1, borderBottom: '1px solid #ebe1d4', background: 'linear-gradient(180deg, #fbf3e8 0%, #f7ecde 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}>
+                    <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#6a5a49', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                      Commands
+                    </Typography>
+                    <KeyboardOptionKeyRoundedIcon sx={{ color: '#6a5a49', fontSize: 16 }} />
+                  </Box>
+                  <Stack spacing={0} sx={{ py: 0.5 }}>
+                    {titleActiveSuggestions.map((item, index) => (
+                      <Box
+                        key={item.id}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          applyTitleSlashSuggestion(item);
+                        }}
+                        sx={{
+                          px: 1.4,
+                          py: 1,
+                          cursor: 'pointer',
+                          bgcolor: index === titleSlashMenu.selectedIndex ? alpha('#c4956a', 0.12) : 'transparent',
+                          transition: 'background-color 120ms ease',
+                          '&:hover': { bgcolor: alpha('#c4956a', 0.12) },
+                        }}
+                      >
+                        <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#352f29' }}>{item.label}</Typography>
+                        <Typography sx={{ fontSize: 11.5, color: '#7b6c5c' }}>{item.description}</Typography>
+                      </Box>
+                    ))}
+                  </Stack>
+                </Paper>
+              )}
+            </Box>
+            {aiWorking ? (
+              <Box
+                sx={{
+                  px: 1,
+                  py: 0.6,
+                  borderRadius: 999,
+                  bgcolor: alpha(activeNoteTint, 0.14),
+                  border: `1px solid ${alpha(activeNoteTint, 0.22)}`,
+                  boxShadow: `0 10px 22px ${alpha(activeNoteTint, 0.16)}`,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0.65,
+                  zIndex: 1,
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    bgcolor: activeNoteTint,
+                    animation: "docbookAiPulse 1.8s ease-out infinite",
+                  }}
+                />
+                <Typography sx={{ fontSize: 11, fontWeight: 800, color: "#2e261f", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                  AI Working
+                </Typography>
+              </Box>
+            ) : null}
+          </Box>
+        </Tooltip>
+
+        <ClickAwayListener
+          onClickAway={() => {
+            setLinkSearchOpen(false);
+            setConnectionsDockOpen(false);
+          }}
+        >
+          <Box
+            onMouseEnter={() => setConnectionsDockOpen(true)}
+            onMouseLeave={() => {
+              if (!linkSearchOpen) {
+                setConnectionsDockOpen(false);
+              }
+            }}
+            sx={{
+              position: "fixed",
+              top: 72,
+              right: 0,
+              zIndex: 23,
+              width: connectionsDockOpen ? { xs: 284, md: 320 } : 44,
+              maxWidth: "calc(100% - 12px)",
+              borderRadius: "20px 0 0 20px",
+              overflow: "hidden",
+              border: `1px solid ${alpha(activeNoteTint, 0.2)}`,
+              borderRight: 0,
+              bgcolor: alpha("#fffdf8", 2),
+              boxShadow: `0 14px 30px ${alpha(activeNoteTint, 0.12)}`,
+              backdropFilter: "blur(10px)",
+              transition: "width 220ms ease, box-shadow 180ms ease, background-color 180ms ease",
+            }}
+          >
+            <Box
+              onClick={() => setConnectionsDockOpen((prev) => !prev)}
+              sx={{
+                minHeight: 44,
+                px: connectionsDockOpen ? 0.9 : 0.55,
+                py: 0.75,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: connectionsDockOpen ? "space-between" : "center",
+                gap: 0.75,
+                cursor: "pointer",
+                background: `linear-gradient(180deg, ${alpha(activeNoteTint, 0.14)} 0%, rgba(255, 251, 245, 0.94) 100%)`,
+              }}
+            >
+              <Stack direction="row" spacing={0.8} alignItems="center" sx={{ minWidth: 0 }}>
+                <Box
+                  sx={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: "50%",
+                    display: "grid",
+                    placeItems: "center",
+                    bgcolor: alpha(activeNoteTint, 0.25),
+                    color: "#6d4f36",
+                    flexShrink: 0,
+                  }}
+                >
+                  <HubRoundedIcon sx={{ fontSize: 16 }} />
+                </Box>
+                {connectionsDockOpen && (
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontSize: 11, fontWeight: 800, color: "#6a5a49", letterSpacing: "0.08em", textTransform: "uppercase", lineHeight: 1.1 }}>
+                      Connections
+                    </Typography>
+                    <Typography sx={{ fontSize: 11.5, color: "#7b6c5c", lineHeight: 1.15 }}>
+                      {linkedNotes.length} linked, {backlinkNotes.length} backlinks
+                    </Typography>
+                  </Box>
+                )}
+              </Stack>
+              {connectionsDockOpen && (
+                <Tooltip title="Connect note" arrow slotProps={tooltipSlotProps}>
+                  <IconButton
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setLinkSearchOpen((prev) => !prev);
+                    }}
+                    size="small"
+                    sx={{
+                      width: 28,
+                      height: 28,
+                      color: linkSearchOpen ? "#8b5e3c" : "#9a7653",
+                      bgcolor: linkSearchOpen ? alpha("#fff2d8", 0.98) : alpha("#fffdf8", 0.9),
+                      border: "1px solid rgba(139,94,60,0.12)",
+                      "&:hover": { bgcolor: alpha("#fff4df", 0.98) },
+                    }}
+                  >
+                    <SearchRoundedIcon sx={{ fontSize: 15 }} />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Box>
+
+            {connectionsDockOpen && (
+              <Box sx={{ px: 1, pb: 1, pt: 0.2 }}>
+                {linkSearchOpen && (
+                  <Box
+                    sx={{
+                      mb: 0.9,
+                      borderRadius: 2.4,
+                      overflow: "hidden",
+                      border: "1px solid #e2d6c8",
+                      bgcolor: "#fffaf4",
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        px: 1.1,
+                        py: 0.85,
+                        borderBottom: "1px solid #ebe1d4",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 0.8,
+                      }}
+                    >
+                      <SearchRoundedIcon sx={{ fontSize: 16, color: "#6a5a49" }} />
+                      <Box
+                        ref={linkSearchInputRef}
+                        component="input"
+                        value={linkSearchQuery}
+                        onChange={(event) => setLinkSearchQuery(event.target.value)}
+                        placeholder="Search notes..."
+                        sx={{
+                          flex: 1,
+                          minWidth: 0,
+                          border: 0,
+                          outline: 0,
+                          bgcolor: "transparent",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: "#352f29",
+                          "&::placeholder": { color: "#8a7968", opacity: 1 },
+                        }}
+                      />
+                      <IconButton
+                        size="small"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          setLinkSearchOpen(false);
+                          setLinkSearchQuery("");
+                        }}
+                        sx={{ p: 0.25, color: "#8a7968" }}
+                      >
+                        <CloseRoundedIcon sx={{ fontSize: 15 }} />
+                      </IconButton>
+                    </Box>
+                    <Stack spacing={0} sx={{ py: 0.35, maxHeight: 220, overflowY: "auto" }}>
+                      {availableLinkedSearchResults.length > 0 ? (
+                        availableLinkedSearchResults.map((note) => (
+                          <Box
+                            key={note.id}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              onConnectNote?.(note.id);
+                              setLinkSearchQuery("");
+                              setLinkSearchOpen(false);
+                            }}
+                            sx={{
+                              px: 1.1,
+                              py: 0.9,
+                              cursor: "pointer",
+                              transition: "background-color 120ms ease",
+                              "&:hover": { bgcolor: alpha("#c4956a", 0.12) },
+                            }}
+                          >
+                            <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: "#352f29" }}>
+                              {note.title?.trim() || ""}
+                            </Typography>
+                            <Typography sx={{ fontSize: 11, color: "#7b6c5c" }}>
+                              {(plainTextFromHtml(note.content || "") || "Empty note").slice(0, 82)}
+                            </Typography>
+                          </Box>
+                        ))
+                      ) : (
+                        <Box sx={{ px: 1.1, py: 1 }}>
+                          <Typography sx={{ fontSize: 12, color: "#7b6c5c" }}>
+                            No notes found to connect.
+                          </Typography>
+                        </Box>
+                      )}
+                    </Stack>
+                  </Box>
+                )}
+
+                <Stack spacing={0.85}>
+                  <Box>
+                    <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: "#7b6c5c", letterSpacing: "0.08em", textTransform: "uppercase", mb: 0.45 }}>
+                      Connected
+                    </Typography>
+                    {linkedNotes.length > 0 ? (
+                      <Stack spacing={0.5}>
+                        {linkedNotes.map((note) => (
+                          <Stack
+                            key={note.id}
+                            direction="row"
+                            spacing={0.5}
+                            alignItems="center"
+                            sx={{
+                              px: 0.8,
+                              py: 0.55,
+                              borderRadius: 999,
+                              bgcolor: alpha(note.color || activeNoteTint, 0.16),
+                              border: `1px solid ${alpha(note.color || activeNoteTint, 0.18)}`,
+                            }}
+                          >
+                            <Typography
+                              onClick={() => onOpenLinkedNote?.(note.id)}
+                              sx={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 700, color: "#312821", cursor: "pointer" }}
+                              noWrap
+                            >
+                              {note.title?.trim() || ""}
+                            </Typography>
+                            <IconButton
+                              size="small"
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => onDisconnectNote?.(note.id)}
+                              sx={{ p: 0.2, color: "#7b6c5c" }}
+                            >
+                              <CloseRoundedIcon sx={{ fontSize: 14 }} />
+                            </IconButton>
+                          </Stack>
+                        ))}
+                      </Stack>
+                    ) : (
+                      <Typography sx={{ fontSize: 11.5, color: "#8a7968" }}>No linked notes yet.</Typography>
+                    )}
+                  </Box>
+
+                  <Box>
+                    <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: "#7b6c5c", letterSpacing: "0.08em", textTransform: "uppercase", mb: 0.45 }}>
+                      Linked Here
+                    </Typography>
+                    {backlinkNotes.length > 0 ? (
+                      <Stack spacing={0.5}>
+                        {backlinkNotes.map((note) => (
+                          <Stack
+                            key={note.id}
+                            direction="row"
+                            spacing={0.45}
+                            alignItems="center"
+                            onClick={() => onOpenLinkedNote?.(note.id)}
+                            sx={{
+                              px: 0.8,
+                              py: 0.55,
+                              borderRadius: 999,
+                              bgcolor: alpha("#fff8ef", 0.95),
+                              border: "1px solid rgba(139,94,60,0.14)",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <Typography sx={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 700, color: "#312821" }} noWrap>
+                              {note.title?.trim() || "Untitled"}
+                            </Typography>
+                            <NorthEastRoundedIcon sx={{ fontSize: 14, color: "#8b5e3c" }} />
+                          </Stack>
+                        ))}
+                      </Stack>
+                    ) : (
+                      <Typography sx={{ fontSize: 11.5, color: "#8a7968" }}>No backlinks yet.</Typography>
+                    )}
+                  </Box>
+                </Stack>
+              </Box>
+            )}
+          </Box>
+        </ClickAwayListener>
+
+
+
+        <Stack
+          direction="row"
+          spacing={0.75}
+          alignItems="center"
+          sx={{
+            position: "absolute",
+            top: 10,
+            right: 10,
+            zIndex: 22,
+            flexWrap: "wrap",
+            justifyContent: "flex-end",
+            maxWidth: { xs: "calc(100% - 160px)", md: "calc(100% - 520px)" },
+            rowGap: 0.75,
+          }}
+        >
+          <Stack
+            direction="row"
+            spacing={0.5}
+            alignItems="center"
+            sx={{
+              px: 1,
+              py: 0.55,
+              borderRadius: 999,
+              bgcolor: alpha("#fffdf8", 0.78),
+              border: `1px solid ${alpha(activeNoteTint, 0.28)}`,
+              boxShadow: `0 6px 18px ${alpha(activeNoteTint, 0.12)}`,
+              backdropFilter: "blur(8px)",
+            }}
+          >
+            <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: "#7a5240", ml: 0.4 }}>Auto Save</Typography>
+            <IOSSwitch checked={autoSave} onChange={(e) => onAutoSaveChange?.(e.target.checked)} />
+          </Stack>
+
+          {showSyncBadge && (
+            <Tooltip
+              title={syncBadgeState?.lastSyncAt ? `Last synced: ${new Date(syncBadgeState.lastSyncAt).toLocaleString()}` : "Auto-sync is enabled"}
+              arrow
+              slotProps={tooltipSlotProps}
+            >
+              <Stack
+                direction="row"
+                spacing={0.7}
+                alignItems="center"
+                sx={{
+                  px: 1,
+                  py: 0.55,
+                  mr: 0.1,
+                  borderRadius: 999,
+                  bgcolor: syncIsCurrent ? alpha("#eef9f1", 0.94) : alpha("#fff4e7", 0.96),
+                  border: syncIsCurrent ? "1px solid rgba(104, 181, 124, 0.28)" : "1px solid rgba(217, 145, 73, 0.22)",
+                  boxShadow: syncIsCurrent
+                    ? "0 6px 18px rgba(76, 175, 80, 0.10)"
+                    : "0 6px 18px rgba(217, 145, 73, 0.10)",
+                  backdropFilter: "blur(8px)",
+                }}
+              >
+                {syncIsCurrent ? (
+                  <CloudDoneRoundedIcon sx={{ fontSize: 17, color: "#4b8d5a" }} />
+                ) : (
+                  <CloudOffRoundedIcon sx={{ fontSize: 17, color: "#c9823c" }} />
+                )}
+                <Typography
+                  sx={{
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    lineHeight: 1,
+                    color: syncIsCurrent ? "#2f6d43" : "#9a5a24",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {getRelativeSyncLabel()}
+                </Typography>
+              </Stack>
+            </Tooltip>
+          )}
+
+          <Stack
+            direction="row"
+            spacing={0.5}
+            alignItems="center"
+            sx={{
+              px: 0.7,
+              py: 0.5,
+              borderRadius: 999,
+              bgcolor: alpha("#fffdf8", 0.78),
+              border: `1px solid ${alpha(activeNoteTint, 0.28)}`,
+              boxShadow: `0 6px 18px ${alpha(activeNoteTint, 0.12)}`,
+              backdropFilter: "blur(8px)",
+            }}
+          >
+            {noteColorOptions.map((option) => {
+              const selected = option.value === activeNote?.color;
+
+              return (
+                <Box
+                  key={option.value}
+                  component="button"
+                  type="button"
+                  aria-label={`Set note color to ${option.label}`}
+                  onClick={() => onNoteColorChange?.(option.value)}
+                  sx={{
+                    width: 16,
+                    height: 16,
+                    borderRadius: "50%",
+                    border: 0,
+                    bgcolor: option.value,
+                    boxShadow: selected
+                      ? `0 0 0 2px ${alpha("#fffdf8", 0.96)}, 0 0 0 4px ${alpha(option.value, 0.44)}`
+                      : `0 0 0 1px ${alpha("#2e261f", 0.08)}`,
+                    cursor: "pointer",
+                    transition: "transform 150ms ease, box-shadow 150ms ease",
+                    "&:hover": { transform: "translateY(-1px) scale(1.05)" },
+                  }}
+                />
+              );
+            })}
+          </Stack>
+          <Tooltip title="Decrease Note Size" arrow slotProps={tooltipSlotProps}>
+            <IconButton onMouseDown={(event) => event.preventDefault()} onClick={handleTopFontDecrease} size="small" sx={{ color: "#8b5e3c", bgcolor: alpha("#fffdf8", 0.76), border: "1px solid rgba(139,94,60,0.12)", boxShadow: "0 6px 18px rgba(93,62,40,0.08)", "&:hover": { bgcolor: alpha("#8b5e3c", 0.1) } }}>
+              <TextDecreaseRoundedIcon sx={{ fontSize: 20 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Increase Note Size" arrow slotProps={tooltipSlotProps}>
+            <IconButton onMouseDown={(event) => event.preventDefault()} onClick={handleTopFontIncrease} size="small" sx={{ color: "#8b5e3c", bgcolor: alpha("#fffdf8", 0.76), border: "1px solid rgba(139,94,60,0.12)", boxShadow: "0 6px 18px rgba(93,62,40,0.08)", "&:hover": { bgcolor: alpha("#8b5e3c", 0.1) } }}>
+              <TextIncreaseRoundedIcon sx={{ fontSize: 20 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={stickyNotesVisible ? "Hide Sticky Notes" : "Show Sticky Notes"} arrow slotProps={tooltipSlotProps}>
+            <IconButton
+              onClick={toggleStickyNotesVisibility}
+              size="small"
+              sx={{
+                color: stickyNotesVisible ? "#d97706" : "#9a7653",
+                bgcolor: stickyNotesVisible ? alpha("#fff2d8", 0.92) : alpha("#fff8ef", 0.92),
+                border: "1px solid rgba(217,119,6,0.12)",
+                boxShadow: "0 6px 18px rgba(217,119,6,0.08)",
+                "&:hover": { bgcolor: alpha("#f59e0b", 0.2) },
+              }}
+            >
+              <WorkspacesRoundedIcon
+                sx={{
+                  fontSize: 20,
+                  transition: "transform 200ms ease",
+                  transform: stickyNotesVisible ? "rotate(0deg)" : "rotate(180deg)",
+                }}
+              />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Add Sticky Note" arrow slotProps={tooltipSlotProps}>
+            <IconButton onClick={onAddStickyNote} size="small" sx={{ color: "#d97706", bgcolor: alpha("#fff2d8", 0.92), border: "1px solid rgba(217,119,6,0.12)", boxShadow: "0 6px 18px rgba(217,119,6,0.08)", "&:hover": { bgcolor: alpha("#f59e0b", 0.2) } }}>
+              <StickyNote2RoundedIcon sx={{ fontSize: 20 }} />
+            </IconButton>
+          </Tooltip>
+
+          {imageEntries.length > 0 && (
+            <Tooltip title="View images & selection" arrow slotProps={tooltipSlotProps}>
+              <IconButton
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={onOpenSelectionPanel}
+                size="small"
+                sx={{
+                  background: "linear-gradient(135deg, #5c3d2e 0%, #8b5e3c 100%)",
+                  color: "#fff8f0",
+                  width: 32,
+                  height: 32,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  boxShadow: "0 6px 18px rgba(92, 61, 46, 0.22)",
+                  "&:hover": {
+                    background: "linear-gradient(135deg, #7a5240 0%, #a87350 100%)",
+                    boxShadow: "0 8px 20px rgba(92, 61, 46, 0.26)",
+                  },
+                }}
+              >
+                <ViewSidebarRoundedIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Stack>
+
+        {/* Decorative blurs */}
+        <Box sx={{ position: "absolute", left: -80, top: 40, width: "100%", height: 240, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,253,248,0.95) 0%, rgba(255,253,248,0) 72%)", filter: "blur(8px)" }} />
+        <Box sx={{ position: "absolute", right: -60, bottom: 24, width: 260, height: 200, borderRadius: "50%", background: `radial-gradient(circle, ${alpha(activeNoteTint, 0.26)} 0%, rgba(240,230,215,0) 72%)`, filter: "blur(18px)" }} />
+
+        {stickyNotesVisible && (
+          <StickyNoteBoard
+            notes={stickyNotes}
+            activeNoteId={activeNote?.id}
+            activeStickyNoteId={activeStickyNoteId}
+            editorScrollRef={editorRef}
+            scrollTop={editorScrollState.scrollTop}
+            viewportHeight={editorScrollState.viewportHeight}
+            contentHeight={editorScrollState.contentHeight}
+            onSelectLink={onOpenStickyNote}
+            onUpdateLink={onUpdateStickyNote}
+            onMoveLinkToNote={onMoveStickyNote}
+            onDragStateChange={onStickyDragStateChange}
+            onDeleteLink={onDeleteStickyNote}
+          />
+        )}
+
+        {/* Drop caret indicator */}
+        <Box
+          sx={{
+            position: "fixed",
+            left: dropCaret.x,
+            top: dropCaret.y,
+            width: 2.5,
+            height: dropCaret.height,
+            bgcolor: "#c4956a",
+            borderRadius: 1,
+            boxShadow: "0 0 8px rgba(196, 149, 106, 0.6), 0 0 2px rgba(196, 149, 106, 0.9)",
+            opacity: dropCaret.visible ? 1 : 0,
+            transition: "opacity 100ms ease",
+            pointerEvents: "none",
+            zIndex: 1500,
+          }}
+        />
+
+        {/* Content-editable editor */}
+        <Box
+          ref={editorRef}
+          contentEditable
+          suppressContentEditableWarning
+          spellCheck
+          data-placeholder="Start writing your note..."
+          onKeyDown={handleEditorKeyDown}
+          onInput={handleInput}
+          onBlur={handleBlur}
+          onMouseUp={handleMouseUp}
+          onKeyUp={handleKeyUp}
+          onClick={handleClick}
+          onDoubleClick={onEditorDoubleClick}
+          onMouseMove={onEditorMouseMove}
+          onMouseLeave={onEditorMouseLeave}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onScroll={handleEditorScroll}
+          onPaste={handlePaste}
+          sx={{
+            position: "relative",
+            zIndex: 1,
+            width: "100%",
+            height: "100%",
+            minHeight: "100%",
+            overflowY: "auto",
+            outline: 0,
+            p: "10px",
+            pt: { xs: "56px", md: "62px" },
+            background: "transparent",
+            fontFamily: "inherit",
+            fontSize: {
+              xs: `${18 * editorFontScale}px`,
+              md: `${22 * editorFontScale}px`,
+            },
+            lineHeight: {
+              xs: clamp(1.45 - (editorFontScale - 1) * 0.08, 1.2, 1.55),
+              md: clamp(1.5 - (editorFontScale - 1) * 0.08, 1.25, 1.6),
+            },
+            fontWeight: 500,
+            letterSpacing: "-0.045em",
+            color: alpha("#221f1a", 0.85),
+            scrollbarWidth: "none",
+            msOverflowStyle: "none",
+            "&::-webkit-scrollbar": { display: "none" },
+
+            /* Warm native selection */
+            "& ::selection": {
+              backgroundColor: alpha("#c4956a", 0.28),
+              color: "inherit",
+            },
+            "&::selection": {
+              backgroundColor: alpha("#c4956a", 0.28),
+              color: "inherit",
+            },
+
+            /* Placeholder */
+            "&:empty::before": { content: "attr(data-placeholder)", color: alpha("#221f1a", 0.22), pointerEvents: "none" },
+
+            /* Block elements */
+            "& p, & div": { margin: 0, fontSize: "inherit", lineHeight: "inherit", letterSpacing: "inherit" },
+            "& h1, & h2, & h3, & h4, & h5, & h6": {
+              margin: "0.22em 0 0.12em",
+              fontFamily: "inherit",
+              color: alpha("#1f1915", 0.94),
+              letterSpacing: "-0.04em",
+              fontWeight: 800,
+            },
+            "& h1": {
+              fontSize: "1.34em",
+              lineHeight: 1.02,
+            },
+            "& h2": {
+              fontSize: "1.18em",
+              lineHeight: 1.06,
+            },
+            "& h3": {
+              fontSize: "1.04em",
+              lineHeight: 1.1,
+            },
+            "& h4": {
+              fontSize: "0.94em",
+              lineHeight: 1.14,
+            },
+            "& h5": {
+              fontSize: "0.86em",
+              lineHeight: 1.18,
+            },
+            "& h6": {
+              fontSize: "0.8em",
+              lineHeight: 1.2,
+              letterSpacing: "-0.02em",
+              textTransform: "uppercase",
+            },
+
+            /* Lists */
+            "& ul, & ol": { margin: "0.18em 0", paddingLeft: "1.22em" },
+            "& ul": { listStyleType: "disc" },
+            "& ol": { listStyleType: "decimal" },
+            "& ol[data-list-type='lower-roman']": { listStyleType: "lower-roman" },
+            "& ol[data-list-type='upper-roman']": { listStyleType: "upper-roman" },
+            "& ol[data-list-type='lower-alpha']": { listStyleType: "lower-alpha" },
+            "& ol[data-list-type='upper-alpha']": { listStyleType: "upper-alpha" },
+            "& li": { margin: "0.08em 0", lineHeight: 1.24, paddingLeft: "0.12em" },
+            "& li > p, & li > div": { display: "inline" },
+
+            /* Highlight (warm gradient pill) */
+            "& span[data-highlight]": {
+              display: "inline",
+              borderRadius: "10px",
+              paddingInline: "0.24em",
+              paddingBlock: 0,
+              background: "linear-gradient(135deg, #5c3d2e 0%, #8b5e3c 100%)",
+              color: "#fff8f0",
+              lineHeight: "inherit",
+              boxDecorationBreak: "clone",
+              WebkitBoxDecorationBreak: "clone",
+              cursor: "pointer",
+              transition: "all 200ms ease",
+              boxShadow: "0 2px 8px rgba(139, 94, 60, 0.3)",
+            },
+            "& span[data-highlight]:hover": {
+              background: "linear-gradient(135deg, #7a5240 0%, #a87350 100%)",
+              boxShadow: "0 3px 14px rgba(139, 94, 60, 0.42)",
+            },
+
+            /* Image ref token — with green dot indicator */
+            "& span[data-img-ref]": {
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              position: "relative",
+              borderRadius: 8,
+              paddingInline: "0.3em",
+              paddingBlock: "0.06em",
+              fontSize: "inherit",
+              lineHeight: "inherit",
+              background: "linear-gradient(135deg, #5c3d2e 0%, #8b5e3c 100%)",
+              color: "#fff8f0",
+              boxDecorationBreak: "clone",
+              WebkitBoxDecorationBreak: "clone",
+              cursor: "pointer",
+              boxShadow: "0 1px 6px rgba(139, 94, 60, 0.25)",
+              verticalAlign: "baseline",
+              transition: "transform 150ms ease, box-shadow 150ms ease",
+            },
+            "& span[data-img-ref]::after": {
+              content: '""',
+              position: "absolute",
+              top: "0.08em",
+              right: "0.08em",
+              width: "0.2em",
+              height: "0.2em",
+              borderRadius: "50%",
+              backgroundColor: "#22c55e",
+              boxShadow: "0 0 4px rgba(34, 197, 94, 0.6)",
+              pointerEvents: "none",
+            },
+            "& span[data-img-ref]:hover": {
+              transform: "scale(1.03)",
+              boxShadow: "0 2px 10px rgba(139, 94, 60, 0.4)",
+            },
+
+            "& span[data-user-mention], & span[data-folder-ref]": {
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.28em",
+              verticalAlign: "middle",
+              borderRadius: 999,
+              paddingInline: "0.22em 0.34em",
+              paddingBlock: "0.08em",
+              marginInline: "0.04em",
+              background: "rgba(255, 252, 247, 0.92)",
+              border: "1px solid rgba(139, 94, 60, 0.16)",
+              boxShadow: "0 8px 18px rgba(92, 61, 46, 0.12)",
+              color: "#3e2f24",
+              lineHeight: 1,
+              userSelect: "none",
+              WebkitUserSelect: "none",
+              transition: "transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease",
+            },
+            "& span[data-user-mention]:hover, & span[data-folder-ref]:hover": {
+              transform: "translateY(-1px)",
+              boxShadow: "0 12px 22px rgba(92, 61, 46, 0.16)",
+              borderColor: "rgba(139, 94, 60, 0.28)",
+            },
+            "& span[data-user-mention]": {
+              gap: "0.32em",
+              paddingInline: "0.2em 0.38em",
+              paddingBlock: "0.12em",
+              background: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(250,244,237,0.96) 100%)",
+              border: "1px solid rgba(223, 157, 108, 0.28)",
+              boxShadow: "0 10px 20px rgba(223, 157, 108, 0.16), inset 0 1px 0 rgba(255,255,255,0.88)",
+            },
+            "& span[data-user-mention]:hover": {
+              borderColor: "rgba(223, 157, 108, 0.42)",
+              boxShadow: "0 14px 24px rgba(223, 157, 108, 0.2), inset 0 1px 0 rgba(255,255,255,0.92)",
+            },
+            "& span[data-chip-avatar='true']": {
+              width: "1.26em",
+              height: "1.26em",
+              borderRadius: "50%",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#fffdf8",
+              fontSize: "0.4em",
+              fontWeight: 800,
+              letterSpacing: "0.02em",
+              boxShadow: "0 4px 10px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.26)",
+              flexShrink: 0,
+            },
+            "& span[data-chip-content='true']": {
+              display: "inline-flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              minWidth: 0,
+              lineHeight: 1,
+            },
+            "& span[data-chip-primary='true']": {
+              fontSize: "0.32em",
+              fontWeight: 800,
+              color: "#2f251e",
+              lineHeight: 1.05,
+              whiteSpace: "nowrap",
+              letterSpacing: "-0.02em",
+            },
+            "& span[data-chip-secondary-row='true']": {
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.18em",
+              minWidth: 0,
+            },
+            "& span[data-chip-secondary='true']": {
+              fontSize: "0.24em",
+              fontWeight: 700,
+              color: "rgba(106, 84, 67, 0.78)",
+              lineHeight: 1.1,
+              whiteSpace: "nowrap",
+              letterSpacing: "0.01em",
+            },
+            "& span[data-chip-dot='true']": {
+              width: "0.16em",
+              height: "0.16em",
+              borderRadius: "50%",
+              background: "#22c55e",
+              boxShadow: "0 0 0 0.05em rgba(34, 197, 94, 0.18)",
+              flexShrink: 0,
+            },
+            "& span[data-chip-folder-icon='true']": {
+              width: "1.18em",
+              height: "1.18em",
+              borderRadius: "50%",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#fffdf8",
+              background: "linear-gradient(135deg, #6d4c41 0%, #9c6b4c 100%)",
+              fontSize: "0.48em",
+              fontWeight: 800,
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.26)",
+              flexShrink: 0,
+            },
+            "& span[data-chip-label='true']": {
+              fontSize: "0.42em",
+              fontWeight: 700,
+              lineHeight: 1.2,
+              whiteSpace: "nowrap",
+              letterSpacing: "-0.02em",
+            },
+
+            /* Note ref token */
+            "& span[data-note-ref]": {
+              boxDecorationBreak: "clone",
+              WebkitBoxDecorationBreak: "clone",
+              cursor: "help",
+              borderBottom: "2px dashed #9fa590",
+              transition: "border-color 200ms ease, background-color 200ms ease",
+              paddingBottom: "1px",
+            },
+            "& span[data-note-ref]:hover": {
+              borderBottomColor: "#5c6248",
+              backgroundColor: alpha("#5c6248", 0.08),
+            },
+
+            /* Links */
+            "& a": { color: "#9b6840", textDecoration: "underline", textDecorationColor: alpha("#9b6840", 0.35), textUnderlineOffset: "3px", transition: "color 150ms ease" },
+            "& a:hover": { color: "#7a4e28", textDecorationColor: "#7a4e28" },
+
+            /* Images */
+            "& img": { maxWidth: "100%", height: "auto", borderRadius: 10, display: "block", marginTop: 12, marginBottom: 12 },
+
+            /* Tables */
+            "& table": { tableLayout: "fixed" },
+            "& td, & th": { wordWrap: "break-word", whiteSpace: "normal" }
+          }}
+        />
+
+        <Box
+          sx={{
+            position: "fixed",
+            left: slashMenu.x,
+            top: slashMenu.y,
+            opacity: slashMenu.visible && activeSuggestions.length > 0 ? 1 : 0,
+            transform: slashMenu.visible && activeSuggestions.length > 0 ? "translateY(0)" : "translateY(6px)",
+            transition: "opacity 140ms ease, transform 140ms ease",
+            pointerEvents: slashMenu.visible && activeSuggestions.length > 0 ? "auto" : "none",
+            zIndex: 1600,
+          }}
+        >
+          <Paper
+            elevation={8}
+            sx={{
+              minWidth: 260,
+              maxWidth: 320,
+              borderRadius: 3,
+              overflow: "hidden",
+              border: "1px solid #ddd0c0",
+              bgcolor: "#fdf8f1",
+              boxShadow: "0 16px 34px rgba(58, 46, 34, 0.18)",
+            }}
+          >
+            <Box sx={{
+              px: 1.4, py: 1, borderBottom: "1px solid #ebe1d4", background: "linear-gradient(180deg, #fbf3e8 0%, #f7ecde 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}>
+              <Typography sx={{ fontSize: 11, fontWeight: 800, color: "#6a5a49", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                Commands
+              </Typography>
+              <KeyboardOptionKeyRoundedIcon sx={{ color: "#6a5a49", fontSize: 16 }} />
+            </Box>
+            <Stack spacing={0} sx={{ py: 0.5 }}>
+              {activeSuggestions.map((item, index) => (
+                <Box
+                  key={item.id}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    applySlashSuggestion(item);
+                  }}
+                  sx={{
+                    px: 1.4,
+                    py: 1,
+                    cursor: "pointer",
+                    bgcolor: index === slashMenu.selectedIndex ? alpha("#c4956a", 0.12) : "transparent",
+                    transition: "background-color 120ms ease",
+                    "&:hover": { bgcolor: alpha("#c4956a", 0.12) },
+                  }}
+                >
+                  <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#352f29" }}>{item.label}</Typography>
+                  <Typography sx={{ fontSize: 11.5, color: "#7b6c5c" }}>{item.description}</Typography>
+                </Box>
+              ))}
+            </Stack>
+          </Paper>
+        </Box>
+
+        <Box
+          sx={{
+            position: "fixed",
+            left: tokenMenu.x,
+            top: tokenMenu.y,
+            opacity: tokenMenu.visible ? 1 : 0,
+            transform: tokenMenu.visible ? "translateY(0)" : "translateY(6px)",
+            transition: "opacity 140ms ease, transform 140ms ease",
+            pointerEvents: tokenMenu.visible ? "auto" : "none",
+            zIndex: 1600,
+          }}
+        >
+          <Paper
+            elevation={8}
+            sx={{
+              minWidth: 280,
+              maxWidth: 340,
+              borderRadius: 3,
+              overflow: "hidden",
+              border: "1px solid #ddd0c0",
+              bgcolor: "#fdf8f1",
+              boxShadow: "0 16px 34px rgba(58, 46, 34, 0.18)",
+            }}
+          >
+            <Box
+              sx={{
+                px: 1.4,
+                py: 1,
+                borderBottom: "1px solid #ebe1d4",
+                background: "linear-gradient(180deg, #fbf3e8 0%, #f7ecde 100%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <Typography sx={{ fontSize: 11, fontWeight: 800, color: "#6a5a49", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                {tokenMenu.tokenType === "mention" ? "People" : "Folders"}
+              </Typography>
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                {onOpenCustomization && (
+                  <IconButton
+                    size="small"
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); closeTokenMenu(); onOpenCustomization(); }}
+                    sx={{ width: 22, height: 22, color: "#6a5a49", "&:hover": { bgcolor: alpha("#c4956a", 0.12) } }}
+                  >
+                    <TuneRoundedIcon sx={{ fontSize: 14 }} />
+                  </IconButton>
+                )}
+                {tokenMenu.tokenType === "mention" ? (
+                  <Typography sx={{ color: "#6a5a49", fontSize: 14, fontWeight: 800, lineHeight: 1 }}>@</Typography>
+                ) : (
+                  <Typography sx={{ color: "#6a5a49", fontSize: 14, fontWeight: 800, lineHeight: 1 }}>#</Typography>
+                )}
+              </Stack>
+            </Box>
+            <Stack spacing={0} sx={{ py: 0.5 }}>
+              {activeTokenSuggestions.map((item, index) => (
+                <Box
+                  key={item.id}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    applyTokenSuggestion(item);
+                  }}
+                  sx={{
+                    px: tokenMenu.tokenType === "mention" ? 1.6 : 1.4,
+                    py: tokenMenu.tokenType === "mention" ? 1.15 : 1,
+                    cursor: "pointer",
+                    bgcolor: index === tokenMenu.selectedIndex ? alpha("#c4956a", 0.12) : "transparent",
+                    transition: "background-color 120ms ease",
+                    "&:hover": { bgcolor: alpha("#c4956a", 0.12) },
+                  }}
+                >
+                  {tokenMenu.tokenType === "mention" ? (
+                    <Stack direction="row" spacing={1.1} alignItems="center">
+                      <Box
+                        sx={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: "50%",
+                          display: "grid",
+                          placeItems: "center",
+                          position: "relative",
+                          background: item.__isCreate
+                            ? "transparent"
+                            : item.__isHint
+                              ? alpha("#c4956a", 0.12)
+                              : `linear-gradient(135deg, ${item.accent} 0%, ${alpha(item.accent, 0.68)} 100%)`,
+                          border: item.__isCreate ? "2px dashed #c4956a" : item.__isHint ? "1px dashed #c4956a" : "none",
+                          color: item.__isCreate || item.__isHint ? "#c4956a" : "#fffdf8",
+                          fontSize: item.__isCreate ? 20 : item.__isHint ? 12 : 13,
+                          fontWeight: 800,
+                          letterSpacing: "0.04em",
+                          boxShadow: item.__isCreate || item.__isHint ? "none" : `0 10px 20px ${alpha(item.accent, 0.26)}, inset 0 1px 0 rgba(255,255,255,0.28)`,
+                          flexShrink: 0,
+                          "&::after": item.__isCreate || item.__isHint ? {} : {
+                            content: '""',
+                            position: "absolute",
+                            right: 2,
+                            bottom: 2,
+                            width: 9,
+                            height: 9,
+                            borderRadius: "50%",
+                            background: "#22c55e",
+                            boxShadow: "0 0 0 2px rgba(253, 248, 241, 0.96)",
+                          },
+                        }}
+                      >
+                        {item.__isHint
+                          ? "@"
+                          : item.__isCreate
+                            ? "+"
+                            : item.name
+                              .split(" ")
+                              .map((part) => part[0])
+                              .join("")
+                              .slice(0, 2)
+                              .toUpperCase()}
+                      </Box>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontSize: 14, fontWeight: 800, color: item.__isCreate || item.__isHint ? "#8b5e3c" : "#2f2721", lineHeight: 1.15, letterSpacing: "-0.02em" }}>
+                          {item.__isHint ? item.name : item.__isCreate ? `Create @${item.name}` : item.name}
+                        </Typography>
+                        {!item.__isCreate && !item.__isHint && (
+                          <Stack direction="row" spacing={0.7} alignItems="center" sx={{ mt: 0.25, flexWrap: "wrap" }}>
+                            <Typography
+                              sx={{
+                                fontSize: 11,
+                                fontWeight: 800,
+                                color: item.accent,
+                                px: 0.7,
+                                py: 0.22,
+                                borderRadius: 999,
+                                bgcolor: alpha(item.accent, 0.1),
+                                lineHeight: 1,
+                                letterSpacing: "0.01em",
+                              }}
+                            >
+                              @{item.handle}
+                            </Typography>
+                            <Typography sx={{ fontSize: 11.5, color: "#7b6c5c", lineHeight: 1.2 }}>
+                              {item.role}
+                            </Typography>
+                          </Stack>
+                        )}
+                        {item.__isCreate && (
+                          <Typography sx={{ fontSize: 11.5, color: "#7b6c5c", lineHeight: 1.2 }}>
+                            Add as new person & insert mention
+                          </Typography>
+                        )}
+                        {item.__isHint && (
+                          <Typography sx={{ fontSize: 11.5, color: "#7b6c5c", lineHeight: 1.2 }}>
+                            Start typing after @ to create or search a person
+                          </Typography>
+                        )}
+                      </Box>
+                    </Stack>
+                  ) : (
+                    <>
+                      <Typography sx={{ fontSize: 13, fontWeight: 700, color: item.__isCreate || item.__isHint ? "#8b5e3c" : "#352f29" }}>
+                        {item.__isHint ? item.name : item.__isCreate ? `+ Create #${item.path}` : item.path}
+                      </Typography>
+                      <Typography sx={{ fontSize: 11.5, color: "#7b6c5c" }}>
+                        {item.__isHint ? "Start typing after # to create or search a folder" : item.__isCreate ? "Add as new folder & insert reference" : item.description}
+                      </Typography>
+                    </>
+                  )}
+                </Box>
+              ))}
+            </Stack>
+          </Paper>
+        </Box>
+      </Box>
+    </Box>
+  );
+}

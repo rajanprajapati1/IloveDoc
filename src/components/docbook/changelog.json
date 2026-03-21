@@ -64,7 +64,7 @@
       "summary": "The main writing surface was refined with more commands, cleaner controls, and better organization.",
       "changes": [
         "Improved editor toolbar spacing and reduced header clutter.",
-        "Added slash commands for notes, dates, and todo insertion.",
+        "Added slash commands for notes, dates, times, and todo insertion.",
         "Added /map insertion for quick location references.",
         "Added inline table insertion and richer block formatting controls.",
         "Added highlight and clear actions for selections and rich chips.",
@@ -74,6 +74,7 @@
       "how_to_use": [
         "Type /note to create or open a sticky note from the editor.",
         "Type /date to insert formatted dates like today, tomorrow, or custom day phrases.",
+        "Type /time to insert the current time in multiple formats.",
         "Type /todo to insert todo rows.",
         "Type /map and continue with a place name to insert a location line.",
         "Type @ to insert a person mention chip.",
@@ -178,6 +179,7 @@
       "description": "Insert structured content quickly while writing.",
       "how_to_use": [
         "Type /date to insert a date.",
+        "Type /time to insert the current time.",
         "Type /todo to insert todo rows.",
         "Type /note to open or create sticky notes.",
         "Type /map to insert a location prompt."

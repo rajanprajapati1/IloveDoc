@@ -197,7 +197,18 @@ For a completed todo, use exactly:
 <div data-todo="true" style="display: flex; align-items: flex-start; gap: 8px; margin: 4px 0;"><span data-todo-checkbox="true" style="cursor: pointer; color: #8b5e3c; display: flex; align-items: center; justify-content: center; user-select: none;" contenteditable="false">${checkedIconSvg}</span><div style="flex: 1; outline: none; min-width: 50px; text-decoration: line-through; opacity: 0.6;">Task text</div></div><p><br></p>`;
 
   if (selectedHtml) {
-    systemContent += `\n\nCRITICAL INSTRUCTION: The user has SELECTED a specific part of the text. You must rewrite/replace ONLY this selected text according to their prompt. Return ONLY the new HTML that will perfectly replace the selection.\n\n[SELECTED TEXT START]\n${selectedHtml}\n[SELECTED TEXT END]`;
+    systemContent += `\n\nCRITICAL INSTRUCTION: The user has SELECTED a specific part of the text. You must rewrite or replace ONLY this selected fragment according to the prompt.
+
+Rules you must follow:
+- Return ONLY the replacement HTML fragment for the selected content.
+- DO NOT rewrite the whole note.
+- DO NOT include content from outside the selection unless the user explicitly asks to insert new nearby content as part of this replacement.
+- DO NOT include <html>, <body>, or a full-document wrapper.
+- The returned fragment must be valid to paste exactly in place of the selected fragment.
+
+[SELECTED TEXT START]
+${selectedHtml}
+[SELECTED TEXT END]`;
   } else {
     systemContent += `\n\nCRITICAL INSTRUCTION: The user wants to APPEND to the document. Return ONLY the new HTML to append.`;
   }
@@ -212,6 +223,51 @@ For a completed todo, use exactly:
       content: `Active note title: ${noteTitle}\nCurrent note HTML:\n${noteHtml}\n\nUpdate request:\n${prompt}`,
     },
   ];
+}
+
+function normalizePrompt(value) {
+  return (value || "")
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractRequestedTitle(prompt) {
+  const quotedTitleMatch = prompt.match(/(?:called|named|title(?:d)?(?:\s+as)?)\s+["']([^"']+)["']/i);
+  if (quotedTitleMatch?.[1]?.trim()) return quotedTitleMatch[1].trim();
+
+  const bareTitleMatch = prompt.match(/(?:called|named|title(?:d)?(?:\s+as)?)\s+([a-z0-9][a-z0-9\s\-_:]{1,80})$/i);
+  if (bareTitleMatch?.[1]?.trim()) return bareTitleMatch[1].trim();
+
+  return "";
+}
+
+function detectLocalDocumentIntent(prompt) {
+  const normalized = normalizePrompt(prompt);
+  if (!normalized) return null;
+
+  const wantsClear =
+    /\b(clear|empty|erase|wipe|reset|remove all)\b/.test(normalized)
+    && /\b(note|document|page|content|contents|text)\b/.test(normalized);
+
+  if (wantsClear || /\bclear my note\b/.test(normalized) || /\bempty this note\b/.test(normalized)) {
+    return { type: "clear_note" };
+  }
+
+  const wantsCreateNote =
+    /\b(create|make|start|open)\b/.test(normalized)
+    && /\b(new|another|fresh)\b/.test(normalized)
+    && /\b(note|document|page)\b/.test(normalized);
+
+  if (wantsCreateNote || /\bcreate new note\b/.test(normalized) || /\bmake a new note\b/.test(normalized)) {
+    return {
+      type: "create_note",
+      title: extractRequestedTitle(prompt) || "New Note",
+    };
+  }
+
+  return null;
 }
 
 function MarkdownMessage({ content, accentColor }) {
@@ -398,11 +454,41 @@ export default function DocbookAIPanel({
 
     setErrorMessage("");
     setInput("");
-    setIsStreaming(true);
 
     const requestMode = mode;
+    const localIntent = detectLocalDocumentIntent(prompt);
+
+    if (localIntent?.type === "clear_note" && activeNote?.id) {
+      if (requestMode === "chat") {
+        setChatMessages((prev) => prev.concat(
+          { role: "user", content: prompt },
+          { role: "assistant", content: "Cleared the active note." }
+        ));
+      } else {
+        setEditStatus("Cleared the active note.");
+      }
+      await onActionEditNote?.(activeNote.id, "<p></p>");
+      return;
+    }
+
+    if (localIntent?.type === "create_note") {
+      if (requestMode === "chat") {
+        setChatMessages((prev) => prev.concat(
+          { role: "user", content: prompt },
+          { role: "assistant", content: `Created a new note${localIntent.title ? `: ${localIntent.title}` : "."}` }
+        ));
+      } else {
+        setEditStatus(`Created a new note${localIntent.title ? `: ${localIntent.title}` : "."}`);
+      }
+      await onActionCreateNote?.(localIntent.title || "New Note", "<p></p>");
+      return;
+    }
+
+    setIsStreaming(true);
+
     let requestMessages;
     let selectedHtml = "";
+    let editScope = "append";
 
     if (requestMode === "chat") {
       requestMessages = buildChatMessages(activeNote, prompt, docbookNotes, activeStickyNotes);
@@ -414,7 +500,16 @@ export default function DocbookAIPanel({
       const startResult = onDirectWriteStart?.();
       if (typeof startResult === "string" && startResult.trim() !== "") {
         selectedHtml = startResult;
+        editScope = "selection";
+      } else if (startResult && typeof startResult === "object") {
+        if (typeof startResult.selectedHtml === "string" && startResult.selectedHtml.trim() !== "") {
+          selectedHtml = startResult.selectedHtml;
+        }
+        if (typeof startResult.scope === "string") {
+          editScope = startResult.scope;
+        }
       }
+      setEditStatus(editScope === "selection" ? "Editing only the selected text..." : "Appending into the note...");
       requestMessages = buildEditMessages(activeNote, prompt, selectedHtml);
     }
 
@@ -701,7 +796,7 @@ export default function DocbookAIPanel({
                   void handleSubmit();
                 }
               }}
-              placeholder={mode === "edit" ? "What should AI append to this note?" : "Type a note prompt"}
+              placeholder={mode === "edit" ? "If text is selected, AI edits only that selection. Without a selection, it appends." : "Type a note prompt"}
               sx={{
                 width: "100%",
                 minHeight: 52,
@@ -730,7 +825,7 @@ export default function DocbookAIPanel({
                   </Button>
                 </Tooltip>
 
-                <Tooltip title={mode === "chat" ? "Switch to Append Mode" : "Switch to Chat Mode"} placement="top" arrow>
+                <Tooltip title={mode === "chat" ? "Switch to Edit Mode" : "Switch to Chat Mode"} placement="top" arrow>
                   <Button
                     size="small"
                     onClick={() => setMode(mode === "chat" ? "edit" : "chat")}
@@ -738,7 +833,7 @@ export default function DocbookAIPanel({
                     endIcon={<KeyboardArrowDownRoundedIcon sx={{ fontSize: 16 }} />}
                     sx={{ color: "#666", textTransform: "none", fontSize: 13, fontWeight: 500, minWidth: 0, px: 1.5, borderRadius: "14px", "&:hover": { bgcolor: "rgba(0,0,0,0.04)" }, bgcolor: "rgba(0,0,0,0.02)" }}
                   >
-                    {mode === "chat" ? "Chat Mode" : "Append Mode"}
+                    {mode === "chat" ? "Chat Mode" : "Edit Mode"}
                   </Button>
                 </Tooltip>
 

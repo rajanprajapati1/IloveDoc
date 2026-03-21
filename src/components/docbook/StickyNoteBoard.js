@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { Box, IconButton, InputBase, alpha } from "@mui/material";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { getStickyColorOption, stickyColorOptions } from "./shared";
@@ -15,7 +15,7 @@ function getSidebarDropTarget(clientX, clientY) {
     ?.getAttribute("data-sidebar-note-id") || "";
 }
 
-export default function StickyNoteBoard({
+function StickyNoteBoard({
   notes,
   activeNoteId,
   activeStickyNoteId,
@@ -355,3 +355,5 @@ export default function StickyNoteBoard({
     </Box>
   );
 }
+
+export default memo(StickyNoteBoard);

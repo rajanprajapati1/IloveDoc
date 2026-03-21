@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Paper, Drawer, IconButton, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
@@ -12,7 +12,6 @@ import DocbookEditorSurface from "@/components/docbook/DocbookEditorSurface";
 import DocbookOverlays from "@/components/docbook/DocbookOverlays";
 import DocbookSidebar from "@/components/docbook/DocbookSidebar";
 import DocbookCircleToEditOverlay from "@/components/docbook/DocbookCircleToEditOverlay";
-import SettingsPanel from "@/components/docbook/SettingsPanel";
 import SelectionPanel from "@/components/docbook/SelectionPanel";
 import FeedbackModal from "@/components/docbook/FeedbackModal";
 import PricingPanel from "@/components/docbook/PricingPanel";
@@ -51,6 +50,7 @@ export default function Home() {
   const savedSelectionRangeRef = useRef(null);
   const objectUrlMapRef = useRef({});
   const autoSyncTimerRef = useRef(null);
+  const noteFontScaleCommitRef = useRef(null);
   const hasHydratedChangeTrackerRef = useRef(false);
   const commandSearchInputRef = useRef(null);
   const aiWriteSessionRef = useRef(null);
@@ -81,7 +81,6 @@ export default function Home() {
   const [hoverPreview, setHoverPreview] = useState({ visible: false, x: 0, y: 0, url: "", label: "" });
 
   /* Settings & Selection Panel state */
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectionPanelOpen, setSelectionPanelOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
@@ -108,10 +107,18 @@ export default function Home() {
   const [aiWorking, setAiWorking] = useState(false);
   const [aiDocumentWriting, setAiDocumentWriting] = useState(false);
   const [circleToEditMode, setCircleToEditMode] = useState(false);
+  const [liveNoteFontScale, setLiveNoteFontScale] = useState(null);
 
   const activeNotes = useMemo(() => notes.filter((note) => !note.deletedAt), [notes]);
   const deletedNotes = useMemo(() => notes.filter((note) => note.deletedAt && !isExpiredDelete(note.deletedAt)), [notes]);
   const activeNote = useMemo(() => activeNotes.find((note) => note.id === activeNoteId) || activeNotes[0] || null, [activeNotes, activeNoteId]);
+  const effectiveActiveNote = useMemo(() => {
+    if (!activeNote) return null;
+    if (liveNoteFontScale == null) return activeNote;
+    const persistedScale = activeNote.fontScale || 1;
+    if (Math.abs(liveNoteFontScale - persistedScale) < 0.0001) return activeNote;
+    return { ...activeNote, fontScale: liveNoteFontScale };
+  }, [activeNote, liveNoteFontScale]);
   const activeNoteStickyNotes = useMemo(() => stickyNotes.filter((note) => note.noteId === activeNoteId), [stickyNotes, activeNoteId]);
   const linkedNotes = useMemo(() => {
     if (!activeNote) return [];
@@ -425,7 +432,20 @@ export default function Home() {
     }
 
     setSelectionMenu((prev) => {
-      const next = { visible: true, x: rect.left + rect.width / 2, y: Math.max(16, rect.top - 12) };
+      const toolbarHeight = 48;
+      const safeMargin = 8;
+      const rawX = rect.left + rect.width / 2;
+      const clampedX = Math.max(120, Math.min(rawX, window.innerWidth - 120));
+
+      /* If not enough space above selection, show below */
+      let rawY;
+      if (rect.top - toolbarHeight - safeMargin < 0) {
+        rawY = rect.bottom + safeMargin + toolbarHeight;
+      } else {
+        rawY = Math.max(toolbarHeight + safeMargin, rect.top - 12);
+      }
+
+      const next = { visible: true, x: clampedX, y: rawY };
       if (prev.visible && Math.abs(prev.x - next.x) < 1 && Math.abs(prev.y - next.y) < 1) return prev;
       return next;
     });
@@ -451,6 +471,38 @@ export default function Home() {
       );
     },
     [activeNoteId]
+  );
+
+  const commitNoteFontScale = useCallback(
+    (nextFontScale) => {
+      if (!activeNoteId) return;
+      if (noteFontScaleCommitRef.current) {
+        clearTimeout(noteFontScaleCommitRef.current);
+      }
+      noteFontScaleCommitRef.current = setTimeout(() => {
+        noteFontScaleCommitRef.current = null;
+        startTransition(() => {
+          updateCurrentNote((note) => {
+            const persistedScale = note.fontScale || 1;
+            if (Math.abs(persistedScale - nextFontScale) < 0.0001) return note;
+            return { ...note, fontScale: nextFontScale };
+          });
+        });
+      }, 90);
+    },
+    [activeNoteId, updateCurrentNote]
+  );
+
+  const applyNoteFontScale = useCallback(
+    (updater) => {
+      const persistedScale = activeNote?.fontScale || 1;
+      const baseScale = liveNoteFontScale ?? persistedScale;
+      const nextFontScale = clamp(updater(baseScale), 0.72, 1.55);
+      if (Math.abs(nextFontScale - baseScale) < 0.0001) return;
+      setLiveNoteFontScale(nextFontScale);
+      commitNoteFontScale(nextFontScale);
+    },
+    [activeNote, liveNoteFontScale, commitNoteFontScale]
   );
 
   const connectNoteToActive = useCallback(
@@ -491,25 +543,26 @@ export default function Home() {
     [activeNoteId]
   );
 
-  const syncEditorHtml = useCallback(() => {
+  /* ── Fast content sync (cheap — just reads innerHTML) ── */
+  const syncEditorContent = useCallback(() => {
     const editor = editorRef.current;
     if (!editor) return;
-    /* Strip zero-width spaces used for caret escaping */
     const html = editor.innerHTML.replace(/\u200B/g, "");
     updateCurrentNote((note) => ({ ...note, content: html }));
+  }, [updateCurrentNote]);
 
-    /* Clean up orphaned images: find which IDs are still in the DOM */
+  /* ── Expensive image orphan cleanup (runs only on blur / after long pause) ── */
+  const cleanupOrphanedImages = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
     const imgSpans = editor.querySelectorAll("[data-img-ref]");
     const activeIds = new Set();
     imgSpans.forEach((span) => {
       const id = span.getAttribute("data-img-ref");
       if (id) activeIds.add(id);
     });
-
-    /* Remove images from IndexedDB and URL map that are no longer referenced */
     const currentMap = objectUrlMapRef.current;
     const orphanedIds = Object.keys(currentMap).filter((id) => !activeIds.has(id));
-
     if (orphanedIds.length > 0) {
       orphanedIds.forEach((id) => {
         URL.revokeObjectURL(currentMap[id]);
@@ -519,7 +572,49 @@ export default function Home() {
       objectUrlMapRef.current = { ...currentMap };
       setImageUrlMap({ ...currentMap });
     }
-  }, [updateCurrentNote]);
+  }, []);
+
+  /* ── Debounced content sync for typing (fires 250ms after last keystroke) ── */
+  const syncDebounceRef = useRef(null);
+  const imageCleanupDebounceRef = useRef(null);
+
+  const debouncedSyncEditorHtml = useCallback(() => {
+    if (syncDebounceRef.current) clearTimeout(syncDebounceRef.current);
+    syncDebounceRef.current = setTimeout(() => {
+      syncEditorContent();
+      syncDebounceRef.current = null;
+    }, 250);
+
+    /* Image cleanup runs after a longer pause (1.5s) */
+    if (imageCleanupDebounceRef.current) clearTimeout(imageCleanupDebounceRef.current);
+    imageCleanupDebounceRef.current = setTimeout(() => {
+      cleanupOrphanedImages();
+      imageCleanupDebounceRef.current = null;
+    }, 1500);
+  }, [syncEditorContent, cleanupOrphanedImages]);
+
+  /* ── Immediate sync (used by blur, commands, toolbar actions) ── */
+  const syncEditorHtml = useCallback(() => {
+    if (syncDebounceRef.current) { clearTimeout(syncDebounceRef.current); syncDebounceRef.current = null; }
+    if (imageCleanupDebounceRef.current) { clearTimeout(imageCleanupDebounceRef.current); imageCleanupDebounceRef.current = null; }
+    syncEditorContent();
+    cleanupOrphanedImages();
+  }, [syncEditorContent, cleanupOrphanedImages]);
+
+  /* ── Flush pending debounces when switching notes or unmounting ── */
+  useEffect(() => {
+    return () => {
+      if (syncDebounceRef.current) {
+        clearTimeout(syncDebounceRef.current);
+        syncDebounceRef.current = null;
+        syncEditorContent();
+      }
+      if (imageCleanupDebounceRef.current) {
+        clearTimeout(imageCleanupDebounceRef.current);
+        imageCleanupDebounceRef.current = null;
+      }
+    };
+  }, [activeNoteId, syncEditorContent]);
 
   const runCommand = useCallback(
     (command, value = null) => {
@@ -1132,7 +1227,7 @@ export default function Home() {
       if (!sel || sel.rangeCount === 0) return false;
 
       if (sel.isCollapsed) {
-        updateCurrentNote((note) => ({ ...note, fontScale: clamp(fontSizePx / 52, 0.72, 1.55) }));
+        applyNoteFontScale(() => fontSizePx / 52);
         return false;
       }
 
@@ -1153,7 +1248,7 @@ export default function Home() {
       window.requestAnimationFrame(updateSelectionMenuPosition);
       return true;
     },
-    [restoreSelectionRange, selectNodeContents, syncEditorHtml, updateCurrentNote, updateSelectionMenuPosition]
+    [applyNoteFontScale, restoreSelectionRange, selectNodeContents, syncEditorHtml, updateSelectionMenuPosition]
   );
 
   const handleTextBlockFormatChange = useCallback(
@@ -1172,8 +1267,8 @@ export default function Home() {
   const handleFontSizeIncrease = useCallback(() => {
     restoreSelectionRange();
     const sel = window.getSelection();
-    if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
-      updateCurrentNote((note) => ({ ...note, fontScale: clamp((note.fontScale || 1) + 0.08, 0.72, 1.55) }));
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+      applyNoteFontScale((currentScale) => currentScale + 0.08);
       return;
     }
 
@@ -1182,13 +1277,13 @@ export default function Home() {
       range.startContainer.nodeType === 3 ? range.startContainer.parentElement : range.startContainer;
     const currentSize = parseFloat(window.getComputedStyle(startElement).fontSize) || 16;
     void applySelectedFontSize(clamp(Math.round(currentSize + 2), 10, 96));
-  }, [applySelectedFontSize, restoreSelectionRange, updateCurrentNote]);
+  }, [applyNoteFontScale, applySelectedFontSize, restoreSelectionRange]);
 
   const handleFontSizeDecrease = useCallback(() => {
     restoreSelectionRange();
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
-      updateCurrentNote((note) => ({ ...note, fontScale: clamp((note.fontScale || 1) - 0.08, 0.72, 1.55) }));
+      applyNoteFontScale((currentScale) => currentScale - 0.08);
       return;
     }
 
@@ -1197,15 +1292,15 @@ export default function Home() {
       range.startContainer.nodeType === 3 ? range.startContainer.parentElement : range.startContainer;
     const currentSize = parseFloat(window.getComputedStyle(startElement).fontSize) || 16;
     void applySelectedFontSize(clamp(Math.round(currentSize - 2), 10, 96));
-  }, [applySelectedFontSize, restoreSelectionRange, updateCurrentNote]);
+  }, [applyNoteFontScale, applySelectedFontSize, restoreSelectionRange]);
 
   const handleNoteFontScaleIncrease = useCallback(() => {
-    updateCurrentNote((note) => ({ ...note, fontScale: clamp((note.fontScale || 1) + 0.08, 0.72, 1.55) }));
-  }, [updateCurrentNote]);
+    applyNoteFontScale((currentScale) => currentScale + 0.08);
+  }, [applyNoteFontScale]);
 
   const handleNoteFontScaleDecrease = useCallback(() => {
-    updateCurrentNote((note) => ({ ...note, fontScale: clamp((note.fontScale || 1) - 0.08, 0.72, 1.55) }));
-  }, [updateCurrentNote]);
+    applyNoteFontScale((currentScale) => currentScale - 0.08);
+  }, [applyNoteFontScale]);
 
   /* Handle paste image from clipboard (PrtSc, Ctrl+V with image) */
   const handlePasteImage = useCallback(
@@ -1506,13 +1601,27 @@ export default function Home() {
   }, [activeNoteId, activeStickyNoteId, stickyNotes]);
 
   useEffect(() => {
+    if (noteFontScaleCommitRef.current) {
+      clearTimeout(noteFontScaleCommitRef.current);
+      noteFontScaleCommitRef.current = null;
+    }
+    setLiveNoteFontScale(activeNote?.fontScale || 1);
+  }, [activeNoteId, activeNote?.fontScale]);
+
+  useEffect(() => {
     if (!editorRef.current || !activeNote) return;
     const normCurrent = editorRef.current.innerHTML.replace(/[\u200B-\u200D\uFEFF]/g, "");
     const normActive = (activeNote.content || "").replace(/[\u200B-\u200D\uFEFF]/g, "");
     if (normCurrent !== normActive) {
       editorRef.current.innerHTML = activeNote.content || "";
     }
-  }, [activeNote, activeNoteId]);
+  }, [activeNote?.content, activeNoteId]);
+
+  useEffect(() => () => {
+    if (noteFontScaleCommitRef.current) {
+      clearTimeout(noteFontScaleCommitRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (!ready) return;
@@ -1614,7 +1723,10 @@ export default function Home() {
 
     setAiDocumentWriting(true);
     setAiWorking(true);
-    return selectedHtml || true;
+    return {
+      selectedHtml,
+      scope: isTargetedEdit ? "selection" : "append",
+    };
   }, [activeNote, activeNoteId]);
 
   const streamAiDraftToActiveNote = useCallback((contentHtml) => {
@@ -1888,7 +2000,7 @@ export default function Home() {
         autoSyncTimerRef.current = null;
       }
     };
-  }, [notes, settingsOpen]);
+  }, [notes, customizationPanelOpen]);
 
   return (
     <Box
@@ -2019,7 +2131,7 @@ export default function Home() {
                 void permanentlyDeleteNote(noteId);
               }}
               onOpenSettings={() => {
-                setSettingsOpen(true);
+                setCustomizationPanelOpen(true);
                 setDrawerOpen(false);
               }}
               onOpenFeedback={() => {
@@ -2051,7 +2163,7 @@ export default function Home() {
           ) : (
             <DocbookEditorSurface
               collapseSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
-              activeNote={activeNote}
+              activeNote={effectiveActiveNote}
               allNotes={activeNotes}
               linkedNotes={linkedNotes}
               backlinkNotes={backlinkNotes}
@@ -2068,7 +2180,7 @@ export default function Home() {
               onDisconnectNote={disconnectNoteFromActive}
               onTitleChange={(event) => updateCurrentNote((note) => ({ ...note, title: event.target.value }))}
               onNoteColorChange={(color) => updateCurrentNote((note) => ({ ...note, color }))}
-              onEditorInput={syncEditorHtml}
+              onEditorInput={debouncedSyncEditorHtml}
               onEditorBlur={syncEditorHtml}
               onEditorSelectionChange={handleEditorSelectionChange}
               onEditorClick={handleEditorClick}
@@ -2504,16 +2616,25 @@ export default function Home() {
             await docbookDb.notes.update(activeNoteId, { content: normalizedContent, updatedAt });
         }}
         onActionCreateNote={async (title, content) => {
-            const fresh = createNote({ title: title || "New Note", content: content || "<p></p>" });
+            const normalizedContent = content?.trim() ? content : "<p></p>";
+            const fresh = createNote({ title: title || "New Note", content: normalizedContent });
             setNotes((prev) => [fresh, ...prev]);
             setActiveNoteId(fresh.id);
+            if (editorRef.current) {
+                editorRef.current.innerHTML = normalizedContent;
+            }
             await docbookDb.notes.put(fresh);
             await docbookDb.meta.put({ key: "activeNoteId", value: fresh.id });
         }}
         onActionEditNote={async (noteId, content) => {
+            if (!noteId) return;
+            const normalizedContent = content?.trim() ? content : "<p></p>";
             const updatedAt = new Date().toISOString();
-            setNotes((prev) => prev.map(n => n.id === noteId ? { ...n, content, updatedAt } : n));
-            await docbookDb.notes.update(noteId, { content, updatedAt });
+            if (noteId === activeNoteId && editorRef.current) {
+                editorRef.current.innerHTML = normalizedContent;
+            }
+            setNotes((prev) => prev.map(n => n.id === noteId ? { ...n, content: normalizedContent, updatedAt } : n));
+            await docbookDb.notes.update(noteId, { content: normalizedContent, updatedAt });
         }}
         onActionCreateStickyNote={async (content, x, y) => {
             if (!activeNoteId) return;
@@ -2565,14 +2686,6 @@ export default function Home() {
         </IconButton>
       ) : null}
 
-      {/* Settings Panel (Ctrl+H) */}
-      <SettingsPanel
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        notes={notes}
-        onImportNotes={handleImportNotes}
-      />
-
       {/* Selection & Images Panel */}
       <SelectionPanel
         editorRef={editorRef}
@@ -2598,6 +2711,8 @@ export default function Home() {
       <CustomizationPanel
         open={customizationPanelOpen}
         onClose={() => setCustomizationPanelOpen(false)}
+        notes={notes}
+        onImportNotes={handleImportNotes}
         people={customPeople}
         folders={customFolders}
         selectedEmojis={customEmojis}

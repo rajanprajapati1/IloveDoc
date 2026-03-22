@@ -46,28 +46,32 @@ const SELECTION_COLORS = [
   "#b3e5fc", "#c8e6c9", "#ffcc80", "#f8bbd0", "#d1c4e9", "#c4956a", "#e0e0e0"
 ];
 
+/* ── Full animated emoji pool (using Fluent Emoji Animated from CDN) ── */
+const BASE = "https://media.githubusercontent.com/media/microsoft/fluentui-emoji-animated/main/assets";
+
 const ALL_EMOJIS = [
-  { code: "😍", label: "Heart Eyes" },
-  { code: "🔥", label: "Fire" },
-  { code: "💩", label: "Poop" },
-  { code: "🐽", label: "Pig" },
-  { code: "👀", label: "Eyes" },
-  { code: "🎉", label: "Party" },
-  { code: "❤️", label: "Red Heart" },
-  { code: "👍", label: "Thumbs Up" },
-  { code: "👎", label: "Thumbs Down" },
-  { code: "😂", label: "Crying Laughing" },
-  { code: "🤔", label: "Thinking" },
-  { code: "🚀", label: "Rocket" },
-  { code: "⭐", label: "Star" },
-  { code: "💯", label: "100" },
-  { code: "🐒", label: "Monkey" },
-  { code: "🦊", label: "Fox" },
-  { code: "🦀", label: "Crab" },
-  { code: "🌀", label: "Cyclone" },
-  { code: "😊", label: "Smiling" },
-  { code: "🥳", label: "Partying" },
+  { code: "😍", label: "Heart Eyes", animated: `${BASE}/Smiling%20face%20with%20heart-eyes/animated/smiling_face_with_heart-eyes_animated.png` },
+  { code: "🔥", label: "Fire", animated: `${BASE}/Fire/animated/fire_animated.png` },
+  { code: "💩", label: "Poop", animated: `${BASE}/Pile%20of%20poo/animated/pile_of_poo_animated.png` },
+  { code: "🐽", label: "Pig", animated: `${BASE}/Pig%20nose/animated/pig_nose_animated.png` },
+  { code: "👀", label: "Eyes", animated: `${BASE}/Eyes/animated/eyes_animated.png` },
+  { code: "🎉", label: "Party", animated: `${BASE}/Party%20popper/animated/party_popper_animated.png` },
+  { code: "❤️", label: "Red Heart", animated: `${BASE}/Red%20heart/animated/red_heart_animated.png` },
+  { code: "👍", label: "Thumbs Up", animated: `${BASE}/Thumbs%20up/Default/animated/thumbs_up_animated_default.png` },
+  { code: "👎", label: "Thumbs Down", animated: `${BASE}/Thumbs%20down/Default/animated/thumbs_down_animated_default.png` },
+  { code: "😂", label: "Crying Laughing", animated: `${BASE}/Face%20with%20tears%20of%20joy/animated/face_with_tears_of_joy_animated.png` },
+  { code: "🤔", label: "Thinking", animated: `${BASE}/Thinking%20face/animated/thinking_face_animated.png` },
+  { code: "🚀", label: "Rocket", animated: `${BASE}/Rocket/animated/rocket_animated.png` },
+  { code: "⭐", label: "Star", animated: `${BASE}/Star/animated/star_animated.png` },
+  { code: "💯", label: "100", animated: `${BASE}/Hundred%20points/animated/hundred_points_animated.png` },
+  { code: "🐒", label: "Monkey", animated: `${BASE}/Monkey/animated/monkey_animated.png` },
+  { code: "🦊", label: "Fox", animated: `${BASE}/Fox/animated/fox_animated.png` },
+  { code: "🦀", label: "Crab", animated: `${BASE}/Crab/animated/crab_animated.png` },
+  { code: "🌀", label: "Cyclone", animated: `${BASE}/Cyclone/animated/cyclone_animated.png` },
+  { code: "😊", label: "Smiling", animated: `${BASE}/Smiling%20face%20with%20smiling%20eyes/animated/smiling_face_with_smiling_eyes_animated.png` },
+  { code: "🥳", label: "Partying", animated: `${BASE}/Partying%20face/animated/partying_face_animated.png` },
 ];
+
 
 export const DEFAULT_SELECTED_EMOJIS = ["😍", "🔥", "👍", "🎉", "🚀", "❤️"];
 
@@ -250,13 +254,13 @@ export default function CustomizationPanel({ open, onClose, notes, onImportNotes
     >
       <Box sx={{ flex: 1, p: { xs: 2, md: 2.5 } }}>
         <Grid container spacing={2}>
-          
+
           {/* Appearance Card */}
           <Grid size={{ xs: 12, md: 3 }}>
             <Box sx={bentoCardSx}>
               <Typography sx={cardTitleSx}>Appearance</Typography>
               <Typography sx={cardSubtitleSx}>Themes & fonts</Typography>
-              
+
               <Stack spacing={2} sx={{ flex: 1 }}>
                 <Box>
                   <Typography sx={labelSx}>Font Family</Typography>
@@ -274,7 +278,7 @@ export default function CustomizationPanel({ open, onClose, notes, onImportNotes
                   <Slider size="small" value={appearance.fontSize} onChange={(_, val) => saveAppearance({ fontSize: val })} step={1} min={12} max={22} marks sx={{ color: "#0071e3", py: 0.5, "& .MuiSlider-thumb": { width: 16, height: 16 } }} />
                 </Box>
                 <Box>
-                  <Typography sx={labelSx}>Accent Color</Typography>
+                  <Typography sx={labelSx}>Selection Highlight Color</Typography>
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     {SELECTION_COLORS.map((c) => (
                       <Box key={c} component="button" onClick={() => saveAppearance({ selectionColor: c })} sx={{ width: 24, height: 24, borderRadius: "50%", bgcolor: c, border: appearance.selectionColor === c ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", boxShadow: appearance.selectionColor === c ? `0 0 0 2px #fff, 0 0 0 4px ${c}` : "none" }} />
@@ -290,26 +294,37 @@ export default function CustomizationPanel({ open, onClose, notes, onImportNotes
             <Box sx={bentoCardSx}>
               <Typography sx={cardTitleSx}>Reactions</Typography>
               <Typography sx={cardSubtitleSx}>Select up to 6 quick emojis</Typography>
-              
+
               <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, flex: 1 }}>
                 <Box>
-                   <Stack direction="row" spacing={1} mb={1.5}>
-                    {localEmojis.map(code => (
-                      <Box key={code} onClick={() => toggleEmoji(code)} sx={{ fontSize: 20, cursor: "pointer", bgcolor: "#eff6ff", width: 34, height: 34, display: "grid", placeItems: "center", borderRadius: 2, border: "1.5px solid #0071e3" }}>
-                        {code}
-                      </Box>
-                    ))}
-                   </Stack>
+                  <Stack direction="row" spacing={1} mb={1.5}>
+                    {localEmojis.map(code => {
+                      const emojiDef = ALL_EMOJIS.find(e => e.code === code);
+                      return (
+                        <Box key={code} onClick={() => toggleEmoji(code)} sx={{ fontSize: 20, cursor: "pointer", bgcolor: "#eff6ff", width: 34, height: 34, display: "grid", placeItems: "center", borderRadius: 2, border: "1.5px solid #0071e3" }}>
+                          {emojiDef?.animated ? (
+                            <Box component="img" src={emojiDef.animated} alt={emojiDef.label || code} sx={{ width: 22, height: 22, objectFit: "contain" }} />
+                          ) : (
+                            code
+                          )}
+                        </Box>
+                      );
+                    })}
+                  </Stack>
                 </Box>
                 <Box sx={{ flex: 1, overflowY: "auto", pr: 0.5 }}>
-                   <Typography sx={labelSx}>Library</Typography>
-                   <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                  <Typography sx={labelSx}>Library</Typography>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
                     {ALL_EMOJIS.map(e => (
-                      <Box key={e.code} onClick={() => toggleEmoji(e.code)} sx={{ fontSize: 18, cursor: "pointer", width: 32, height: 32, display: "grid", placeItems: "center", borderRadius: 2, bgcolor: localEmojis.includes(e.code) ? alpha("#0071e3", 0.1) : "transparent", "&:hover":{bgcolor: alpha("#0071e3", 0.05)} }}>
-                        {e.code}
+                      <Box key={e.code} onClick={() => toggleEmoji(e.code)} sx={{ fontSize: 18, cursor: "pointer", width: 32, height: 32, display: "grid", placeItems: "center", borderRadius: 2, bgcolor: localEmojis.includes(e.code) ? alpha("#0071e3", 0.1) : "transparent", "&:hover": { bgcolor: alpha("#0071e3", 0.05) } }}>
+                        {e.animated ? (
+                           <Box component="img" src={e.animated} alt={e.label} sx={{ width: 20, height: 20, objectFit: "contain" }} />
+                        ) : (
+                          e.code
+                        )}
                       </Box>
                     ))}
-                   </Box>
+                  </Box>
                 </Box>
               </Box>
             </Box>
@@ -320,14 +335,14 @@ export default function CustomizationPanel({ open, onClose, notes, onImportNotes
             <Box sx={bentoCardSx}>
               <Typography sx={cardTitleSx}>Sync & Backup</Typography>
               <Typography sx={cardSubtitleSx}>Data protection and transfers</Typography>
-              
+
               <Stack direction="row" spacing={2.5} sx={{ mt: 0.5, flex: 1 }}>
                 {/* PIN & Sync */}
                 <Box sx={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
                   <Box>
                     <Typography sx={labelSx}>Access PIN</Typography>
                     <Stack direction="row" spacing={1}>
-                      <TextField size="small" fullWidth value={pinInput} onChange={(e) => setPinInput(e.target.value.toUpperCase())} placeholder="Set PIN..." InputProps={{ sx:{borderRadius: 2, bgcolor: "#f8fafc", fontSize: 12, height: 32, "& fieldset": {border: "none"}, boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.05)"} }} />
+                      <TextField size="small" fullWidth value={pinInput} onChange={(e) => setPinInput(e.target.value.toUpperCase())} placeholder="Set PIN..." InputProps={{ sx: { borderRadius: 2, bgcolor: "#f8fafc", fontSize: 12, height: 32, "& fieldset": { border: "none" }, boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.05)" } }} />
                       <Button variant="contained" onClick={handleSavePin} disableElevation sx={{ minWidth: 50, px: 1, bgcolor: "#0071e3", fontSize: 11, borderRadius: 2, height: 32, textTransform: "none", fontWeight: 600 }}>Save</Button>
                     </Stack>
                     {syncMessage && <Typography sx={{ mt: 0.5, fontSize: 11, color: "#10b981", fontWeight: 600 }}>{syncMessage}</Typography>}
@@ -340,13 +355,13 @@ export default function CustomizationPanel({ open, onClose, notes, onImportNotes
                     {autoSyncEnabled && (
                       <FormControl size="small" fullWidth sx={{ mt: 1 }}>
                         <Select value={autoSyncInterval} onChange={(e) => { setAutoSyncInterval(e.target.value); saveSyncSettings({ autoSyncInterval: e.target.value }); }} sx={{ fontSize: 11, bgcolor: "#f8fafc", borderRadius: 2, '& .MuiOutlinedInput-notchedOutline': { border: 'none' }, height: 30, boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.05)" }}>
-                          {AUTO_SAVE_INTERVALS.map(opt => <MenuItem sx={{fontSize: 11}} key={opt.value} value={opt.value}>{opt.label}</MenuItem>)}
+                          {AUTO_SAVE_INTERVALS.map(opt => <MenuItem sx={{ fontSize: 11 }} key={opt.value} value={opt.value}>{opt.label}</MenuItem>)}
                         </Select>
                       </FormControl>
                     )}
                   </Box>
                 </Box>
-                
+
                 {/* Export / Import */}
                 <Box sx={{ flex: 1, borderLeft: "1px solid rgba(0,0,0,0.06)", pl: 2.5, display: "flex", flexDirection: "column", gap: 1.5, justifyContent: "center" }}>
                   <Typography sx={labelSx}>Local Backup</Typography>
@@ -356,10 +371,10 @@ export default function CustomizationPanel({ open, onClose, notes, onImportNotes
                     dNode.setAttribute("href", dataStr);
                     dNode.setAttribute("download", `docbook-backup-${new Date().toISOString().slice(0, 10)}.json`);
                     document.body.appendChild(dNode); dNode.click(); dNode.remove();
-                  }} disableElevation sx={{ py: 1, borderRadius: 2, bgcolor: "#10b981", "&:hover": {bgcolor: "#059669"}, textTransform: "none", fontWeight: 600, fontSize: 12 }}>
+                  }} disableElevation sx={{ py: 1, borderRadius: 2, bgcolor: "#10b981", "&:hover": { bgcolor: "#059669" }, textTransform: "none", fontWeight: 600, fontSize: 12 }}>
                     Export JSON
                   </Button>
-                  <Button variant="outlined" component="label" sx={{ py: 1, borderRadius: 2, borderColor: "rgba(0,0,0,0.1)", color: "#475569", textTransform: "none", fontWeight: 600, fontSize: 12, "&:hover": {bgcolor: "#f8fafc"} }}>
+                  <Button variant="outlined" component="label" sx={{ py: 1, borderRadius: 2, borderColor: "rgba(0,0,0,0.1)", color: "#475569", textTransform: "none", fontWeight: 600, fontSize: 12, "&:hover": { bgcolor: "#f8fafc" } }}>
                     Import JSON
                     <input type="file" hidden accept=".json" onChange={onImportNotes} />
                   </Button>
@@ -373,10 +388,10 @@ export default function CustomizationPanel({ open, onClose, notes, onImportNotes
             <Box sx={bentoCardSx}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
                 <Box>
-                  <Typography sx={{...cardTitleSx, mb: 0}}>People</Typography>
-                  <Typography sx={{...cardSubtitleSx, mb: 0}}>For @mentions inside the editor</Typography>
+                  <Typography sx={{ ...cardTitleSx, mb: 0 }}>People</Typography>
+                  <Typography sx={{ ...cardSubtitleSx, mb: 0 }}>For @mentions inside the editor</Typography>
                 </Box>
-                <Button onClick={addPerson} variant="text" sx={{ borderRadius: 2, color: "#0071e3", fontWeight: 600, fontSize: 12, py: 0.5, px: 1, "&:hover": {bgcolor: "#eff6ff"} }}>
+                <Button onClick={addPerson} variant="text" sx={{ borderRadius: 2, color: "#0071e3", fontWeight: 600, fontSize: 12, py: 0.5, px: 1, "&:hover": { bgcolor: "#eff6ff" } }}>
                   + Add Next
                 </Button>
               </Stack>
@@ -387,11 +402,11 @@ export default function CustomizationPanel({ open, onClose, notes, onImportNotes
                       <Stack spacing={0.8}>
                         <Stack direction="row" spacing={0.8}>
                           <InputBase placeholder="Name" value={person.name} onChange={(e) => updatePerson(person.id, "name", e.target.value)} sx={fieldSx} />
-                          <InputBase placeholder="@handle" value={person.handle} onChange={(e) => updatePerson(person.id, "handle", e.target.value)} sx={{...fieldSx, flex: 0.5}} />
+                          <InputBase placeholder="@handle" value={person.handle} onChange={(e) => updatePerson(person.id, "handle", e.target.value)} sx={{ ...fieldSx, flex: 0.5 }} />
                         </Stack>
                         <Stack direction="row" spacing={0.8} alignItems="center">
                           <InputBase placeholder="Role" value={person.role} onChange={(e) => updatePerson(person.id, "role", e.target.value)} sx={fieldSx} />
-                          <IconButton size="small" onClick={() => removePerson(person.id)} sx={{ color: "#ef4444", bgcolor: "#fef2f2", "&:hover": {bgcolor: "#fee2e2"}, width: 28, height: 28, borderRadius: 1.5 }}>
+                          <IconButton size="small" onClick={() => removePerson(person.id)} sx={{ color: "#ef4444", bgcolor: "#fef2f2", "&:hover": { bgcolor: "#fee2e2" }, width: 28, height: 28, borderRadius: 1.5 }}>
                             <DeleteRoundedIcon sx={{ fontSize: 15 }} />
                           </IconButton>
                         </Stack>
@@ -413,10 +428,10 @@ export default function CustomizationPanel({ open, onClose, notes, onImportNotes
             <Box sx={bentoCardSx}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
                 <Box>
-                  <Typography sx={{...cardTitleSx, mb: 0}}>Folders</Typography>
-                  <Typography sx={{...cardSubtitleSx, mb: 0}}>For #mentions inside the editor</Typography>
+                  <Typography sx={{ ...cardTitleSx, mb: 0 }}>Folders</Typography>
+                  <Typography sx={{ ...cardSubtitleSx, mb: 0 }}>For #mentions inside the editor</Typography>
                 </Box>
-                <Button onClick={addFolder} variant="text" sx={{ borderRadius: 2, color: "#0071e3", fontWeight: 600, fontSize: 12, py: 0.5, px: 1, "&:hover": {bgcolor: "#eff6ff"} }}>
+                <Button onClick={addFolder} variant="text" sx={{ borderRadius: 2, color: "#0071e3", fontWeight: 600, fontSize: 12, py: 0.5, px: 1, "&:hover": { bgcolor: "#eff6ff" } }}>
                   + Add Next
                 </Button>
               </Stack>
@@ -431,7 +446,7 @@ export default function CustomizationPanel({ open, onClose, notes, onImportNotes
                         </Stack>
                         <Stack direction="row" spacing={0.8} alignItems="center">
                           <InputBase placeholder="Description" value={folder.description} onChange={(e) => updateFolder(folder.id, "description", e.target.value)} sx={fieldSx} />
-                          <IconButton size="small" onClick={() => removeFolder(folder.id)} sx={{ color: "#ef4444", bgcolor: "#fef2f2", "&:hover": {bgcolor: "#fee2e2"}, width: 28, height: 28, borderRadius: 1.5 }}>
+                          <IconButton size="small" onClick={() => removeFolder(folder.id)} sx={{ color: "#ef4444", bgcolor: "#fef2f2", "&:hover": { bgcolor: "#fee2e2" }, width: 28, height: 28, borderRadius: 1.5 }}>
                             <DeleteRoundedIcon sx={{ fontSize: 15 }} />
                           </IconButton>
                         </Stack>

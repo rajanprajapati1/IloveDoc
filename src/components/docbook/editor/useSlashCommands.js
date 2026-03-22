@@ -342,7 +342,7 @@ export default function useSlashCommands({
 
     if (item.kind === "map" && item.value) {
       const mapUrl = `https://www.google.com/maps/search/${encodeURIComponent(item.value)}`;
-      const mapHtml = `<span data-location="${item.value.replace(/"/g, "&quot;")}" data-location-url="${mapUrl}" contenteditable="false" style="display:inline-flex;align-items:center;gap:0.25em;vertical-align:middle;border-radius:999px;padding:0.08em 0.34em;margin:0 0.04em;background:rgba(255,252,247,0.92);border:1px solid rgba(139,94,60,0.16);box-shadow:0 8px 18px rgba(92,61,46,0.12);color:#3e2f24;line-height:1;user-select:none;cursor:pointer;font-size:0.42em;font-weight:700">📍 ${item.value}</span>\u00A0`;
+      const mapHtml = `<a href="${mapUrl}" target="_blank" rel="noopener noreferrer" data-location="${item.value.replace(/"/g, "&quot;")}" style="display:inline-flex;align-items:center;gap:0.3em;vertical-align:middle;border-radius:999px;padding:0.18em 0.6em;margin:0 0.1em;background:rgba(255,248,240,0.96);border:1px solid rgba(139,94,60,0.22);box-shadow:0 2px 8px rgba(92,61,46,0.1);color:#3e2f24;text-decoration:none;line-height:1.4;font-size:0.88em;font-weight:600;cursor:pointer;">📍 ${item.value}</a>&nbsp;`;
       document.execCommand("insertHTML", false, mapHtml);
       if (onEditorInput) onEditorInput();
       return;

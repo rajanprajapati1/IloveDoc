@@ -177,7 +177,17 @@ export default function DocbookOverlays({
         }}
       />
 
-      <Popover open={Boolean(colorAnchorEl)} anchorEl={colorAnchorEl} onClose={() => setColorAnchorEl(null)} anchorOrigin={{ vertical: "bottom", horizontal: "center" }} transformOrigin={{ vertical: "top", horizontal: "center" }} PaperProps={{ sx: { borderRadius: 2.2, p: 1, border: "1px solid #ddd0c0", bgcolor: "#f6eee3" } }}>
+      <Popover
+        disableRestoreFocus
+        disableAutoFocus
+        disableEnforceFocus
+        open={Boolean(colorAnchorEl)}
+        anchorEl={colorAnchorEl}
+        onClose={() => setColorAnchorEl(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+        transformOrigin={{ vertical: "top", horizontal: "center" }}
+        PaperProps={{ sx: { borderRadius: 2.2, p: 1, border: "1px solid #ddd0c0", bgcolor: "#f6eee3" } }}
+      >
         <Stack direction="row" spacing={0.7}>
           {colorOptions.map((color) => (
             <IconButton
@@ -195,7 +205,15 @@ export default function DocbookOverlays({
         </Stack>
       </Popover>
 
-      <Menu open={Boolean(fontFamilyAnchorEl)} anchorEl={fontFamilyAnchorEl} onClose={() => setFontFamilyAnchorEl(null)} PaperProps={{ sx: { borderRadius: 2.2, border: "1px solid #ddd0c0", bgcolor: "#f6eee3", minWidth: 150, boxShadow: "0 12px 30px rgba(58, 46, 34, 0.18)" } }}>
+      <Menu
+        disableRestoreFocus
+        disableAutoFocus
+        disableEnforceFocus
+        open={Boolean(fontFamilyAnchorEl)}
+        anchorEl={fontFamilyAnchorEl}
+        onClose={() => setFontFamilyAnchorEl(null)}
+        PaperProps={{ sx: { borderRadius: 2.2, border: "1px solid #ddd0c0", bgcolor: "#f6eee3", minWidth: 150, boxShadow: "0 12px 30px rgba(58, 46, 34, 0.18)" } }}
+      >
         {[
           { label: "Default", value: "inherit" },
           { label: "Serif", value: "Georgia, serif" },
@@ -218,7 +236,15 @@ export default function DocbookOverlays({
         ))}
       </Menu>
 
-      <Menu open={Boolean(fontSizeAnchorEl)} anchorEl={fontSizeAnchorEl} onClose={() => setFontSizeAnchorEl(null)} PaperProps={{ sx: { borderRadius: 2.2, border: "1px solid #ddd0c0", bgcolor: "#f6eee3", minWidth: 150, boxShadow: "0 12px 30px rgba(58, 46, 34, 0.18)" } }}>
+      <Menu
+        disableRestoreFocus
+        disableAutoFocus
+        disableEnforceFocus
+        open={Boolean(fontSizeAnchorEl)}
+        anchorEl={fontSizeAnchorEl}
+        onClose={() => setFontSizeAnchorEl(null)}
+        PaperProps={{ sx: { borderRadius: 2.2, border: "1px solid #ddd0c0", bgcolor: "#f6eee3", minWidth: 150, boxShadow: "0 12px 30px rgba(58, 46, 34, 0.18)" } }}
+      >
         {presetFontSizes.map((fontSize) => (
           <MenuItem
             key={fontSize}
@@ -238,7 +264,15 @@ export default function DocbookOverlays({
         ))}
       </Menu>
 
-      <Menu open={Boolean(headingAnchorEl)} anchorEl={headingAnchorEl} onClose={() => setHeadingAnchorEl(null)} PaperProps={{ sx: { borderRadius: 2.2, border: "1px solid #ddd0c0", bgcolor: "#f6eee3", minWidth: 210, boxShadow: "0 12px 30px rgba(58, 46, 34, 0.18)" } }}>
+      <Menu
+        disableRestoreFocus
+        disableAutoFocus
+        disableEnforceFocus
+        open={Boolean(headingAnchorEl)}
+        anchorEl={headingAnchorEl}
+        onClose={() => setHeadingAnchorEl(null)}
+        PaperProps={{ sx: { borderRadius: 2.2, border: "1px solid #ddd0c0", bgcolor: "#f6eee3", minWidth: 210, boxShadow: "0 12px 30px rgba(58, 46, 34, 0.18)" } }}
+      >
         {headingOptions.map((option) => (
           <MenuItem
             key={option.value}
@@ -260,7 +294,16 @@ export default function DocbookOverlays({
         ))}
       </Menu>
 
-      <Popover open={Boolean(linkAnchorEl)} anchorEl={linkAnchorEl} onClose={() => { setLinkAnchorEl(null); setLinkDraft(""); }} anchorOrigin={{ vertical: "bottom", horizontal: "center" }} transformOrigin={{ vertical: "top", horizontal: "center" }} PaperProps={{ sx: { borderRadius: 2.2, p: 1.2, border: "1px solid #ddd0c0", bgcolor: "#f6eee3", minWidth: 300 } }}>
+      <Popover
+        disableRestoreFocus
+        disableEnforceFocus
+        open={Boolean(linkAnchorEl)}
+        anchorEl={linkAnchorEl}
+        onClose={() => { setLinkAnchorEl(null); setLinkDraft(""); }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+        transformOrigin={{ vertical: "top", horizontal: "center" }}
+        PaperProps={{ sx: { borderRadius: 2.2, p: 1.2, border: "1px solid #ddd0c0", bgcolor: "#f6eee3", minWidth: 300 } }}
+      >
         <Stack spacing={1}>
           <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: "#3b342d" }}>Insert Link</Typography>
           <TextField
@@ -301,7 +344,17 @@ export default function DocbookOverlays({
         </Stack>
       </Popover>
 
-      <Popover open={Boolean(imageAnchorEl)} anchorEl={imageAnchorEl} onClose={() => setImageAnchorEl(null)} anchorOrigin={{ vertical: "bottom", horizontal: "center" }} transformOrigin={{ vertical: "top", horizontal: "center" }} PaperProps={{ sx: { borderRadius: 2.2, p: 1.2, border: "1px solid #ddd0c0", bgcolor: "#f6eee3", minWidth: 300 } }}>
+      <Popover
+        disableRestoreFocus
+        disableAutoFocus
+        disableEnforceFocus
+        open={Boolean(imageAnchorEl)}
+        anchorEl={imageAnchorEl}
+        onClose={() => setImageAnchorEl(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+        transformOrigin={{ vertical: "top", horizontal: "center" }}
+        PaperProps={{ sx: { borderRadius: 2.2, p: 1.2, border: "1px solid #ddd0c0", bgcolor: "#f6eee3", minWidth: 300 } }}
+      >
         <Stack spacing={1}>
           <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: "#3b342d" }}>Attach Image</Typography>
           <Typography sx={{ fontSize: 11.5, color: "#6a6054" }}>Select text first to bind image preview to that text. You can also drag and drop images directly into the editor.</Typography>
@@ -312,7 +365,15 @@ export default function DocbookOverlays({
         </Stack>
       </Popover>
 
-      <Menu anchorEl={listMenuAnchorEl} open={Boolean(listMenuAnchorEl)} onClose={() => setListMenuAnchorEl(null)} PaperProps={{ sx: { borderRadius: 2.2, border: "1px solid #ddd0c0", bgcolor: "#f6eee3", minWidth: 200, boxShadow: "0 12px 30px rgba(58, 46, 34, 0.18)" } }}>
+      <Menu
+        disableRestoreFocus
+        disableAutoFocus
+        disableEnforceFocus
+        anchorEl={listMenuAnchorEl}
+        open={Boolean(listMenuAnchorEl)}
+        onClose={() => setListMenuAnchorEl(null)}
+        PaperProps={{ sx: { borderRadius: 2.2, border: "1px solid #ddd0c0", bgcolor: "#f6eee3", minWidth: 200, boxShadow: "0 12px 30px rgba(58, 46, 34, 0.18)" } }}
+      >
         {[
           { label: "Bullet List", icon: <FormatListBulletedRoundedIcon sx={{ fontSize: 18 }} />, action: () => { restoreSelectionRange(); runCommand("insertUnorderedList"); } },
           { label: "Numbered List (1, 2, 3)", icon: <FormatListNumberedRoundedIcon sx={{ fontSize: 18 }} />, action: () => { restoreSelectionRange(); runCommand("insertOrderedList"); } },
@@ -352,7 +413,16 @@ export default function DocbookOverlays({
         ))}
       </Menu>
 
-      <Popover open={Boolean(noteAnchorEl)} anchorEl={noteAnchorEl} onClose={() => { setNoteAnchorEl(null); setNoteDraft(""); }} anchorOrigin={{ vertical: "bottom", horizontal: "center" }} transformOrigin={{ vertical: "top", horizontal: "center" }} PaperProps={{ sx: { borderRadius: 2.2, p: 1.2, border: "1px solid #ddd0c0", bgcolor: "#f6eee3", minWidth: 300 } }}>
+      <Popover
+        disableRestoreFocus
+        disableEnforceFocus
+        open={Boolean(noteAnchorEl)}
+        anchorEl={noteAnchorEl}
+        onClose={() => { setNoteAnchorEl(null); setNoteDraft(""); }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+        transformOrigin={{ vertical: "top", horizontal: "center" }}
+        PaperProps={{ sx: { borderRadius: 2.2, p: 1.2, border: "1px solid #ddd0c0", bgcolor: "#f6eee3", minWidth: 300 } }}
+      >
         <Stack spacing={1}>
           <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: "#3b342d" }}>Attach Note</Typography>
           <Typography sx={{ fontSize: 11.5, color: "#6a6054" }}>Add a note annotation to the selected text. Hover to preview.</Typography>

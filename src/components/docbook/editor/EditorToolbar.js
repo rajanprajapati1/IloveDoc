@@ -42,6 +42,26 @@ export default function EditorToolbar({
   const titleInputRef = useRef(null);
   const [titleSlashMenu, setTitleSlashMenu] = useState({ visible: false, query: "", selectedIndex: 0 });
 
+  /* ── Local title state for fluid typing ── */
+  const [localTitle, setLocalTitle] = useState(activeNote?.title ?? "");
+  const debounceRef = useRef(null);
+  const noteIdRef = useRef(activeNote?.id);
+
+  // Sync local title when switching notes (different note id) or when title changes externally
+  useEffect(() => {
+    if (activeNote?.id !== noteIdRef.current) {
+      // Note switched — immediately sync
+      noteIdRef.current = activeNote?.id;
+      setLocalTitle(activeNote?.title ?? "");
+    } else if (!titleInputRef.current || document.activeElement !== titleInputRef.current) {
+      // Not focused — accept external updates (e.g. slash command from AI)
+      setLocalTitle(activeNote?.title ?? "");
+    }
+  }, [activeNote?.id, activeNote?.title]);
+
+  // Cleanup debounce on unmount
+  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
+
   const handleTopFontDecrease = onNoteFontSizeDecrease || onFontSizeDecrease;
   const handleTopFontIncrease = onNoteFontSizeIncrease || onFontSizeIncrease;
 
@@ -80,8 +100,17 @@ export default function EditorToolbar({
 
   const handleTitleChange = useCallback(
     (event) => {
-      if (onTitleChange) onTitleChange(event);
       const value = event.target.value;
+      // Update local state immediately for fluid typing
+      setLocalTitle(value);
+
+      // Debounce the expensive parent update
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        if (onTitleChange) onTitleChange({ target: { value } });
+      }, 300);
+
+      // Slash menu logic (instant, no debounce needed)
       const match = value.match(/(\/[a-z][a-z0-9 ]*)$/i);
       if (match) {
         const token = match[1].toLowerCase();
@@ -98,10 +127,11 @@ export default function EditorToolbar({
 
   const applyTitleSlashSuggestion = useCallback(
     (item) => {
-      const currentTitle = activeNote?.title ?? "";
+      const currentTitle = localTitle;
       const match = currentTitle.match(/(\/[a-z][a-z0-9 ]*)$/i);
       if (!match) return;
       const newTitle = currentTitle.slice(0, match.index) + item.value;
+      setLocalTitle(newTitle);
       if (onTitleChange) onTitleChange({ target: { value: newTitle } });
       closeTitleSlashMenu();
       requestAnimationFrame(() => {
@@ -112,7 +142,7 @@ export default function EditorToolbar({
         }
       });
     },
-    [activeNote?.title, onTitleChange, closeTitleSlashMenu]
+    [localTitle, onTitleChange, closeTitleSlashMenu]
   );
 
   const handleTitleKeyDown = useCallback(
@@ -184,7 +214,7 @@ export default function EditorToolbar({
             <Box
               ref={titleInputRef}
               component="input"
-              value={activeNote?.title ?? ""}
+              value={localTitle}
               placeholder="Untitled"
               onChange={handleTitleChange}
               onKeyDown={handleTitleKeyDown}

@@ -4,18 +4,21 @@ import { useState, useCallback, useEffect } from "react";
 import { Box } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { noteColorOptions } from "../shared";
+import { loadAppearanceSettings } from "../CustomizationPanel";
 import StickyNoteBoard from "../StickyNoteBoard";
 
 import useSlashCommands from "./useSlashCommands";
 import useTokenSuggestions from "./useTokenSuggestions";
 import useEditorKeyDown from "./useEditorKeyDown";
 import useEditorEvents from "./useEditorEvents";
+import useGrammarChecker from "./useGrammarChecker";
 
 import EditorToolbar from "./EditorToolbar";
 import EditorConnectionsDock from "./EditorConnectionsDock";
 import EditorContentArea from "./EditorContentArea";
 import SlashCommandMenu from "./SlashCommandMenu";
 import TokenMenu from "./TokenMenu";
+import GrammarOverlay from "./GrammarOverlay";
 
 export default function DocbookEditorSurface({
   activeNote,
@@ -75,10 +78,39 @@ export default function DocbookEditorSurface({
   const editorFontScale = activeNote?.fontScale || 1;
   const imageEntries = Object.entries(imageUrlMap);
 
+  /* ── Dynamic selection highlight color ── */
+  useEffect(() => {
+    const applySelectionColor = () => {
+      const { selectionColor } = loadAppearanceSettings();
+      const color = selectionColor || "#b3e5fc";
+      let tag = document.getElementById("docbook-selection-style");
+      if (!tag) {
+        tag = document.createElement("style");
+        tag.id = "docbook-selection-style";
+        document.head.appendChild(tag);
+      }
+      tag.textContent = `::selection { background-color: ${color}; color: inherit; }`;
+    };
+    applySelectionColor();
+    window.addEventListener("docbook-appearance-changed", applySelectionColor);
+    return () => window.removeEventListener("docbook-appearance-changed", applySelectionColor);
+  }, []);
+
+  /* ── Hooks ── */
+  const { mappedLints, applySuggestion, updateRects, triggerLint } = useGrammarChecker({
+    editorRef,
+  });
+
+  useEffect(() => {
+    // Initial lint for existing content
+    triggerLint();
+  }, [activeNote?.id, triggerLint]);
+
   /* ── Scroll state ── */
   const refreshEditorScrollState = useCallback(() => {
     const editor = editorRef?.current;
     if (!editor) return;
+    updateRects();
     setEditorScrollState((prev) => {
       const next = {
         scrollTop: editor.scrollTop,
@@ -88,9 +120,13 @@ export default function DocbookEditorSurface({
       if (prev.scrollTop === next.scrollTop && prev.viewportHeight === next.viewportHeight && prev.contentHeight === next.contentHeight) return prev;
       return next;
     });
-  }, [editorRef]);
+  }, [editorRef, updateRects]);
 
-  /* ── Hooks ── */
+  const handleWrappedEditorInput = useCallback((event) => {
+    if (onEditorInput) onEditorInput(event);
+    triggerLint();
+  }, [onEditorInput, triggerLint]);
+
   const {
     slashMenu,
     setSlashMenu,
@@ -102,7 +138,7 @@ export default function DocbookEditorSurface({
   } = useSlashCommands({
     activeNote,
     stickyNotes,
-    onEditorInput,
+    onEditorInput: handleWrappedEditorInput,
     onAddStickyNote,
     onOpenStickyNote,
   });
@@ -117,7 +153,7 @@ export default function DocbookEditorSurface({
   } = useTokenSuggestions({
     customPeople,
     customFolders,
-    onEditorInput,
+    onEditorInput: handleWrappedEditorInput,
     onPeopleChange,
     onFoldersChange,
   });
@@ -143,7 +179,7 @@ export default function DocbookEditorSurface({
     handleEditorScroll,
   } = useEditorEvents({
     editorRef,
-    onEditorInput,
+    onEditorInput: handleWrappedEditorInput,
     onEditorBlur,
     onEditorSelectionChange,
     onEditorClick,
@@ -171,7 +207,7 @@ export default function DocbookEditorSurface({
     activeTokenSuggestions,
     applyTokenSuggestion,
     closeTokenMenu,
-    onEditorInput,
+    onEditorInput: handleWrappedEditorInput,
   });
 
   /* ── Sticky notes toggle ── */
@@ -191,7 +227,7 @@ export default function DocbookEditorSurface({
     const handleResize = () => refreshEditorScrollState();
     window.addEventListener("resize", handleResize);
     return () => { window.removeEventListener("resize", handleResize); };
-  }, [activeNote?.id, activeNote?.content, editorFontScale, editorRef, refreshEditorScrollState]);
+  }, [activeNote?.id, editorFontScale, editorRef, refreshEditorScrollState]);
 
   return (
     <Box
@@ -328,6 +364,7 @@ export default function DocbookEditorSurface({
           }}
         />
 
+
         {/* Editor content area */}
         <EditorContentArea
           editorRef={editorRef}
@@ -348,6 +385,13 @@ export default function DocbookEditorSurface({
           handlePaste={handlePaste}
         />
 
+        {/* Grammar overlay */}
+        <GrammarOverlay
+          mappedLints={mappedLints}
+          applySuggestion={applySuggestion}
+          editorRef={editorRef}
+          scrollTop={editorScrollState.scrollTop}
+        />
         {/* Slash command menu */}
         <SlashCommandMenu
           slashMenu={slashMenu}

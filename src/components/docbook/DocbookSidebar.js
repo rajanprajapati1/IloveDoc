@@ -248,40 +248,6 @@ function NoteTitleLink({
                     No sticky notes linked to this note yet.
                   </Typography>
                 )}
-                {/* <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: stickyNoteCount ? 0.95 : 0 }}>
-                  {customEmojis.map((code) => {
-                    const emoji = ALL_EMOJIS.find((e) => e.code === code);
-                    const selected = code === activeReactionCode;
-
-                    return (
-                      <Tooltip key={code} title={emoji?.label || code} arrow placement="bottom" slotProps={tooltipSlotProps}>
-                        <Box
-                          component="button"
-                          onClick={(e) => { e.stopPropagation(); onToggleReaction?.(note.id, code); }}
-                          sx={{
-                            width: 25,
-                            height: 25,
-                            borderRadius: "50%",
-                            border: selected ? `1px solid ${alpha(noteColor, 0.5)}` : "1px solid rgba(0,0,0,0.06)",
-                            bgcolor: selected ? alpha(noteColor, 0.14) : "rgba(255,255,255,0.7)",
-                            display: "grid",
-                            placeItems: "center",
-                            cursor: "pointer",
-                            p: 0,
-                            transition: "transform 150ms ease, background-color 150ms ease",
-                            "&:hover": { transform: "scale(1.68)", bgcolor: alpha(noteColor, 0.15) },
-                          }}
-                        >
-                          {emoji?.animated ? (
-                            <Box component="img" src={emoji.animated} alt={emoji.label} sx={{ width: 18, height: 18, objectFit: "contain" }} />
-                          ) : (
-                            <Typography sx={{ fontSize: 11, lineHeight: 1 }}>{code}</Typography>
-                          )}
-                        </Box>
-                      </Tooltip>
-                    );
-                  })}
-                </Stack> */}
               </Box>
             </Box>
           }

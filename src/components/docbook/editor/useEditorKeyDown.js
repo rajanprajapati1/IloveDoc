@@ -87,7 +87,20 @@ export default function useEditorKeyDown({
       }
 
       const sel = window.getSelection();
-      if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return;
+      if (!sel || sel.rangeCount === 0) return;
+
+      /* ── If selection is active, let browser collapse it natively on arrow keys.
+             We just return early so our rich-token boundary code doesn't fire. ── */
+      if (!sel.isCollapsed) {
+        const key = event.key;
+        if (key === "ArrowLeft" || key === "ArrowRight") {
+          // Don't preventDefault — let the browser collapse naturally (Left→start, Right→end).
+          // Return so our rich-token-boundary logic below doesn't also run.
+          return;
+        }
+        // For any other key with an active selection, let the browser handle it.
+        return;
+      }
 
       const node = sel.anchorNode;
       if (!node) return;

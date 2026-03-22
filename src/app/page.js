@@ -802,70 +802,8 @@ export default function Home() {
     async (file) => {
       restoreSelectionRange();
       await addImageToEditor(file, { mode: imageMode, preferSaved: true });
-      return;
-
-      if (!activeNoteId || !file) return;
-
-      const imageId = buildId();
-      await docbookDb.images.put({
-        id: imageId,
-        noteId: activeNoteId,
-        blob: file,
-        name: file.name,
-        mimeType: file.type || "image/*",
-        createdAt: new Date().toISOString(),
-      });
-
-      const nextMap = { ...objectUrlMapRef.current, [imageId]: URL.createObjectURL(file) };
-      objectUrlMapRef.current = nextMap;
-      setImageUrlMap(nextMap);
-
-      restoreSelectionRange();
-      const selection = window.getSelection();
-      const editor = editorRef.current;
-      if (!selection || !editor || selection.rangeCount === 0) return;
-
-      const range = selection.getRangeAt(0);
-      const commonNode =
-        range.commonAncestorContainer.nodeType === 3
-          ? range.commonAncestorContainer.parentNode
-          : range.commonAncestorContainer;
-
-      if (!commonNode || !editor.contains(commonNode)) return;
-
-      const hasSelection = !selection.isCollapsed;
-      const label = hasSelection ? range.toString().trim() : file.name || "image";
-
-      const token = document.createElement("span");
-      token.setAttribute("data-img-ref", imageId);
-      token.setAttribute("data-img-label", label || "image");
-
-      if (imageMode === "insert" || !hasSelection) {
-        /* Insert mode or no selection — put a 📷 token at cursor */
-        token.textContent = "📷";
-        range.collapse(false);
-        range.insertNode(token);
-      } else {
-        /* Attach mode with selection — WRAP the text, keep it visible with green dot */
-        try {
-          range.surroundContents(token);
-        } catch {
-          const fragment = range.extractContents();
-          token.appendChild(fragment);
-          range.insertNode(token);
-        }
-      }
-
-      const after = document.createRange();
-      after.setStartAfter(token);
-      after.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(after);
-
-      syncEditorHtml();
-      window.requestAnimationFrame(updateSelectionMenuPosition);
     },
-    [activeNoteId, addImageToEditor, imageMode, restoreSelectionRange, syncEditorHtml, updateSelectionMenuPosition]
+    [addImageToEditor, imageMode, restoreSelectionRange]
   );
 
   const handleEditorSelectionChange = useCallback(() => {
@@ -1608,8 +1546,25 @@ export default function Home() {
     setLiveNoteFontScale(activeNote?.fontScale || 1);
   }, [activeNoteId, activeNote?.fontScale]);
 
+  const loadedNoteIdRef = useRef(null);
+
   useEffect(() => {
     if (!editorRef.current || !activeNote) return;
+
+    // Fast-path: We switched to a different note. We MUST load its content.
+    if (loadedNoteIdRef.current !== activeNoteId) {
+      editorRef.current.innerHTML = activeNote.content || "";
+      loadedNoteIdRef.current = activeNoteId;
+      return;
+    }
+
+    // Danger-path: We are on the same note, but its state content changed.
+    // NEVER overwrite the DOM if the user is currently typing/focused in it,
+    // as blasting innerHTML destroys the native selection (cursor jumps to top).
+    if (document.activeElement === editorRef.current) {
+      return;
+    }
+
     const normCurrent = editorRef.current.innerHTML.replace(/[\u200B-\u200D\uFEFF]/g, "");
     const normActive = (activeNote.content || "").replace(/[\u200B-\u200D\uFEFF]/g, "");
     if (normCurrent !== normActive) {

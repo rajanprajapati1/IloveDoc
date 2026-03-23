@@ -76,7 +76,7 @@ export default function TokenMenu({
           }}
         >
           <Typography sx={{ fontSize: 11, fontWeight: 800, color: "#6a5a49", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-            {tokenMenu.tokenType === "mention" ? "People" : "Folders"}
+            {tokenMenu.tokenType === "mention" ? "People" : tokenMenu.tokenType === "folder" ? "Folders" : "Places"}
           </Typography>
           <Stack direction="row" spacing={0.5} alignItems="center">
             {onOpenCustomization && (
@@ -89,7 +89,7 @@ export default function TokenMenu({
               </IconButton>
             )}
             <Typography sx={{ color: "#6a5a49", fontSize: 14, fontWeight: 800, lineHeight: 1 }}>
-              {tokenMenu.tokenType === "mention" ? "@" : "#"}
+              {tokenMenu.tokenType === "mention" ? "@" : tokenMenu.tokenType === "folder" ? "#" : "!"}
             </Typography>
           </Stack>
         </Box>
@@ -110,7 +110,7 @@ export default function TokenMenu({
                 "&:hover": { bgcolor: alpha("#c4956a", 0.12) },
               }}
             >
-              {tokenMenu.tokenType === "mention" ? (
+                {tokenMenu.tokenType === "mention" ? (
                 <Stack direction="row" spacing={1.1} alignItems="center">
                   <Box
                     sx={{
@@ -167,13 +167,22 @@ export default function TokenMenu({
                     {item.__isHint && <Typography sx={{ fontSize: 11.5, color: "#7b6c5c", lineHeight: 1.2 }}>Start typing after @ to create or search a person</Typography>}
                   </Box>
                 </Stack>
-              ) : (
+              ) : tokenMenu.tokenType === "folder" ? (
                 <>
                   <Typography sx={{ fontSize: 13, fontWeight: 700, color: item.__isCreate || item.__isHint ? "#8b5e3c" : "#352f29" }}>
                     {item.__isHint ? item.name : item.__isCreate ? `+ Create #${item.path}` : item.path}
                   </Typography>
                   <Typography sx={{ fontSize: 11.5, color: "#7b6c5c" }}>
                     {item.__isHint ? "Start typing after # to create or search a folder" : item.__isCreate ? "Add as new folder & insert reference" : item.description}
+                  </Typography>
+                </>
+              ) : (
+                <>
+                  <Typography sx={{ fontSize: 13, fontWeight: 700, color: item.__isCreate || item.__isHint ? "#8b5e3c" : "#352f29" }}>
+                    {item.__isHint ? item.name : item.__isCreate ? `+ Create !${item.name}` : item.name}
+                  </Typography>
+                  <Typography sx={{ fontSize: 11.5, color: "#7b6c5c" }}>
+                    {item.__isHint ? "Start typing after ! to create or search a place" : item.__isCreate ? "Add as new location & insert mention" : item.address || item.description}
                   </Typography>
                 </>
               )}

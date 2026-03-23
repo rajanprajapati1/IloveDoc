@@ -7,7 +7,7 @@ import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
 import SellOutlinedIcon from "@mui/icons-material/SellOutlined";
 import changelogData from "./changelog.json";
 
-export default function ChangelogPanel({ accentColor = "#F7E36D" }) {
+export default function ChangelogPanel({ accentColor = "#fff" }) {
   return (
     <Box
       sx={{

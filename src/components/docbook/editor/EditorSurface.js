@@ -17,6 +17,7 @@ import EditorToolbar from "./EditorToolbar";
 import EditorConnectionsDock from "./EditorConnectionsDock";
 import EditorContentArea from "./EditorContentArea";
 import SlashCommandMenu from "./SlashCommandMenu";
+import TableControlsOverlay from "./TableControlsOverlay";
 import TokenMenu from "./TokenMenu";
 import GrammarOverlay from "./GrammarOverlay";
 
@@ -62,12 +63,21 @@ export default function DocbookEditorSurface({
   collapseSidebar,
   customPeople = [],
   customFolders = [],
+  customLocations = [],
   onOpenCustomization,
   onPeopleChange,
   onFoldersChange,
+  onLocationsChange,
   aiWorking = false,
 }) {
   const [stickyNotesVisible, setStickyNotesVisible] = useState(true);
+  const [grammarEnabled, setGrammarEnabled] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("docbook_grammar_enabled");
+      return stored !== null ? JSON.parse(stored) : true;
+    }
+    return true;
+  });
   const [editorScrollState, setEditorScrollState] = useState({
     scrollTop: 0,
     viewportHeight: 0,
@@ -103,8 +113,16 @@ export default function DocbookEditorSurface({
 
   useEffect(() => {
     // Initial lint for existing content
-    triggerLint();
-  }, [activeNote?.id, triggerLint]);
+    if (grammarEnabled) triggerLint();
+  }, [activeNote?.id, triggerLint, grammarEnabled]);
+
+  const toggleGrammar = useCallback(() => {
+    setGrammarEnabled((prev) => {
+      const next = !prev;
+      localStorage.setItem("docbook_grammar_enabled", JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   /* ── Scroll state ── */
   const refreshEditorScrollState = useCallback(() => {
@@ -124,8 +142,8 @@ export default function DocbookEditorSurface({
 
   const handleWrappedEditorInput = useCallback((event) => {
     if (onEditorInput) onEditorInput(event);
-    triggerLint();
-  }, [onEditorInput, triggerLint]);
+    if (grammarEnabled) triggerLint();
+  }, [onEditorInput, triggerLint, grammarEnabled]);
 
   const {
     slashMenu,
@@ -153,17 +171,16 @@ export default function DocbookEditorSurface({
   } = useTokenSuggestions({
     customPeople,
     customFolders,
+    customLocations,
     onEditorInput: handleWrappedEditorInput,
     onPeopleChange,
     onFoldersChange,
+    onLocationsChange,
   });
 
-  // We need setConnectionsDockOpen and setLinkSearchOpen for click handler
   // These are now managed inside EditorConnectionsDock, but editor click also needs to close them.
-  // For this, we use a simple ref-based approach: the click handler just clicks away.
-  // Actually the ClickAwayListener in EditorConnectionsDock handles this already.
   // We pass no-op stubs to useEditorEvents:
-  const noop = useCallback(() => {}, []);
+  const noop = useCallback(() => { }, []);
 
   const {
     dropCaret,
@@ -307,6 +324,8 @@ export default function DocbookEditorSurface({
           onOpenSelectionPanel={onOpenSelectionPanel}
           stickyNotesVisible={stickyNotesVisible}
           onToggleStickyNotes={toggleStickyNotesVisibility}
+          grammarEnabled={grammarEnabled}
+          onToggleGrammar={toggleGrammar}
           imageEntries={imageEntries}
           aiWorking={aiWorking}
           getDateSuggestions={getDateSuggestions}
@@ -385,13 +404,20 @@ export default function DocbookEditorSurface({
           handlePaste={handlePaste}
         />
 
-        {/* Grammar overlay */}
-        <GrammarOverlay
-          mappedLints={mappedLints}
-          applySuggestion={applySuggestion}
+        <TableControlsOverlay
           editorRef={editorRef}
-          scrollTop={editorScrollState.scrollTop}
+          onTableChange={handleWrappedEditorInput}
         />
+
+        {/* Grammar overlay */}
+        {grammarEnabled && (
+          <GrammarOverlay
+            mappedLints={mappedLints}
+            applySuggestion={applySuggestion}
+            editorRef={editorRef}
+            scrollTop={editorScrollState.scrollTop}
+          />
+        )}
         {/* Slash command menu */}
         <SlashCommandMenu
           slashMenu={slashMenu}

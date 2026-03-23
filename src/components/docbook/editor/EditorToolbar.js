@@ -11,6 +11,7 @@ import TextIncreaseRoundedIcon from "@mui/icons-material/TextIncreaseRounded";
 import StickyNote2RoundedIcon from "@mui/icons-material/StickyNote2Rounded";
 import ViewSidebarRoundedIcon from "@mui/icons-material/ViewSidebarRounded";
 import WorkspacesRoundedIcon from "@mui/icons-material/WorkspacesRounded";
+import SpellcheckRoundedIcon from "@mui/icons-material/SpellcheckRounded";
 import KeyboardOptionKeyRoundedIcon from "@mui/icons-material/KeyboardOptionKeyRounded";
 import { noteColorOptions, tooltipSlotProps } from "../shared";
 import { IOSSwitch } from "./constants";
@@ -38,6 +39,8 @@ export default function EditorToolbar({
   imageEntries = [],
   aiWorking = false,
   getDateSuggestions,
+  grammarEnabled = true,
+  onToggleGrammar,
 }) {
   const titleInputRef = useRef(null);
   const [titleSlashMenu, setTitleSlashMenu] = useState({ visible: false, query: "", selectedIndex: 0 });
@@ -355,6 +358,11 @@ export default function EditorToolbar({
         <Tooltip title="Increase Note Size" arrow slotProps={tooltipSlotProps}>
           <IconButton onMouseDown={(e) => e.preventDefault()} onClick={handleTopFontIncrease} size="small" sx={{ color: "#8b5e3c", bgcolor: alpha("#fffdf8", 0.76), border: "1px solid rgba(139,94,60,0.12)", boxShadow: "0 6px 18px rgba(93,62,40,0.08)", "&:hover": { bgcolor: alpha("#8b5e3c", 0.1) } }}>
             <TextIncreaseRoundedIcon sx={{ fontSize: 20 }} />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title={grammarEnabled ? "Disable Grammar Check" : "Enable Grammar Check"} arrow slotProps={tooltipSlotProps}>
+          <IconButton onClick={onToggleGrammar} size="small" sx={{ color: grammarEnabled ? "#2e7d32" : "#9a7653", bgcolor: grammarEnabled ? alpha("#e8f5e9", 0.92) : alpha("#fff8ef", 0.92), border: grammarEnabled ? "1px solid rgba(46,125,50,0.16)" : "1px solid rgba(139,94,60,0.12)", boxShadow: grammarEnabled ? "0 6px 18px rgba(46,125,50,0.08)" : "0 6px 18px rgba(93,62,40,0.08)", "&:hover": { bgcolor: grammarEnabled ? alpha("#66bb6a", 0.18) : alpha("#8b5e3c", 0.1) } }}>
+            <SpellcheckRoundedIcon sx={{ fontSize: 20 }} />
           </IconButton>
         </Tooltip>
         <Tooltip title={stickyNotesVisible ? "Hide Sticky Notes" : "Show Sticky Notes"} arrow slotProps={tooltipSlotProps}>

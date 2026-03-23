@@ -17,6 +17,7 @@ import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import CloudSyncRoundedIcon from "@mui/icons-material/CloudSyncRounded";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
+import PaletteRoundedIcon from '@mui/icons-material/PaletteRounded';
 import {
   Badge,
   Box,
@@ -30,6 +31,7 @@ import {
   MenuItem,
   Divider,
 } from "@mui/material";
+import RoomPreferencesRoundedIcon from '@mui/icons-material/RoomPreferencesRounded';
 import ListAltRoundedIcon from "@mui/icons-material/ListAltRounded";
 import { alpha } from "@mui/material/styles";
 import { HeartIcon, NotesSvg } from "@/assets/icon";
@@ -475,9 +477,11 @@ export default function DocbookSidebar({
   sidebarTint = "#F7E36D",
   showDeleted,
   showChangelog = false,
+  showSettings = false,
   stickyDragState,
   onToggleDeleted,
   onOpenChangelog,
+  onOpenSettingsPanel,
   onCreateNote,
   onOpenNote,
   onDeleteNote,
@@ -869,9 +873,12 @@ export default function DocbookSidebar({
             accentColor={sidebarTint}
           />
           <SidebarLink
-            label="Cloud Sync"
-            icon={<CloudSyncRoundedIcon sx={{ fontSize: 18 }} />}
-            onClick={onOpenSettings}
+            label="Settings"
+            icon={<SettingsRoundedIcon sx={{ fontSize: 18 }} />}
+            active={showSettings}
+            onClick={() => {
+              onOpenSettingsPanel?.(true);
+            }}
             isDrawer={isDrawer}
             isCollapsed={isCollapsed}
             accentColor={sidebarTint}
@@ -881,57 +888,6 @@ export default function DocbookSidebar({
             icon={<DownloadRoundedIcon sx={{ fontSize: 18 }} />}
             onClick={handleInstallApp}
             badge={deferredPrompt ? 1 : 0}
-            isDrawer={isDrawer}
-            isCollapsed={isCollapsed}
-            accentColor={sidebarTint}
-          />
-          <SidebarLink
-            label="Export Backup"
-            icon={<DownloadRoundedIcon sx={{ fontSize: 18, transform: "rotate(180deg)" }} />}
-            onClick={() => {
-              const data = JSON.stringify(notes);
-              const blob = new Blob([data], { type: "application/json" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = `docbook-backup-${new Date().toISOString().split('T')[0]}.json`;
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
-            isDrawer={isDrawer}
-            isCollapsed={isCollapsed}
-            accentColor={sidebarTint}
-          />
-          <SidebarLink
-            label="Import Backup"
-            icon={<AddRoundedIcon sx={{ fontSize: 18 }} />}
-            onClick={() => {
-              const input = document.createElement("input");
-              input.type = "file";
-              input.accept = ".json";
-              input.onchange = async (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = async (re) => {
-                  try {
-                    const imported = JSON.parse(re.target.result);
-                    if (Array.isArray(imported)) {
-                      if (confirm(`Import ${imported.length} notes? This will merge with your current notes.`)) {
-                        onImportNotes(imported);
-                        alert("Notes imported successfully!");
-                      }
-                    } else {
-                      alert("Invalid backup file format.");
-                    }
-                  } catch (err) {
-                    alert("Failed to parse backup file.");
-                  }
-                };
-                reader.readAsText(file);
-              };
-              input.click();
-            }}
             isDrawer={isDrawer}
             isCollapsed={isCollapsed}
             accentColor={sidebarTint}

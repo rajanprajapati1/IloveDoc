@@ -81,6 +81,7 @@ export function getEditorSx(editorFontScale = 1) {
       borderRadius: "10px",
       paddingInline: "0.24em",
       paddingBlock: 0,
+      marginInline: "0.12em",
       background: "linear-gradient(135deg, #5c3d2e 0%, #8b5e3c 100%)",
       color: "#fff8f0",
       lineHeight: "inherit",
@@ -132,8 +133,8 @@ export function getEditorSx(editorFontScale = 1) {
       boxShadow: "0 2px 10px rgba(139, 94, 60, 0.4)",
     },
 
-    /* User mention & folder ref chips */
-    "& span[data-user-mention], & span[data-folder-ref]": {
+    /* User mention, folder ref & location chips */
+    "& span[data-user-mention], & span[data-folder-ref], & span[data-location-ref]": {
       display: "inline-flex",
       alignItems: "center",
       gap: "0.28em",
@@ -151,7 +152,7 @@ export function getEditorSx(editorFontScale = 1) {
       WebkitUserSelect: "none",
       transition: "transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease",
     },
-    "& span[data-user-mention]:hover, & span[data-folder-ref]:hover": {
+    "& span[data-user-mention]:hover, & span[data-folder-ref]:hover, & span[data-location-ref]:hover": {
       transform: "translateY(-1px)",
       boxShadow: "0 12px 22px rgba(92, 61, 46, 0.16)",
       borderColor: "rgba(139, 94, 60, 0.28)",
@@ -169,14 +170,14 @@ export function getEditorSx(editorFontScale = 1) {
       boxShadow: "0 14px 24px rgba(223, 157, 108, 0.2), inset 0 1px 0 rgba(255,255,255,0.92)",
     },
     "& span[data-chip-avatar='true']": {
-      width: "1.26em",
-      height: "1.26em",
+      width: "1.8em",
+      height: "1.8em",
       borderRadius: "50%",
       display: "inline-flex",
       alignItems: "center",
       justifyContent: "center",
       color: "#fffdf8",
-      fontSize: "0.4em",
+      fontSize: "0.85em",
       fontWeight: 800,
       letterSpacing: "0.02em",
       boxShadow: "0 4px 10px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.26)",
@@ -190,7 +191,7 @@ export function getEditorSx(editorFontScale = 1) {
       lineHeight: 1,
     },
     "& span[data-chip-primary='true']": {
-      fontSize: "0.32em",
+      fontSize: "0.85em",
       fontWeight: 800,
       color: "#2f251e",
       lineHeight: 1.05,
@@ -204,7 +205,7 @@ export function getEditorSx(editorFontScale = 1) {
       minWidth: 0,
     },
     "& span[data-chip-secondary='true']": {
-      fontSize: "0.24em",
+      fontSize: "0.65em",
       fontWeight: 700,
       color: "rgba(106, 84, 67, 0.78)",
       lineHeight: 1.1,
@@ -212,29 +213,43 @@ export function getEditorSx(editorFontScale = 1) {
       letterSpacing: "0.01em",
     },
     "& span[data-chip-dot='true']": {
-      width: "0.16em",
-      height: "0.16em",
+      width: "0.24em",
+      height: "0.24em",
       borderRadius: "50%",
       background: "#22c55e",
       boxShadow: "0 0 0 0.05em rgba(34, 197, 94, 0.18)",
       flexShrink: 0,
     },
     "& span[data-chip-folder-icon='true']": {
-      width: "1.18em",
-      height: "1.18em",
+      width: "1.8em",
+      height: "1.8em",
       borderRadius: "50%",
       display: "inline-flex",
       alignItems: "center",
       justifyContent: "center",
       color: "#fffdf8",
       background: "linear-gradient(135deg, #6d4c41 0%, #9c6b4c 100%)",
-      fontSize: "0.48em",
+      fontSize: "0.85em",
+      fontWeight: 800,
+      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.26)",
+      flexShrink: 0,
+    },
+    "& span[data-chip-location-icon='true']": {
+      width: "1.8em",
+      height: "1.8em",
+      borderRadius: "50%",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "#fffdf8",
+      background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
+      fontSize: "0.85em",
       fontWeight: 800,
       boxShadow: "inset 0 1px 0 rgba(255,255,255,0.26)",
       flexShrink: 0,
     },
     "& span[data-chip-label='true']": {
-      fontSize: "0.42em",
+      fontSize: "0.85em",
       fontWeight: 700,
       lineHeight: 1.2,
       whiteSpace: "nowrap",
@@ -263,7 +278,34 @@ export function getEditorSx(editorFontScale = 1) {
     "& img": { maxWidth: "100%", height: "auto", borderRadius: 10, display: "block", marginTop: 12, marginBottom: 12 },
 
     /* Tables */
-    "& table": { tableLayout: "fixed" },
-    "& td, & th": { wordWrap: "break-word", whiteSpace: "normal" },
+    "& [data-table-wrap='true']": {
+      width: "100%",
+      maxWidth: "100%",
+      overflowX: "auto",
+      overflowY: "hidden",
+      my: "12px",
+      pb: "6px",
+      scrollbarWidth: "thin",
+      scrollbarColor: `${alpha("#8b5e3c", 0.34)} transparent`,
+    },
+    "& [data-table-wrap='true']::-webkit-scrollbar": {
+      height: 8,
+    },
+    "& [data-table-wrap='true']::-webkit-scrollbar-thumb": {
+      background: alpha("#8b5e3c", 0.28),
+      borderRadius: 999,
+    },
+    "& table": {
+      width: "max-content",
+      minWidth: "100%",
+      maxWidth: "none",
+      tableLayout: "auto",
+      borderCollapse: "collapse",
+      margin: 0,
+    },
+    "& td, & th": {
+      wordWrap: "break-word",
+      whiteSpace: "normal",
+    },
   };
 }

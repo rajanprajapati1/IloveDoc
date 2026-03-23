@@ -17,9 +17,11 @@ import { buildId } from "../shared";
 export default function useTokenSuggestions({
   customPeople = [],
   customFolders = [],
+  customLocations = [],
   onEditorInput,
   onPeopleChange,
   onFoldersChange,
+  onLocationsChange,
 }) {
   const [tokenMenu, setTokenMenu] = useState({
     visible: false,
@@ -73,6 +75,24 @@ export default function useTokenSuggestions({
       return matches;
     }
 
+    if (tokenMenu.tokenType === "location") {
+      const matches = customLocations.filter((loc) => {
+        if (!normalizedQuery) return true;
+        return (
+          loc.name.toLowerCase().includes(normalizedQuery) ||
+          loc.address.toLowerCase().includes(normalizedQuery) ||
+          loc.description.toLowerCase().includes(normalizedQuery)
+        );
+      });
+      if (!normalizedQuery && matches.length === 0) {
+        matches.push({ id: "__location_hint__", name: "Type a name to create or search", address: "", description: "No locations added yet", accent: "#0ea5e9", __isHint: true });
+      }
+      if (normalizedQuery && !customLocations.some((l) => l.name.toLowerCase() === normalizedQuery)) {
+        matches.push({ id: "__create_location__", name: normalizedQuery, address: "", description: "", accent: "#0ea5e9", __isCreate: true });
+      }
+      return matches;
+    }
+
     return [];
   })();
 
@@ -85,7 +105,7 @@ export default function useTokenSuggestions({
     if (!node || node.nodeType !== 3) return null;
 
     const beforeText = node.textContent?.slice(0, sel.anchorOffset) || "";
-    const match = beforeText.match(/(^|\s)([@#])([a-z0-9_./-]*)$/i);
+    const match = beforeText.match(/(^|\s)([@#!])([a-z0-9_./-\s]*)$/i);
     if (!match) return null;
 
     const prefix = match[2];
@@ -111,7 +131,7 @@ export default function useTokenSuggestions({
       return;
     }
 
-    const tokenType = context.prefix === "@" ? "mention" : context.prefix === "#" ? "folder" : "";
+    const tokenType = context.prefix === "@" ? "mention" : context.prefix === "#" ? "folder" : context.prefix === "!" ? "location" : "";
     if (!tokenType) {
       closeTokenMenu();
       return;
@@ -149,6 +169,12 @@ export default function useTokenSuggestions({
         const updatedFolders = [...customFolders, newFolder];
         localStorage.setItem("docbook_custom_folders", JSON.stringify(updatedFolders));
         onFoldersChange?.(updatedFolders);
+      } else if (item.__isCreate && tokenMenu.tokenType === "location") {
+        const newLoc = { id: buildId(), name: item.name, address: "", description: "", accent: "#0ea5e9" };
+        resolvedItem = newLoc;
+        const updatedLocations = [...customLocations, newLoc];
+        localStorage.setItem("docbook_custom_locations", JSON.stringify(updatedLocations));
+        onLocationsChange?.(updatedLocations);
       }
 
       const selection = window.getSelection();
@@ -190,7 +216,23 @@ export default function useTokenSuggestions({
         secondaryRow.append(secondary, dot);
         content.append(primary, secondaryRow);
         chip.append(avatar, content);
-      } else {
+      } else if (tokenMenu.tokenType === "location") {
+        chip.setAttribute("data-location-ref", resolvedItem.id);
+        chip.setAttribute("data-location-name", resolvedItem.name);
+        chip.setAttribute("data-location-address", resolvedItem.address);
+        chip.setAttribute("data-location-description", resolvedItem.description);
+
+        const icon = document.createElement("span");
+        icon.setAttribute("data-chip-location-icon", "true");
+        icon.textContent = "📍";
+
+        const label = document.createElement("span");
+        label.setAttribute("data-chip-label", "true");
+        label.textContent = resolvedItem.name;
+
+        chip.append(icon, label);
+      }
+      else {
         chip.setAttribute("data-folder-ref", resolvedItem.id);
         chip.setAttribute("data-folder-name", resolvedItem.name);
         chip.setAttribute("data-folder-path", resolvedItem.path);
@@ -222,7 +264,7 @@ export default function useTokenSuggestions({
       if (onEditorInput) onEditorInput();
       closeTokenMenu();
     },
-    [closeTokenMenu, getTokenContext, onEditorInput, tokenMenu.tokenType, customPeople, customFolders, onPeopleChange, onFoldersChange]
+    [closeTokenMenu, getTokenContext, onEditorInput, tokenMenu.tokenType, customPeople, customFolders, customLocations, onPeopleChange, onFoldersChange, onLocationsChange]
   );
 
   return {

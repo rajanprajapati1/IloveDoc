@@ -8,7 +8,7 @@ export function clamp(value, min, max) {
 }
 
 export const richTokenBoundarySelector =
-  "[data-highlight], [data-img-ref], [data-user-mention], [data-folder-ref]";
+  "[data-img-ref], [data-user-mention], [data-folder-ref]";
 
 export const IOSSwitch = styled((props) => (
   <Switch focusVisibleClassName=".Mui-focusVisible" disableRipple {...props} />

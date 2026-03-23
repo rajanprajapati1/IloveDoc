@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { richTokenBoundarySelector } from "./constants";
+import { createTableCell, getTableRootNode, removeTableAndInsertParagraph } from "./tableUtils";
 import { uncheckedIconSvg } from "../shared";
 
 /**
@@ -149,13 +150,19 @@ export default function useEditorKeyDown({
           const isRowEmpty = Array.from(tr.cells).every((c) => c.textContent.trim() === "" && !c.querySelector("img"));
 
           if (isRowEmpty) {
-            const p = document.createElement("p");
-            p.innerHTML = "<br>";
-            table.parentNode.insertBefore(p, table.nextSibling);
             tr.parentNode.removeChild(tr);
+            const tableRoot = getTableRootNode(table);
+            const insertAfterNode = tableRoot?.nextSibling || null;
+            const parentNode = tableRoot?.parentNode;
+            let p = document.createElement("p");
+            p.innerHTML = "<br>";
+
             if (tbody.children.length === 0) {
-              table.parentNode.removeChild(table);
+              p = removeTableAndInsertParagraph(table) || p;
+            } else if (parentNode) {
+              parentNode.insertBefore(p, insertAfterNode);
             }
+
             const newRange = document.createRange();
             newRange.setStart(p, 0);
             newRange.collapse(true);
@@ -167,11 +174,7 @@ export default function useEditorKeyDown({
               const newTr = document.createElement("tr");
               const numCols = tr.cells.length;
               for (let i = 0; i < numCols; i++) {
-                const newTd = document.createElement("td");
-                newTd.style.border = "1px solid #d9cab7";
-                newTd.style.padding = "6px";
-                newTd.style.minWidth = "50px";
-                newTd.innerHTML = "<br>";
+                const newTd = createTableCell(document);
                 newTr.appendChild(newTd);
               }
               tr.parentNode.insertBefore(newTr, tr.nextSibling);

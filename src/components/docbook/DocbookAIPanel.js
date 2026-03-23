@@ -19,6 +19,8 @@ import CachedRoundedIcon from "@mui/icons-material/CachedRounded";
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import PlaylistAddRoundedIcon from "@mui/icons-material/PlaylistAddRounded";
 import {
+  Avatar,
+  AvatarGroup,
   Box,
   Button,
   IconButton,
@@ -32,7 +34,14 @@ import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { checkedIconSvg, plainTextFromHtml, uncheckedIconSvg } from "./shared";
-import { AiSvg, BrainSvg, ChatSvg, NotesSvg, WriteSvg } from "@/assets/icon";
+import { AiSvg, BrainSvg, ChatSvg, NotesSvg, WriteSvg, ClaudeSvg, GeminiSvg, KImiSvg, GrokSvg } from "@/assets/icon";
+
+const AI_MODELS = [
+  { key: 'claude', name: 'Claude', Icon: ClaudeSvg, color: '#ff7043' },
+  { key: 'gemini', name: 'Gemini', Icon: GeminiSvg, color: '#4285f4' },
+  { key: 'kimi', name: 'Kimi', Icon: KImiSvg, color: '#6a6a6a' },
+  { key: 'grok', name: 'Grok', Icon: GrokSvg, color: '#1d1d1f' },
+];
 
 const CLIENT_ID_KEY = "docbook_ai_client_id";
 
@@ -405,6 +414,8 @@ export default function DocbookAIPanel({
 }) {
   const noteTitle = activeNote?.title || "Untitled";
   const [mode, setMode] = useState("chat");
+  const [activeModelIndex, setActiveModelIndex] = useState(0);
+  const [modelHovered, setModelHovered] = useState(false);
   const [input, setInput] = useState("");
   const [chatMessages, setChatMessages] = useState([]);
   const [showRedeemModal, setShowRedeemModal] = useState(false);
@@ -420,6 +431,14 @@ export default function DocbookAIPanel({
   const abortRef = useRef(null);
   const scrollRef = useRef(null);
   const clientId = useMemo(() => getClientId(), []);
+
+  useEffect(() => {
+    if (modelHovered) return;
+    const timer = setInterval(() => {
+      setActiveModelIndex((prev) => (prev + 1) % AI_MODELS.length);
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [modelHovered]);
 
   useEffect(() => {
     if (!scrollRef.current) return;
@@ -836,6 +855,42 @@ export default function DocbookAIPanel({
                     {mode === "chat" ? "Chat Mode" : "Edit Mode"}
                   </Button>
                 </Tooltip>
+
+                <Box
+                  sx={{ display: 'flex', alignItems: 'center', ml: 0.5 }}
+                  onMouseEnter={() => setModelHovered(true)}
+                  onMouseLeave={() => setModelHovered(false)}
+                >
+                  <Tooltip title={"Auto Model Default"} placement="top" arrow>
+                    <AvatarGroup
+                      max={4}
+                      sx={{
+                        '& .MuiAvatar-root': {
+                          width: 26,
+                          height: 26,
+                          border: '2px solid #fff',
+                          bgcolor: '#f5f5f5',
+                          cursor: 'pointer',
+                          transition: 'all 0.25s ease',
+                        },
+                      }}
+                    >
+                      {AI_MODELS.map((model, idx) => (
+                        <Avatar
+                          key={model.name}
+                          onMouseEnter={() => setActiveModelIndex(idx)}
+                          sx={{
+                            bgcolor: idx === activeModelIndex ? alpha(model.color, 0.12) : '#f5f5f5',
+                            transform: idx === activeModelIndex ? 'scale(1.15)' : 'scale(1)',
+                            zIndex: idx === activeModelIndex ? 10 : 1,
+                          }}
+                        >
+                          <model.Icon fontsize={20} />
+                        </Avatar>
+                      ))}
+                    </AvatarGroup>
+                  </Tooltip>
+                </Box>
 
                 {mode === "edit" && (
                   <Tooltip title="Circle any part of the note to edit" placement="top" arrow>

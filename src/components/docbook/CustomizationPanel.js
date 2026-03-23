@@ -36,6 +36,12 @@ const DEFAULT_FOLDERS = [
   { id: "folder-5", name: "public", path: "public", description: "Static assets", accent: "#be185d", icon: "Folder" },
 ];
 
+export const DEFAULT_LOCATIONS = [
+  { id: "loc-1", name: "Office", address: "123 Business St", description: "Main workspace", accent: "#0ea5e9", icon: "Map" },
+  { id: "loc-2", name: "Home", address: "456 Residence Ave", description: "Remote office", accent: "#ec4899", icon: "Map" },
+  { id: "loc-3", name: "Coffee Shop", address: "789 Brew Ln", description: "Frequent meeting spot", accent: "#84cc16", icon: "Map" },
+];
+
 const ACCENT_COLORS = [
   "#f97316", "#ef4444", "#2563eb", "#14b8a6", "#8b5cf6",
   "#0f766e", "#b45309", "#1d4ed8", "#be185d", "#d97706",
@@ -85,7 +91,7 @@ const AUTO_SAVE_INTERVALS = [
   { label: "1 hour", value: 3600 },
 ];
 
-export { DEFAULT_PEOPLE, DEFAULT_FOLDERS, ALL_EMOJIS };
+export { DEFAULT_PEOPLE, DEFAULT_FOLDERS, DEFAULT_LOCATIONS, ALL_EMOJIS };
 
 export function loadCustomPeople() {
   try {
@@ -101,6 +107,16 @@ export function loadCustomFolders() {
     if (stored) return JSON.parse(stored);
   } catch { }
   return DEFAULT_FOLDERS;
+}
+
+export function loadCustomLocations() {
+  if (typeof window === "undefined") return DEFAULT_LOCATIONS;
+  try {
+    const saved = localStorage.getItem("docbook_custom_locations");
+    return saved ? JSON.parse(saved) : DEFAULT_LOCATIONS;
+  } catch {
+    return DEFAULT_LOCATIONS;
+  }
 }
 
 export function loadCustomEmojis() {
@@ -120,16 +136,17 @@ export function loadNoteReactions() {
 }
 
 export function loadAppearanceSettings() {
-  try {
-    const stored = localStorage.getItem("docbook_appearance_settings");
-    if (stored) return JSON.parse(stored);
-  } catch { }
-  return {
+  const defaults = {
     fontFamily: "Inter, system-ui, sans-serif",
     fontSize: 16,
     selectionColor: "#b3e5fc",
     iconVariant: "Rounded",
   };
+  try {
+    const stored = localStorage.getItem("docbook_appearance_settings");
+    if (stored) return { ...defaults, ...JSON.parse(stored) };
+  } catch { }
+  return defaults;
 }
 
 function generateRandomPin() {
@@ -141,10 +158,11 @@ function generateRandomPin() {
   return pin;
 }
 
-export default function CustomizationPanel({ open, onClose, notes, onImportNotes, people, folders, selectedEmojis, onPeopleChange, onFoldersChange, onEmojisChange }) {
+export default function CustomizationPanel({ open, onClose, notes, onImportNotes, people, folders, locations, selectedEmojis, onPeopleChange, onFoldersChange, onLocationsChange, onEmojisChange }) {
   /* State */
   const [localPeople, setLocalPeople] = useState(people || DEFAULT_PEOPLE);
   const [localFolders, setLocalFolders] = useState(folders || DEFAULT_FOLDERS);
+  const [localLocations, setLocalLocations] = useState(locations || DEFAULT_LOCATIONS);
   const [localEmojis, setLocalEmojis] = useState(selectedEmojis || DEFAULT_SELECTED_EMOJIS);
   const [appearance, setAppearance] = useState(loadAppearanceSettings());
   const [pin, setPin] = useState("");
@@ -159,6 +177,7 @@ export default function CustomizationPanel({ open, onClose, notes, onImportNotes
     if (open) {
       setLocalPeople(people || loadCustomPeople());
       setLocalFolders(folders || loadCustomFolders());
+      setLocalLocations(locations || loadCustomLocations());
       setLocalEmojis(selectedEmojis || loadCustomEmojis());
       setAppearance(loadAppearanceSettings());
       try {
@@ -168,10 +187,11 @@ export default function CustomizationPanel({ open, onClose, notes, onImportNotes
         if (stored.autoSyncInterval !== undefined) setAutoSyncInterval(stored.autoSyncInterval);
       } catch { }
     }
-  }, [open, people, folders, selectedEmojis]);
+  }, [open, people, folders, locations, selectedEmojis]);
 
   const savePeople = useCallback((next) => { setLocalPeople(next); localStorage.setItem("docbook_custom_people", JSON.stringify(next)); onPeopleChange?.(next); }, [onPeopleChange]);
   const saveFolders = useCallback((next) => { setLocalFolders(next); localStorage.setItem("docbook_custom_folders", JSON.stringify(next)); onFoldersChange?.(next); }, [onFoldersChange]);
+  const saveLocations = useCallback((next) => { setLocalLocations(next); localStorage.setItem("docbook_custom_locations", JSON.stringify(next)); onLocationsChange?.(next); }, [onLocationsChange]);
   const saveEmojis = useCallback((next) => { setLocalEmojis(next); localStorage.setItem("docbook_custom_emojis", JSON.stringify(next)); onEmojisChange?.(next); }, [onEmojisChange]);
   const saveAppearance = useCallback((updates) => { const next = { ...appearance, ...updates }; setAppearance(next); localStorage.setItem("docbook_appearance_settings", JSON.stringify(next)); window.dispatchEvent(new Event("docbook-appearance-changed")); }, [appearance]);
   const saveSyncSettings = useCallback((updates = {}) => { const current = JSON.parse(localStorage.getItem("docbook_sync_settings") || "{}"); const next = { ...current, ...updates }; localStorage.setItem("docbook_sync_settings", JSON.stringify(next)); window.dispatchEvent(new Event("docbook-sync-settings-changed")); }, []);
@@ -183,6 +203,10 @@ export default function CustomizationPanel({ open, onClose, notes, onImportNotes
   const addFolder = () => saveFolders([...localFolders, { id: buildId(), name: "", path: "", description: "", accent: ACCENT_COLORS[localFolders.length % ACCENT_COLORS.length], icon: "Folder" }]);
   const updateFolder = (id, field, value) => saveFolders(localFolders.map((f) => (f.id === id ? { ...f, [field]: value } : f)));
   const removeFolder = (id) => saveFolders(localFolders.filter((f) => f.id !== id));
+
+  const addLocation = () => saveLocations([...localLocations, { id: buildId(), name: "", address: "", description: "", accent: ACCENT_COLORS[localLocations.length % ACCENT_COLORS.length], icon: "Map" }]);
+  const updateLocation = (id, field, value) => saveLocations(localLocations.map((l) => (l.id === id ? { ...l, [field]: value } : l)));
+  const removeLocation = (id) => saveLocations(localLocations.filter((l) => l.id !== id));
 
   const toggleEmoji = (code) => {
     if (localEmojis.includes(code)) saveEmojis(localEmojis.filter((e) => e !== code));
@@ -384,15 +408,15 @@ export default function CustomizationPanel({ open, onClose, notes, onImportNotes
           </Grid>
 
           {/* People Card */}
-          <Grid size={{ xs: 12, md: 6 }}>
+          <Grid size={{ xs: 12, md: 4 }}>
             <Box sx={bentoCardSx}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
                 <Box>
                   <Typography sx={{ ...cardTitleSx, mb: 0 }}>People</Typography>
-                  <Typography sx={{ ...cardSubtitleSx, mb: 0 }}>For @mentions inside the editor</Typography>
+                  <Typography sx={{ ...cardSubtitleSx, mb: 0 }}>For @mentions</Typography>
                 </Box>
                 <Button onClick={addPerson} variant="text" sx={{ borderRadius: 2, color: "#0071e3", fontWeight: 600, fontSize: 12, py: 0.5, px: 1, "&:hover": { bgcolor: "#eff6ff" } }}>
-                  + Add Next
+                  + Add
                 </Button>
               </Stack>
               <Box sx={{ maxHeight: 220, overflowY: "auto", pr: 0.5, mr: -0.5 }}>
@@ -410,11 +434,6 @@ export default function CustomizationPanel({ open, onClose, notes, onImportNotes
                             <DeleteRoundedIcon sx={{ fontSize: 15 }} />
                           </IconButton>
                         </Stack>
-                        <Stack direction="row" spacing={0.8} mt={0.2}>
-                          {ACCENT_COLORS.slice(0, 10).map((c) => (
-                            <Box key={c} component="button" onClick={() => updatePerson(person.id, "accent", c)} sx={{ width: 16, height: 16, borderRadius: "50%", bgcolor: c, border: person.accent === c ? "2px solid #000" : "none", cursor: "pointer", boxShadow: person.accent === c ? "0 0 0 2px #fff" : "none" }} />
-                          ))}
-                        </Stack>
                       </Stack>
                     </Box>
                   ))}
@@ -424,15 +443,15 @@ export default function CustomizationPanel({ open, onClose, notes, onImportNotes
           </Grid>
 
           {/* Folders Card */}
-          <Grid size={{ xs: 12, md: 6 }}>
+          <Grid size={{ xs: 12, md: 4 }}>
             <Box sx={bentoCardSx}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
                 <Box>
                   <Typography sx={{ ...cardTitleSx, mb: 0 }}>Folders</Typography>
-                  <Typography sx={{ ...cardSubtitleSx, mb: 0 }}>For #mentions inside the editor</Typography>
+                  <Typography sx={{ ...cardSubtitleSx, mb: 0 }}>For #references</Typography>
                 </Box>
                 <Button onClick={addFolder} variant="text" sx={{ borderRadius: 2, color: "#0071e3", fontWeight: 600, fontSize: 12, py: 0.5, px: 1, "&:hover": { bgcolor: "#eff6ff" } }}>
-                  + Add Next
+                  + Add
                 </Button>
               </Stack>
               <Box sx={{ maxHeight: 220, overflowY: "auto", pr: 0.5, mr: -0.5 }}>
@@ -450,10 +469,40 @@ export default function CustomizationPanel({ open, onClose, notes, onImportNotes
                             <DeleteRoundedIcon sx={{ fontSize: 15 }} />
                           </IconButton>
                         </Stack>
-                        <Stack direction="row" spacing={0.8} mt={0.2}>
-                          {ACCENT_COLORS.slice(0, 10).map((c) => (
-                            <Box key={c} component="button" onClick={() => updateFolder(folder.id, "accent", c)} sx={{ width: 16, height: 16, borderRadius: "50%", bgcolor: c, border: folder.accent === c ? "2px solid #000" : "none", cursor: "pointer", boxShadow: folder.accent === c ? "0 0 0 2px #fff" : "none" }} />
-                          ))}
+                      </Stack>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+            </Box>
+          </Grid>
+
+          {/* Locations Card */}
+          <Grid size={{ xs: 12, md: 4 }}>
+            <Box sx={bentoCardSx}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
+                <Box>
+                  <Typography sx={{ ...cardTitleSx, mb: 0 }}>Locations</Typography>
+                  <Typography sx={{ ...cardSubtitleSx, mb: 0 }}>For !places references</Typography>
+                </Box>
+                <Button onClick={addLocation} variant="text" sx={{ borderRadius: 2, color: "#0ea5e9", fontWeight: 600, fontSize: 12, py: 0.5, px: 1, "&:hover": { bgcolor: "#f0f9ff" } }}>
+                  + Add
+                </Button>
+              </Stack>
+              <Box sx={{ maxHeight: 220, overflowY: "auto", pr: 0.5, mr: -0.5 }}>
+                <Stack spacing={1}>
+                  {localLocations.map((loc) => (
+                    <Box key={loc.id} sx={{ p: 1.2, borderRadius: 3, bgcolor: "#f8fafc", border: "1px solid rgba(0,0,0,0.04)" }}>
+                      <Stack spacing={0.8}>
+                        <Stack direction="row" spacing={0.8}>
+                          <InputBase placeholder="Name" value={loc.name} onChange={(e) => updateLocation(loc.id, "name", e.target.value)} sx={fieldSx} />
+                          <InputBase placeholder="Address" value={loc.address} onChange={(e) => updateLocation(loc.id, "address", e.target.value)} sx={fieldSx} />
+                        </Stack>
+                        <Stack direction="row" spacing={0.8} alignItems="center">
+                          <InputBase placeholder="Description" value={loc.description} onChange={(e) => updateLocation(loc.id, "description", e.target.value)} sx={fieldSx} />
+                          <IconButton size="small" onClick={() => removeLocation(loc.id)} sx={{ color: "#ef4444", bgcolor: "#fef2f2", "&:hover": { bgcolor: "#fee2e2" }, width: 28, height: 28, borderRadius: 1.5 }}>
+                            <DeleteRoundedIcon sx={{ fontSize: 15 }} />
+                          </IconButton>
                         </Stack>
                       </Stack>
                     </Box>

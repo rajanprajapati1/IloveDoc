@@ -17,7 +17,9 @@ import FeedbackModal from "@/components/docbook/FeedbackModal";
 import PricingPanel from "@/components/docbook/PricingPanel";
 import WelcomeIntroModal from "@/components/docbook/WelcomeIntroModal";
 import ChangelogPanel from "@/components/docbook/ChangelogPanel";
-import CustomizationPanel, { loadCustomPeople, loadCustomFolders, loadCustomEmojis, loadNoteReactions } from "@/components/docbook/CustomizationPanel";
+import SettingsDashboard from "@/components/docbook/SettingsDashboard";
+import CustomizationPanel, { loadCustomPeople, loadCustomFolders, loadCustomLocations, loadCustomEmojis, loadNoteReactions } from "@/components/docbook/CustomizationPanel";
+import { getDefaultTableHtml } from "@/components/docbook/editor/tableUtils";
 import {
   buildId,
   createNote,
@@ -30,6 +32,7 @@ import {
   checkedIconSvg,
 } from "@/components/docbook/shared";
 import { docbookDb } from "../lib/docbookDb";
+import AppearanceDashboard from "@/components/docbook/ppanel/CustomizationPanel";
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -65,6 +68,7 @@ export default function Home() {
   const [ready, setReady] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [selectionMenu, setSelectionMenu] = useState({ visible: false, x: 0, y: 0 });
   const [colorAnchorEl, setColorAnchorEl] = useState(null);
   const [linkAnchorEl, setLinkAnchorEl] = useState(null);
@@ -91,6 +95,7 @@ export default function Home() {
   const [customizationPanelOpen, setCustomizationPanelOpen] = useState(false);
   const [customPeople, setCustomPeople] = useState([]);
   const [customFolders, setCustomFolders] = useState([]);
+  const [customLocations, setCustomLocations] = useState([]);
   const [customEmojis, setCustomEmojis] = useState([]);
   const [noteReactions, setNoteReactions] = useState({});
   const [syncBadgeState, setSyncBadgeState] = useState({
@@ -619,6 +624,33 @@ export default function Home() {
   const runCommand = useCallback(
     (command, value = null) => {
       editorRef.current?.focus();
+
+      if ((command === "insertOrderedList" || command === "insertUnorderedList") && window.getSelection().rangeCount > 0) {
+        // Intercept native list insertion to clean up any selected custom data-todo items first
+        const range = window.getSelection().getRangeAt(0);
+        const clone = range.cloneContents();
+        if (clone.querySelector('[data-todo]')) {
+          const tempDiv = document.createElement("div");
+          tempDiv.appendChild(clone);
+
+          let hasTodos = false;
+          const todos = tempDiv.querySelectorAll('[data-todo]');
+          todos.forEach(todo => {
+            hasTodos = true;
+            const textContainer = todo.querySelector("div[style*='flex: 1']");
+            const textHtml = textContainer ? textContainer.innerHTML : todo.innerHTML;
+            const p = document.createElement("p");
+            p.innerHTML = textHtml;
+            todo.parentNode.replaceChild(p, todo);
+          });
+
+          if (hasTodos) {
+            document.execCommand("insertHTML", false, tempDiv.innerHTML);
+            // After replacing todos with paragraphs, let the native command wrap them in a list
+          }
+        }
+      }
+
       document.execCommand(command, false, value);
       syncEditorHtml();
       window.requestAnimationFrame(updateSelectionMenuPosition);
@@ -684,6 +716,7 @@ export default function Home() {
     setActiveNoteId(fresh.id);
     setShowDeleted(false);
     setShowChangelog(false);
+    setShowSettings(false);
     hideSelectionMenu();
     await docbookDb.notes.put(fresh);
     await docbookDb.meta.put({ key: "activeNoteId", value: fresh.id });
@@ -1080,8 +1113,12 @@ export default function Home() {
 
     selection.removeAllRanges();
 
+    /* Always insert a zero-width space after the highlight to provide a cursor landing zone */
+    const spacer = document.createTextNode("\u200B");
+    highlightSpan.parentNode?.insertBefore(spacer, highlightSpan.nextSibling);
+
     const afterRange = document.createRange();
-    afterRange.setStartAfter(highlightSpan);
+    afterRange.setStartAfter(spacer);
     afterRange.collapse(true);
     selection.addRange(afterRange);
 
@@ -1126,25 +1163,83 @@ export default function Home() {
   const handleInsertTodo = useCallback(() => {
     restoreSelectionRange();
     const selection = window.getSelection();
-    let contentHtml = "<br>";
 
-    if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      const clone = range.cloneContents();
-      const div = document.createElement("div");
-      div.appendChild(clone);
-      contentHtml = div.innerHTML || "<br>";
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      // No selection — insert a single empty todo
+      const todoHtml = `<div data-todo="false" style="display: flex; align-items: flex-start; gap: 8px; margin: 4px 0;"><span data-todo-checkbox="true" style="cursor: pointer; color: #8b5e3c; display: flex; align-items: center; justify-content: center; user-select: none;" contenteditable="false">${uncheckedIconSvg}</span><div style="flex: 1; outline: none; min-width: 50px;"><br></div></div><p><br></p>`;
+      document.execCommand("insertHTML", false, todoHtml);
+      syncEditorHtml();
+      return;
     }
 
-    const todoHtml = `<div data-todo="false" style="display: flex; align-items: flex-start; gap: 8px; margin: 4px 0;"><span data-todo-checkbox="true" style="cursor: pointer; color: #8b5e3c; display: flex; align-items: center; justify-content: center; user-select: none;" contenteditable="false">${uncheckedIconSvg}</span><div style="flex: 1; outline: none; min-width: 50px;">${contentHtml}</div></div><p><br></p>`;
-    document.execCommand("insertHTML", false, todoHtml);
+    // Has selection — split into individual lines/blocks and make each a todo
+    const range = selection.getRangeAt(0);
+    const clone = range.cloneContents();
+    const tempDiv = document.createElement("div");
+    tempDiv.appendChild(clone);
+
+    // Collect individual lines from the selection
+    const lines = [];
+    const collectLines = (container) => {
+      const children = container.childNodes;
+      if (children.length === 0) return;
+
+      for (const child of children) {
+        if (child.nodeType === Node.TEXT_NODE) {
+          // Split by newlines
+          const parts = child.textContent.split(/\n/);
+          for (const part of parts) {
+            const trimmed = part.trim();
+            if (trimmed) lines.push(trimmed);
+          }
+        } else if (child.nodeType === Node.ELEMENT_NODE) {
+          const tag = child.tagName?.toUpperCase();
+
+          // Handle existing todos
+          if (child.getAttribute("data-todo") !== null) {
+            const textContainer = child.querySelector("div[style*='flex: 1']");
+            const text = textContainer ? textContainer.innerHTML?.trim() : child.innerHTML?.trim();
+            if (text && text !== "<br>") lines.push(text);
+          }
+          // Traverse nested lists
+          else if (tag === "OL" || tag === "UL") {
+            collectLines(child);
+          }
+          else if (["DIV", "P", "LI", "H1", "H2", "H3", "H4", "H5", "H6", "BLOCKQUOTE"].includes(tag)) {
+            // Block-level element
+            const text = child.innerHTML?.trim();
+            if (text && text !== "<br>") lines.push(text);
+          } else if (tag === "BR") {
+            // BR is a line separator, handled by splitting
+          } else {
+            // Inline element: grab its outerHTML as a line
+            const text = child.textContent?.trim();
+            if (text && text !== "<br>") lines.push(child.outerHTML);
+          }
+        }
+      }
+    };
+
+    collectLines(tempDiv);
+
+    if (lines.length === 0) {
+      lines.push("<br>");
+    }
+
+    // Build HTML with a separate todo for each line
+    let todosHtml = "";
+    for (const lineContent of lines) {
+      todosHtml += `<div data-todo="false" style="display: flex; align-items: flex-start; gap: 8px; margin: 4px 0;"><span data-todo-checkbox="true" style="cursor: pointer; color: #8b5e3c; display: flex; align-items: center; justify-content: center; user-select: none;" contenteditable="false">${uncheckedIconSvg}</span><div style="flex: 1; outline: none; min-width: 50px;">${lineContent}</div></div>`;
+    }
+    todosHtml += `<p><br></p>`;
+
+    document.execCommand("insertHTML", false, todosHtml);
     syncEditorHtml();
   }, [restoreSelectionRange, syncEditorHtml]);
 
   const handleInsertTable = useCallback(() => {
     restoreSelectionRange();
-    const tableHtml = `<table style="width: 100%; border-collapse: collapse; margin: 12px 0;"><tbody><tr><th style="border: 1px solid #d9cab7; padding: 10px 6px; min-width: 50px; background-color: #f1ebd8; font-weight: bold; text-align: left;"><br></th><th style="border: 1px solid #d9cab7; padding: 10px 6px; min-width: 50px; background-color: #f1ebd8; font-weight: bold; text-align: left;"><br></th><th style="border: 1px solid #d9cab7; padding: 10px 6px; min-width: 50px; background-color: #f1ebd8; font-weight: bold; text-align: left;"><br></th></tr><tr><td style="border: 1px solid #d9cab7; padding: 6px; min-width: 50px;"><br></td><td style="border: 1px solid #d9cab7; padding: 6px; min-width: 50px;"><br></td><td style="border: 1px solid #d9cab7; padding: 6px; min-width: 50px;"><br></td></tr></tbody></table><p><br></p>`;
-    document.execCommand("insertHTML", false, tableHtml);
+    document.execCommand("insertHTML", false, getDefaultTableHtml());
     syncEditorHtml();
   }, [restoreSelectionRange, syncEditorHtml]);
 
@@ -1170,17 +1265,32 @@ export default function Home() {
       }
 
       const range = sel.getRangeAt(0);
+
+      // First: strip any existing font-size spans within the selection to prevent nesting
+      const frag = range.extractContents();
+      const tempContainer = document.createElement("span");
+      tempContainer.appendChild(frag);
+
+      // Remove font-size from all nested spans
+      const innerSpans = tempContainer.querySelectorAll('span[style]');
+      innerSpans.forEach((s) => {
+        s.style.removeProperty('font-size');
+        // If the span has no other meaningful styles, unwrap it
+        if (!s.getAttribute('style')?.trim()) {
+          const parent = s.parentNode;
+          while (s.firstChild) parent.insertBefore(s.firstChild, s);
+          parent.removeChild(s);
+        }
+      });
+
+      // Now wrap the cleaned content in a single new font-size span
       const span = document.createElement("span");
       span.style.fontSize = `${fontSizePx}px`;
-
-      try {
-        range.surroundContents(span);
-      } catch {
-        const frag = range.extractContents();
-        span.appendChild(frag);
-        range.insertNode(span);
+      while (tempContainer.firstChild) {
+        span.appendChild(tempContainer.firstChild);
       }
 
+      range.insertNode(span);
       selectNodeContents(span);
       syncEditorHtml();
       window.requestAnimationFrame(updateSelectionMenuPosition);
@@ -1205,7 +1315,7 @@ export default function Home() {
   const handleFontSizeIncrease = useCallback(() => {
     restoreSelectionRange();
     const sel = window.getSelection();
-      if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
       applyNoteFontScale((currentScale) => currentScale + 0.08);
       return;
     }
@@ -1446,6 +1556,7 @@ export default function Home() {
       /* ── Load custom people, folders, emojis, reactions from localStorage ── */
       setCustomPeople(loadCustomPeople());
       setCustomFolders(loadCustomFolders());
+      setCustomLocations(loadCustomLocations());
       setCustomEmojis(loadCustomEmojis());
       setNoteReactions(loadNoteReactions());
 
@@ -1640,40 +1751,40 @@ export default function Home() {
     let selectedHtml = "";
 
     if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
-       if (editorRef.current && editorRef.current.contains(selection.anchorNode)) {
-           const range = selection.getRangeAt(0);
-           const div = document.createElement("div");
-           div.appendChild(range.cloneContents());
-           selectedHtml = div.innerHTML;
+      if (editorRef.current && editorRef.current.contains(selection.anchorNode)) {
+        const range = selection.getRangeAt(0);
+        const div = document.createElement("div");
+        div.appendChild(range.cloneContents());
+        selectedHtml = div.innerHTML;
 
-           const streamNode = document.createElement("span");
-           streamNode.id = targetId;
-           streamNode.className = "ai-streaming-text";
-           range.deleteContents();
-           range.insertNode(streamNode);
-           
-           isTargetedEdit = true;
-       }
+        const streamNode = document.createElement("span");
+        streamNode.id = targetId;
+        streamNode.className = "ai-streaming-text";
+        range.deleteContents();
+        range.insertNode(streamNode);
+
+        isTargetedEdit = true;
+      }
     }
 
     const currentContent = activeNote.content?.trim() ? activeNote.content : "<p></p>";
     const isEmpty = currentContent === "<p></p>" || currentContent === "<div><br></div>";
 
     if (isTargetedEdit) {
-        aiWriteSessionRef.current = {
-            noteId: activeNoteId,
-            mode: "replace",
-            targetId,
-            baseContent: currentContent,
-            originalSelectionHtml: selectedHtml,
-        };
+      aiWriteSessionRef.current = {
+        noteId: activeNoteId,
+        mode: "replace",
+        targetId,
+        baseContent: currentContent,
+        originalSelectionHtml: selectedHtml,
+      };
     } else {
-        aiWriteSessionRef.current = {
-            noteId: activeNoteId,
-            mode: "append",
-            baseContent: isEmpty ? "" : currentContent,
-            separator: isEmpty ? "" : "<p><br></p>",
-        };
+      aiWriteSessionRef.current = {
+        noteId: activeNoteId,
+        mode: "append",
+        baseContent: isEmpty ? "" : currentContent,
+        separator: isEmpty ? "" : "<p><br></p>",
+      };
     }
 
     setAiDocumentWriting(true);
@@ -1692,29 +1803,29 @@ export default function Home() {
     let normalizedContent = "";
 
     if (session.mode === "replace") {
-       if (editorRef.current) {
-           const targetSpan = editorRef.current.querySelector(`#${session.targetId}`);
-           if (targetSpan) {
-               targetSpan.innerHTML = incomingContent;
-           }
-           normalizedContent = editorRef.current.innerHTML.replace(/\u200B/g, "");
-       } else {
-           normalizedContent = session.baseContent;
-       }
+      if (editorRef.current) {
+        const targetSpan = editorRef.current.querySelector(`#${session.targetId}`);
+        if (targetSpan) {
+          targetSpan.innerHTML = incomingContent;
+        }
+        normalizedContent = editorRef.current.innerHTML.replace(/\u200B/g, "");
+      } else {
+        normalizedContent = session.baseContent;
+      }
     } else {
-       normalizedContent = `${session.baseContent}${session.separator}${incomingContent}` || "<p></p>";
-       if (editorRef.current) {
-         editorRef.current.innerHTML = normalizedContent;
-       }
+      normalizedContent = `${session.baseContent}${session.separator}${incomingContent}` || "<p></p>";
+      if (editorRef.current) {
+        editorRef.current.innerHTML = normalizedContent;
+      }
     }
 
     setNotes((prev) =>
       prev.map((note) =>
         note.id === session.noteId
           ? {
-              ...note,
-              content: normalizedContent,
-            }
+            ...note,
+            content: normalizedContent,
+          }
           : note
       )
     );
@@ -1735,21 +1846,21 @@ export default function Home() {
 
       if (editorRef.current) {
         if (session.mode === "replace") {
-            const targetSpan = editorRef.current.querySelector(`#${session.targetId}`);
-            if (targetSpan) {
-                targetSpan.outerHTML = incomingContent;
-            }
+          const targetSpan = editorRef.current.querySelector(`#${session.targetId}`);
+          if (targetSpan) {
+            targetSpan.outerHTML = incomingContent;
+          }
         } else {
-            const newHtml = `${session.baseContent}${session.separator}${incomingContent}` || "<p></p>";
-            editorRef.current.innerHTML = newHtml;
+          const newHtml = `${session.baseContent}${session.separator}${incomingContent}` || "<p></p>";
+          editorRef.current.innerHTML = newHtml;
         }
         normalizedContent = editorRef.current.innerHTML.replace(/\u200B/g, "");
       } else {
-         if (session.mode === "replace") {
-             normalizedContent = session.baseContent;
-         } else {
-             normalizedContent = `${session.baseContent}${session.separator}${incomingContent}` || "<p></p>";
-         }
+        if (session.mode === "replace") {
+          normalizedContent = session.baseContent;
+        } else {
+          normalizedContent = `${session.baseContent}${session.separator}${incomingContent}` || "<p></p>";
+        }
       }
 
       const updatedAt = new Date().toISOString();
@@ -1758,10 +1869,10 @@ export default function Home() {
         prev.map((note) =>
           note.id === activeNoteId
             ? {
-                ...note,
-                content: normalizedContent,
-                updatedAt,
-              }
+              ...note,
+              content: normalizedContent,
+              updatedAt,
+            }
             : note
         )
       );
@@ -1791,24 +1902,24 @@ export default function Home() {
     let restoredContent = session.baseContent || "<p></p>";
 
     if (editorRef.current) {
-        if (session.mode === "replace") {
-            const targetSpan = editorRef.current.querySelector(`#${session.targetId}`);
-            if (targetSpan) {
-                targetSpan.outerHTML = session.originalSelectionHtml || "";
-            }
-            restoredContent = editorRef.current.innerHTML.replace(/\u200B/g, "");
-        } else {
-            editorRef.current.innerHTML = restoredContent;
+      if (session.mode === "replace") {
+        const targetSpan = editorRef.current.querySelector(`#${session.targetId}`);
+        if (targetSpan) {
+          targetSpan.outerHTML = session.originalSelectionHtml || "";
         }
+        restoredContent = editorRef.current.innerHTML.replace(/\u200B/g, "");
+      } else {
+        editorRef.current.innerHTML = restoredContent;
+      }
     }
 
     setNotes((prev) =>
       prev.map((note) =>
         note.id === session.noteId
           ? {
-              ...note,
-              content: restoredContent,
-            }
+            ...note,
+            content: restoredContent,
+          }
           : note
       )
     );
@@ -1998,11 +2109,19 @@ export default function Home() {
             isCollapsed={sidebarCollapsed}
             onToggleDeleted={() => {
               setShowChangelog(false);
+              setShowSettings(false);
               setShowDeleted((prev) => !prev);
             }}
             onOpenChangelog={(open) => {
               setShowDeleted(false);
+              setShowSettings(false);
               setShowChangelog(Boolean(open));
+            }}
+            showSettings={showSettings}
+            onOpenSettingsPanel={(open) => {
+              setShowDeleted(false);
+              setShowChangelog(false);
+              setShowSettings(Boolean(open));
             }}
             onCreateNote={() => {
               void createNewNote();
@@ -2010,6 +2129,7 @@ export default function Home() {
             onOpenNote={(noteId) => {
               setShowDeleted(false);
               setShowChangelog(false);
+              setShowSettings(false);
               setActiveNoteId(noteId);
             }}
             onDeleteNote={(noteId) => {
@@ -2021,7 +2141,7 @@ export default function Home() {
             onPermanentlyDelete={(noteId) => {
               void permanentlyDeleteNote(noteId);
             }}
-            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenSettings={() => setCustomizationPanelOpen(true)}
             onOpenFeedback={() => setFeedbackOpen(true)}
             onOpenPricing={() => setPricingOpen(true)}
             onExpand={() => setDrawerOpen(true)}
@@ -2059,10 +2179,12 @@ export default function Home() {
               stickyDragState={stickyDragState}
               onToggleDeleted={() => {
                 setShowChangelog(false);
+                setShowSettings(false);
                 setShowDeleted((prev) => !prev);
               }}
               onOpenChangelog={(open) => {
                 setShowDeleted(false);
+                setShowSettings(false);
                 setShowChangelog(Boolean(open));
                 setDrawerOpen(false);
               }}
@@ -2073,6 +2195,7 @@ export default function Home() {
               onOpenNote={(noteId) => {
                 setShowDeleted(false);
                 setShowChangelog(false);
+                setShowSettings(false);
                 setActiveNoteId(noteId);
                 setDrawerOpen(false);
               }}
@@ -2084,6 +2207,13 @@ export default function Home() {
               }}
               onPermanentlyDelete={(noteId) => {
                 void permanentlyDeleteNote(noteId);
+              }}
+              showSettings={showSettings}
+              onOpenSettingsPanel={(open) => {
+                setShowDeleted(false);
+                setShowChangelog(false);
+                setShowSettings(Boolean(open));
+                setDrawerOpen(false);
               }}
               onOpenSettings={() => {
                 setCustomizationPanelOpen(true);
@@ -2113,8 +2243,24 @@ export default function Home() {
             />
           </Drawer>
 
-          {showChangelog ? (
-            <ChangelogPanel accentColor={activeNoteTint} />
+          {showSettings ? (
+            <SettingsDashboard
+              accentColor={activeNoteTint}
+              notes={notes}
+              onImportNotes={handleImportNotes}
+              people={customPeople}
+              folders={customFolders}
+              locations={customLocations}
+              selectedEmojis={customEmojis}
+              onPeopleChange={setCustomPeople}
+              onFoldersChange={setCustomFolders}
+              onLocationsChange={setCustomLocations}
+              onEmojisChange={setCustomEmojis}
+            />
+          ) : showChangelog ? (
+            <>
+              <ChangelogPanel />
+            </>
           ) : (
             <DocbookEditorSurface
               collapseSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -2129,6 +2275,7 @@ export default function Home() {
               onOpenLinkedNote={(noteId) => {
                 setShowDeleted(false);
                 setShowChangelog(false);
+                setShowSettings(false);
                 setActiveNoteId(noteId);
               }}
               onConnectNote={connectNoteToActive}
@@ -2170,9 +2317,11 @@ export default function Home() {
               syncBadgeState={syncBadgeState}
               customPeople={customPeople}
               customFolders={customFolders}
+              customLocations={customLocations}
               onOpenCustomization={() => setCustomizationPanelOpen(true)}
               onPeopleChange={setCustomPeople}
               onFoldersChange={setCustomFolders}
+              onLocationsChange={setCustomLocations}
               aiWorking={aiWorking}
             />
           )}
@@ -2555,64 +2704,64 @@ export default function Home() {
         onWorkingChange={setAiWorking}
         onStartCircleToEdit={() => setCircleToEditMode(true)}
         onAppendToNote={async (content) => {
-            const session = {
-                noteId: activeNoteId,
-                mode: "append",
-                baseContent: activeNote.content || "",
-                separator: (activeNote.content?.trim() && activeNote.content !== "<p></p>") ? "<p><br></p>" : "",
-            };
-            const normalizedContent = `${session.baseContent}${session.separator}${content}`;
-            const updatedAt = new Date().toISOString();
-            
-            if (editorRef.current) {
-                editorRef.current.innerHTML = normalizedContent;
-            }
-            setNotes((prev) => prev.map(n => n.id === activeNoteId ? { ...n, content: normalizedContent, updatedAt } : n));
-            await docbookDb.notes.update(activeNoteId, { content: normalizedContent, updatedAt });
+          const session = {
+            noteId: activeNoteId,
+            mode: "append",
+            baseContent: activeNote.content || "",
+            separator: (activeNote.content?.trim() && activeNote.content !== "<p></p>") ? "<p><br></p>" : "",
+          };
+          const normalizedContent = `${session.baseContent}${session.separator}${content}`;
+          const updatedAt = new Date().toISOString();
+
+          if (editorRef.current) {
+            editorRef.current.innerHTML = normalizedContent;
+          }
+          setNotes((prev) => prev.map(n => n.id === activeNoteId ? { ...n, content: normalizedContent, updatedAt } : n));
+          await docbookDb.notes.update(activeNoteId, { content: normalizedContent, updatedAt });
         }}
         onActionCreateNote={async (title, content) => {
-            const normalizedContent = content?.trim() ? content : "<p></p>";
-            const fresh = createNote({ title: title || "New Note", content: normalizedContent });
-            setNotes((prev) => [fresh, ...prev]);
-            setActiveNoteId(fresh.id);
-            if (editorRef.current) {
-                editorRef.current.innerHTML = normalizedContent;
-            }
-            await docbookDb.notes.put(fresh);
-            await docbookDb.meta.put({ key: "activeNoteId", value: fresh.id });
+          const normalizedContent = content?.trim() ? content : "<p></p>";
+          const fresh = createNote({ title: title || "New Note", content: normalizedContent });
+          setNotes((prev) => [fresh, ...prev]);
+          setActiveNoteId(fresh.id);
+          if (editorRef.current) {
+            editorRef.current.innerHTML = normalizedContent;
+          }
+          await docbookDb.notes.put(fresh);
+          await docbookDb.meta.put({ key: "activeNoteId", value: fresh.id });
         }}
         onActionEditNote={async (noteId, content) => {
-            if (!noteId) return;
-            const normalizedContent = content?.trim() ? content : "<p></p>";
-            const updatedAt = new Date().toISOString();
-            if (noteId === activeNoteId && editorRef.current) {
-                editorRef.current.innerHTML = normalizedContent;
-            }
-            setNotes((prev) => prev.map(n => n.id === noteId ? { ...n, content: normalizedContent, updatedAt } : n));
-            await docbookDb.notes.update(noteId, { content: normalizedContent, updatedAt });
+          if (!noteId) return;
+          const normalizedContent = content?.trim() ? content : "<p></p>";
+          const updatedAt = new Date().toISOString();
+          if (noteId === activeNoteId && editorRef.current) {
+            editorRef.current.innerHTML = normalizedContent;
+          }
+          setNotes((prev) => prev.map(n => n.id === noteId ? { ...n, content: normalizedContent, updatedAt } : n));
+          await docbookDb.notes.update(noteId, { content: normalizedContent, updatedAt });
         }}
         onActionCreateStickyNote={async (content, x, y) => {
-            if (!activeNoteId) return;
-            const fresh = createStickyNote(activeNoteId, {
-                content: content || "",
-                x: x ?? 150,
-                y: y ?? 160,
-            });
-            setStickyNotes((prev) => [...prev, fresh]);
-            await docbookDb.stickyNotes.put(fresh);
+          if (!activeNoteId) return;
+          const fresh = createStickyNote(activeNoteId, {
+            content: content || "",
+            x: x ?? 150,
+            y: y ?? 160,
+          });
+          setStickyNotes((prev) => [...prev, fresh]);
+          await docbookDb.stickyNotes.put(fresh);
         }}
         onActionUpdateStickyNote={async (stickyId, content) => {
-            setStickyNotes((prev) =>
-                prev.map((note) => (note.id === stickyId ? { ...note, content } : note))
-            );
-            await docbookDb.stickyNotes.update(stickyId, { content });
+          setStickyNotes((prev) =>
+            prev.map((note) => (note.id === stickyId ? { ...note, content } : note))
+          );
+          await docbookDb.stickyNotes.update(stickyId, { content });
         }}
         onActionChangeTheme={async (color) => {
-            if (!activeNoteId) return;
-            // using handleUpdateNote directly here simulates user action
-            const updates = { color };
-            setNotes((prev) => prev.map((n) => (n.id === activeNoteId ? { ...n, ...updates } : n)));
-            await docbookDb.notes.update(activeNoteId, updates);
+          if (!activeNoteId) return;
+          // using handleUpdateNote directly here simulates user action
+          const updates = { color };
+          setNotes((prev) => prev.map((n) => (n.id === activeNoteId ? { ...n, ...updates } : n)));
+          await docbookDb.notes.update(activeNoteId, updates);
         }}
       />
 
@@ -2659,7 +2808,7 @@ export default function Home() {
       {/* Pricing Panel */}
       <PricingPanel
         open={pricingOpen}
-        onClose={() => setPricingOpen(false)}
+        onClose={() => setPricingPanelOpen(false)}
       />
 
       {/* Customization Panel */}
@@ -2670,9 +2819,11 @@ export default function Home() {
         onImportNotes={handleImportNotes}
         people={customPeople}
         folders={customFolders}
+        locations={customLocations}
         selectedEmojis={customEmojis}
         onPeopleChange={setCustomPeople}
         onFoldersChange={setCustomFolders}
+        onLocationsChange={setCustomLocations}
         onEmojisChange={setCustomEmojis}
       />
 

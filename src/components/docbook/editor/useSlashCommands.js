@@ -57,6 +57,7 @@ export default function useSlashCommands({
   onEditorInput,
   onAddStickyNote,
   onOpenStickyNote,
+  customLocations = [],
 }) {
   const [slashMenu, setSlashMenu] = useState({
     visible: false,
@@ -233,11 +234,39 @@ export default function useSlashCommands({
     }
 
     if (command === "map") {
+      const matches = customLocations.filter((loc) => {
+        if (!argument) return true;
+        return (
+          loc.name.toLowerCase().includes(argument.toLowerCase()) ||
+          loc.address.toLowerCase().includes(argument.toLowerCase())
+        );
+      });
+
+      const items = matches.map((loc) => ({
+        id: `map-loc-${loc.id}`,
+        kind: "map",
+        label: `📍 ${loc.name}`,
+        description: loc.address || loc.description || "Custom location",
+        value: loc.name,
+      }));
+
+      if (argument && !matches.some((l) => l.name.toLowerCase() === argument.toLowerCase())) {
+        items.unshift({
+          id: "map-pin",
+          kind: "map",
+          label: `📍 ${argument}`,
+          description: `Insert location: ${argument}`,
+          value: argument,
+        });
+      }
+
+      if (items.length === 0) {
+        items.push({ id: "map-hint", kind: "map", label: "📍 Insert Location", description: "Type a place after /map", value: "" });
+      }
+
       return {
         title: "Location",
-        items: argument
-          ? [{ id: "map-pin", kind: "map", label: `📍 ${argument}`, description: `Insert location: ${argument}`, value: argument }]
-          : [{ id: "map-hint", kind: "map", label: "📍 Insert Location", description: "Type a place after /map", value: "" }],
+        items,
       };
     }
 
@@ -245,7 +274,7 @@ export default function useSlashCommands({
       title: "Commands",
       items: getCommandSuggestions(command),
     };
-  }, [activeNote?.id, getCommandSuggestions, getDateSuggestions, getTimeSuggestions, slashMenu.argument, slashMenu.command, stickyNotes]);
+  }, [activeNote?.id, getCommandSuggestions, getDateSuggestions, getTimeSuggestions, slashMenu.argument, slashMenu.command, stickyNotes, customLocations]);
 
   const { title: suggestionTitle, items: activeSuggestions } = getActiveSuggestions();
 

@@ -4,6 +4,44 @@
   "status": "Updated",
   "releases": [
     {
+      "date": "March 25, 2026",
+      "title": "Grammar assistant, feedback backend, and editor fixes",
+      "summary": "DocBook now includes built-in grammar suggestions, a working feedback API flow, and a set of editor stability and usability fixes.",
+      "changes": [
+        "Added grammar checking support with inline suggestions in the editor workflow.",
+        "Added feedback API route and feedback utility wiring for in-app feedback submission.",
+        "Added note sharing capabilities so notes can be shared directly with others.",
+        "Improved AI panel behavior and fixed AI draft flow edge cases.",
+        "Added table control utilities and editor interaction fixes for smoother formatting actions.",
+        "Improved settings and customization surfaces for cleaner configuration flows."
+      ],
+      "how_to_use": [
+        "Open a note and keep writing as normal; grammar suggestions now appear in the editor flow.",
+        "Open Feedback from the sidebar, write your message, and submit it through the in-app form.",
+        "Open a note and use the Share action to copy or send a shareable note link.",
+        "Use the editor formatting controls for table operations and updated toolbar behaviors.",
+        "Use settings and customization panels from the sidebar to manage your workspace preferences."
+      ]
+    },
+    {
+      "date": "March 25, 2026",
+      "title": "Faster note workflow and smarter writing shortcuts",
+      "summary": "DocBook now keeps edits safer while switching views, adds quick note cloning, and improves writing shortcuts for tasks and highlighted callouts.",
+      "changes": [
+        "Added note cloning from the sidebar so you can duplicate a note with its content and sticky notes.",
+        "Improved note switching flow to persist current edits before opening other panels or notes.",
+        "Added auto-convert shortcuts in the editor: use [] to start todo blocks and !! to create important callout blocks.",
+        "Improved mention and folder chip sizing for a cleaner reading experience in the editor.",
+        "Added a dedicated app loading screen for smoother startup transitions."
+      ],
+      "how_to_use": [
+        "In the sidebar, use the clone icon on a note row to duplicate it.",
+        "Type [] followed by space to convert the current line into a todo block.",
+        "Type !! followed by space to convert the current line into an important callout block.",
+        "Open notes, changelog, or settings as usual; current note edits now persist more reliably during navigation."
+      ]
+    },
+    {
       "date": "March 20, 2026",
       "title": "AI writing and circle select",
       "summary": "DocBook now includes an in-app AI workspace with streaming responses, direct note writing, and circle-to-select editing.",
@@ -221,6 +259,15 @@
         "Create or enter your PIN.",
         "Use Sync to Cloud or Pull from Cloud.",
         "Enable auto-sync and choose an interval if needed."
+      ]
+    },
+    {
+      "name": "Note sharing",
+      "description": "Share notes with others using a direct share action.",
+      "how_to_use": [
+        "Open the note you want to share.",
+        "Click the Share action from the note toolbar or note options.",
+        "Copy the generated share link and send it to collaborators."
       ]
     },
     {

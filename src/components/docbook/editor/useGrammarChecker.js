@@ -17,6 +17,7 @@ export default function useGrammarChecker({ editorRef }) {
   const mappingRef = useRef([]);
   const textRef = useRef("");
   const debounceTimerRef = useRef(null);
+  const lintRequestIdRef = useRef(0);
 
   // Initialize HarperJS
   useEffect(() => {
@@ -24,7 +25,6 @@ export default function useGrammarChecker({ editorRef }) {
     const initLinter = async () => {
       try {
         const newLinter = new LocalLinter({ binary: binaryInlined });
-        console.log(newLinter, "newLinter")
         await newLinter.setup();
         if (mounted) {
           setLinter(newLinter);
@@ -37,6 +37,18 @@ export default function useGrammarChecker({ editorRef }) {
     return () => {
       mounted = false;
     };
+  }, []);
+
+  const clearLints = useCallback(() => {
+    lintRequestIdRef.current += 1;
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    textRef.current = "";
+    mappingRef.current = [];
+    setLints([]);
+    setMappedLints([]);
   }, []);
 
   // Extract text and mappings from DOM
@@ -126,13 +138,16 @@ export default function useGrammarChecker({ editorRef }) {
   // Linting routine
   const runLint = useCallback(async () => {
     if (!linter || !editorRef.current) return;
+    const requestId = lintRequestIdRef.current + 1;
+    lintRequestIdRef.current = requestId;
 
     const { text, mapping } = extractTextWithMapping(editorRef.current);
     textRef.current = text;
     mappingRef.current = mapping;
 
     try {
-      const results = await linter.lint(text);
+      const results = await linter.lint(text, { language: "plaintext" });
+      if (lintRequestIdRef.current !== requestId) return;
       setLints(results);
 
       // Map results immediately to coordinates
@@ -244,5 +259,5 @@ export default function useGrammarChecker({ editorRef }) {
     }
   }, [editorRef, runLint]);
 
-  return { lints, mappedLints, applySuggestion, updateRects, triggerLint };
+  return { lints, mappedLints, applySuggestion, updateRects, triggerLint, clearLints };
 }

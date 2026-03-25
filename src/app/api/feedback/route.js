@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { sanitizeFeedbackInput, getFeedbackCollection } from "@/lib/feedback";
+import { sanitizeFeedbackInput, getFeedbackCollection, isValidFeedbackAdminKey } from "@/lib/feedback";
 
 export const runtime = "nodejs";
 
@@ -51,8 +51,15 @@ export async function POST(request) {
   }
 }
 
-export async function GET() {
+export async function GET(request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const adminKey = searchParams.get("admin");
+
+    if (!isValidFeedbackAdminKey(adminKey)) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+
     const collection = await getFeedbackCollection();
     const feedback = await collection
       .find({})

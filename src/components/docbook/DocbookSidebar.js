@@ -3,6 +3,7 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import FeedbackOutlinedIcon from "@mui/icons-material/FeedbackOutlined";
+import FileCopyRoundedIcon from "@mui/icons-material/FileCopyRounded";
 import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
 import MicRoundedIcon from "@mui/icons-material/MicRounded";
 import PaletteOutlinedIcon from "@mui/icons-material/PaletteOutlined";
@@ -38,6 +39,7 @@ import { HeartIcon, NotesSvg } from "@/assets/icon";
 import { useState, useEffect } from "react";
 import { formatEditedAt, plainTextFromHtml, timeAgoLabel, tooltipSlotProps } from "./shared";
 import { ALL_EMOJIS, DEFAULT_SELECTED_EMOJIS } from "./CustomizationPanel";
+import LoupeRoundedIcon from '@mui/icons-material/LoupeRounded';
 
 function SectionLabel({ children, isDrawer, isCollapsed }) {
   if (isCollapsed) return null;
@@ -119,6 +121,7 @@ function NoteTitleLink({
   stickyNotes = [],
   active,
   onOpen,
+  onClone,
   onDelete,
   disableDelete,
   isDrawer,
@@ -143,10 +146,6 @@ function NoteTitleLink({
         transition: "background-color 200ms, transform 180ms ease",
         borderRadius: 8,
         position: "relative",
-        "&:hover .emoji-add-picker": {
-          opacity: 1,
-          pointerEvents: "auto",
-        },
         "&::after": isStickyDragging
           ? {
             content: '""',
@@ -202,8 +201,85 @@ function NoteTitleLink({
                 <Typography sx={{ fontSize: 10.5, mt: 0.75, color: "#8a7664", fontWeight: 600 }}>{formatEditedAt(note.updatedAt)}</Typography>
               </Box>
 
-              <Box sx={{ px: 1.4, py: 1.15 }}>
-                <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: stickyNoteCount ? 0.95 : 0 }}>
+              <Box sx={{
+                px: 1.4, py: 1.15,
+
+              }}>
+                {customEmojis.length > 0 && (
+                  <Box sx={{ mb: 1.05 }}>
+                    <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: 0.85 }}>
+                      <Box
+                        sx={{
+                          display: "grid",
+                          placeItems: "center",
+                          width: 22,
+                          height: 22,
+                          borderRadius: 1.2,
+                          bgcolor: alpha(noteColor, 0.14),
+                          color: "#8a5a33",
+                        }}
+                      >
+                        {activeReaction?.animated ? (
+                          <Box component="img" src={activeReaction.animated} alt={activeReaction.label} sx={{ width: 18, height: 18, objectFit: "contain" }} />
+                        ) : (
+                          <Typography sx={{ fontSize: 12, lineHeight: 1 }}>{activeReaction?.code || "🙂"}</Typography>
+                        )}
+                      </Box>
+                      <Typography sx={{ fontSize: 11.8, fontWeight: 800, color: "#4b3d33", letterSpacing: "0.03em", textTransform: "uppercase" }}>
+                        Reactions
+                      </Typography>
+                    </Stack>
+                    <Stack direction="row" spacing={0.55} sx={{
+                      flexWrap: "wrap", rowGap: 0.55,
+
+                    }}>
+                      {customEmojis.map((code) => {
+                        const emoji = ALL_EMOJIS.find((e) => e.code === code);
+                        const selected = code === activeReactionCode;
+
+                        return (
+                          <Box
+                            key={code}
+                            component="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onToggleReaction?.(note.id, code);
+                            }}
+                            sx={{
+                              width: 38,
+                              height: 38,
+                              borderRadius: "50%",
+                              border: selected ? `1px solid ${alpha(noteColor, 0.5)}` : "1px solid rgba(0,0,0,0.08)",
+                              bgcolor: selected ? alpha(noteColor, 0.18) : "rgba(255,255,255,0.86)",
+                              display: "grid",
+                              placeItems: "center",
+                              cursor: "pointer",
+                              p: 0,
+                              boxShadow: selected ? `0 6px 14px ${alpha(noteColor, 0.18)}` : "0 4px 10px rgba(93,62,40,0.06)",
+                              transition: "transform 150ms ease, background-color 150ms ease, box-shadow 150ms ease",
+                              "&:hover": {
+                                transform: "scale(1.08)",
+                                bgcolor: alpha(noteColor, 0.14),
+                                boxShadow: `0 8px 18px ${alpha(noteColor, 0.18)}`,
+                              },
+                            }}
+                          >
+                            {emoji?.animated ? (
+                              <Box component="img" src={emoji.animated} alt={emoji.label} sx={{ width: 30, height: 30, objectFit: "contain" }} />
+                            ) : (
+                              <Typography sx={{ fontSize: 16, lineHeight: 1 }}>{code}</Typography>
+                            )}
+                          </Box>
+                        );
+                      })}
+                    </Stack>
+                  </Box>
+                )}
+
+                <Stack direction="row" spacing={0.8} alignItems="center" sx={{
+                  mb: stickyNoteCount ? 0.95 : 0,
+
+                }}>
                   <Box
                     sx={{
                       display: "grid",
@@ -213,6 +289,7 @@ function NoteTitleLink({
                       borderRadius: 1.2,
                       bgcolor: alpha("#d97706", 0.12),
                       color: "#b86616",
+
                     }}
                   >
                     <ListAltRoundedIcon sx={{ fontSize: 15 }} />
@@ -275,49 +352,23 @@ function NoteTitleLink({
               "&:hover": { bgcolor: isStickyDropTarget ? alpha(noteColor, 0.32) : active ? alpha(noteColor, 0.24) : alpha("#8f7d66", 0.08) },
             }}
           >
-            <Box sx={{ display: "grid", placeItems: "center", color: active ? "#1d1a17" : "#6a645d", minWidth: 16, flexShrink: 0 }}>
+            {/* <Box sx={{ display: "grid", placeItems: "center", color: active ? "#1d1a17" : "#6a645d", minWidth: 16, flexShrink: 0 }}>
               <TextFieldsRoundedIcon sx={{ fontSize: 15 }} />
-            </Box>
+            </Box> */}
             {!isCollapsed && (
               <>
                 <Box
                   sx={{
-                    width: 10,
-                    height: 10,
-                    minWidth: 10,
-                    minHeight: 10,
+                    width: 14,
+                    height: 14,
+                    minWidth: 14,
+                    minHeight: 14,
                     flexShrink: 0,
                     borderRadius: "50%",
                     bgcolor: noteColor,
                     boxShadow: `0 0 0 2px ${alpha("#fffdf8", 0.9)}`,
                   }}
                 />
-                {activeReaction && (
-                  <Box
-                    sx={{
-                      width: 24,
-                      height: 24,
-                      minWidth: 24,
-                      minHeight: 24,
-                      borderRadius: "50%",
-                      display: "grid",
-                      placeItems: "center",
-                      bgcolor: "#fff",
-                      border: `1px solid ${alpha(noteColor, 0.24)}`,
-                      boxShadow: `0 2px 6px ${alpha(noteColor, 0.16)}`,
-                      flexShrink: 0,
-                      position: 'absolute',
-                      left: 0,
-                      bottom: -2
-                    }}
-                  >
-                    {activeReaction.animated ? (
-                      <Box component="img" src={activeReaction.animated} alt={activeReaction.label} sx={{ width: 18, height: 18, objectFit: "contain" }} />
-                    ) : (
-                      <Typography sx={{ fontSize: 10, lineHeight: 1 }}>{activeReaction.code}</Typography>
-                    )}
-                  </Box>
-                )}
                 <Typography
                   noWrap
                   sx={{
@@ -340,93 +391,74 @@ function NoteTitleLink({
         </Tooltip>
 
         {!isCollapsed && (
-          <Tooltip arrow placement="right" slotProps={tooltipSlotProps} title={disableDelete ? "At least one note is required" : "Delete note"}>
-            <Box component="span" sx={{ flexShrink: 0, display: isDrawer ? "block" : { xs: "none", lg: "block" } }}>
-              <IconButton
-                size="small"
-                disabled={disableDelete}
-                onClick={onDelete}
-                sx={{
-                  width: 24,
-                  height: 24,
-                  color: "#82796f",
-                  "&:hover": { bgcolor: alpha("#8f7d66", 0.12), color: "#5f554b" },
-                }}
-              >
-                <DeleteRoundedIcon sx={{ fontSize: 15 }} />
-              </IconButton>
-            </Box>
-          </Tooltip>
+          <Stack direction="row" spacing={0.2} sx={{ flexShrink: 0, display: isDrawer ? "flex" : { xs: "none", lg: "flex" } }}>
+            <Tooltip arrow placement="right" slotProps={tooltipSlotProps} title="Clone note">
+              <Box component="span">
+                <IconButton
+                  size="small"
+                  onClick={onClone}
+                  sx={{
+                    width: 24,
+                    height: 24,
+                    color: "#82796f",
+                    "&:hover": { bgcolor: alpha("#8f7d66", 0.12), color: "#5f554b" },
+                  }}
+                >
+                  <LoupeRoundedIcon sx={{ fontSize: 17 }} />
+                </IconButton>
+              </Box>
+            </Tooltip>
+            <Tooltip arrow placement="right" slotProps={tooltipSlotProps} title={disableDelete ? "At least one note is required" : "Delete note"}>
+              <Box component="span">
+                <IconButton
+                  size="small"
+                  disabled={disableDelete}
+                  onClick={onDelete}
+                  sx={{
+                    width: 24,
+                    height: 24,
+                    color: "#82796f",
+                    "&:hover": { bgcolor: alpha("#8f7d66", 0.12), color: "#5f554b" },
+                  }}
+                >
+                  <DeleteRoundedIcon sx={{ fontSize: 17 }} />
+                </IconButton>
+              </Box>
+            </Tooltip>
+          </Stack>
         )}
-      </Box>
+      </Box >
 
-      {!isCollapsed && customEmojis.length > 0 && (
+      {/* Floating reaction badge — top-left corner */}
+      {activeReaction && !isCollapsed && (
         <Box
           sx={{
             position: "absolute",
-            top: "130%",
-            left: isDrawer ? 30 : { xs: 0, lg: -5 },
-            transform: "translateY(-50%)",
-            display: isDrawer ? "flex" : { xs: "none", lg: "flex" },
-            alignItems: "center",
-            gap: 0.2,
+            top: -8,
+            left: -2,
+            zIndex: 2,
+            width: 26,
+            height: 26,
+            borderRadius: "50%",
+            display: "grid",
+            placeItems: "center",
+            bgcolor: "rgba(255, 252, 248, 0.92)",
+            border: `1.5px solid ${alpha(noteColor, 0.3)}`,
+            boxShadow: `0 3px 10px ${alpha(noteColor, 0.2)}, 0 1px 3px rgba(0,0,0,0.08)`,
+            backdropFilter: "blur(6px)",
             pointerEvents: "none",
-            zIndex: 9999
+            transition: "transform 200ms ease, box-shadow 200ms ease",
           }}
         >
-          <Box
-            className="emoji-add-picker"
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 0.2,
-              opacity: 0,
-              pointerEvents: "none",
-              transition: "opacity 160ms ease",
-              px: 0.65,
-              py: 0.45,
-              borderRadius: 999,
-              bgcolor: alpha("#fffdf8", 0.9),
-              border: "1px solid rgba(0,0,0,0.04)",
-              boxShadow: "0 4px 14px rgba(93,62,40,0.08)",
-            }}
-          >
-            {customEmojis.map((code) => {
-              const emoji = ALL_EMOJIS.find((e) => e.code === code);
-              const selected = code === activeReactionCode;
-
-              return (
-                <Tooltip key={code} title={emoji?.label || code} arrow placement="bottom" slotProps={tooltipSlotProps}>
-                  <Box
-                    component="button"
-                    onClick={(e) => { e.stopPropagation(); onToggleReaction?.(note.id, code); }}
-                    sx={{
-                      width: 25,
-                      height: 25,
-                      borderRadius: "50%",
-                      border: selected ? `1px solid ${alpha(noteColor, 0.5)}` : "1px solid rgba(0,0,0,0.06)",
-                      bgcolor: selected ? alpha(noteColor, 0.14) : "rgba(255,255,255,0.7)",
-                      display: "grid",
-                      placeItems: "center",
-                      cursor: "pointer",
-                      p: 0,
-                      transition: "transform 150ms ease, background-color 150ms ease",
-                      "&:hover": { transform: "scale(1.68)", bgcolor: alpha(noteColor, 0.15) },
-                    }}
-                  >
-                    {emoji?.animated ? (
-                      <Box component="img" src={emoji.animated} alt={emoji.label} sx={{ width: 18, height: 18, objectFit: "contain" }} />
-                    ) : (
-                      <Typography sx={{ fontSize: 11, lineHeight: 1 }}>{code}</Typography>
-                    )}
-                  </Box>
-                </Tooltip>
-              );
-            })}
-          </Box>
+          {activeReaction.animated ? (
+            <Box component="img" src={activeReaction.animated} alt={activeReaction.label} sx={{ width: 22, height: 22, objectFit: "contain" }} />
+          ) : (
+            <Typography sx={{ fontSize: 13, lineHeight: 1 }}>{activeReaction.code}</Typography>
+          )}
         </Box>
       )}
-    </Box>
+
+    </Box >
   );
 }
 
@@ -484,6 +516,7 @@ export default function DocbookSidebar({
   onOpenSettingsPanel,
   onCreateNote,
   onOpenNote,
+  onCloneNote,
   onDeleteNote,
   onRestoreNote,
   onPermanentlyDelete,
@@ -731,6 +764,10 @@ export default function DocbookSidebar({
                   isStickyDropTarget={stickyDragState?.targetNoteId === note.id}
                   disableDelete={notes.length <= 1}
                   onOpen={() => onOpenNote(note.id)}
+                  onClone={(event) => {
+                    event.stopPropagation();
+                    onCloneNote(note.id);
+                  }}
                   onDelete={(event) => {
                     event.stopPropagation();
                     onDeleteNote(note.id);
@@ -861,7 +898,7 @@ export default function DocbookSidebar({
             borderTop: isCollapsed ? "none" : `1px solid ${alpha(sidebarTint, 0.14)}`,
           }}
         >
-          <SidebarLink
+          {/* <SidebarLink
             label="Changelog"
             icon={<AutoAwesomeRoundedIcon sx={{ fontSize: 18 }} />}
             active={showChangelog}
@@ -871,7 +908,7 @@ export default function DocbookSidebar({
             isDrawer={isDrawer}
             isCollapsed={isCollapsed}
             accentColor={sidebarTint}
-          />
+          /> */}
           <SidebarLink
             label="Settings"
             icon={<SettingsRoundedIcon sx={{ fontSize: 18 }} />}

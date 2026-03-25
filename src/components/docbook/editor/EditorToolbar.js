@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Box, IconButton, Tooltip, Stack, Paper, Typography } from "@mui/material";
+import { Box, ButtonBase, IconButton, Tooltip, Stack, Paper, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import CloudDoneRoundedIcon from "@mui/icons-material/CloudDoneRounded";
 import CloudOffRoundedIcon from "@mui/icons-material/CloudOffRounded";
+import ShareRoundedIcon from "@mui/icons-material/ShareRounded";
 import ViewCarouselRoundedIcon from "@mui/icons-material/ViewCarouselRounded";
 import TextDecreaseRoundedIcon from "@mui/icons-material/TextDecreaseRounded";
 import TextIncreaseRoundedIcon from "@mui/icons-material/TextIncreaseRounded";
@@ -33,10 +34,10 @@ export default function EditorToolbar({
   onNoteFontSizeIncrease,
   onFontSizeIncrease,
   onAddStickyNote,
-  onOpenSelectionPanel,
   stickyNotesVisible,
   onToggleStickyNotes,
-  imageEntries = [],
+  shareInfo,
+  onOpenShare,
   aiWorking = false,
   getDateSuggestions,
   grammarEnabled = true,
@@ -44,6 +45,7 @@ export default function EditorToolbar({
 }) {
   const titleInputRef = useRef(null);
   const [titleSlashMenu, setTitleSlashMenu] = useState({ visible: false, query: "", selectedIndex: 0 });
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   /* ── Local title state for fluid typing ── */
   const [localTitle, setLocalTitle] = useState(activeNote?.title ?? "");
@@ -65,6 +67,11 @@ export default function EditorToolbar({
   // Cleanup debounce on unmount
   useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const handleTopFontDecrease = onNoteFontSizeDecrease || onFontSizeDecrease;
   const handleTopFontIncrease = onNoteFontSizeIncrease || onFontSizeIncrease;
 
@@ -72,12 +79,13 @@ export default function EditorToolbar({
   const lastSyncTime = syncBadgeState?.lastSyncAt ? new Date(syncBadgeState.lastSyncAt).getTime() : 0;
   const lastLocalChangeTime = syncBadgeState?.lastLocalChangeAt ? new Date(syncBadgeState.lastLocalChangeAt).getTime() : 0;
   const syncIsCurrent = showSyncBadge && lastSyncTime > 0 && lastSyncTime >= lastLocalChangeTime;
+  const shareIsActive = Boolean(shareInfo?.url && new Date(shareInfo.expiresAt || "").getTime() > nowMs);
 
   const getRelativeSyncLabel = () => {
     if (!showSyncBadge) return "";
     if (!lastSyncTime) return "Not synced";
     if (!syncIsCurrent) return "Not synced";
-    const diffMs = Math.max(0, Date.now() - lastSyncTime);
+    const diffMs = Math.max(0, nowMs - lastSyncTime);
     const diffMins = Math.floor(diffMs / 60000);
     if (diffMins < 1) return "Synced just now";
     if (diffMins < 60) return `Synced ${diffMins}m ago`;
@@ -100,6 +108,14 @@ export default function EditorToolbar({
   const closeTitleSlashMenu = useCallback(() => {
     setTitleSlashMenu((prev) => (prev.visible ? { visible: false, query: "", selectedIndex: 0 } : prev));
   }, []);
+
+  const flushTitleChange = useCallback(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    if (onTitleChange) onTitleChange({ target: { value: localTitle } });
+  }, [localTitle, onTitleChange]);
 
   const handleTitleChange = useCallback(
     (event) => {
@@ -221,7 +237,10 @@ export default function EditorToolbar({
               placeholder="Untitled"
               onChange={handleTitleChange}
               onKeyDown={handleTitleKeyDown}
-              onBlur={() => { setTimeout(closeTitleSlashMenu, 150); }}
+              onBlur={() => {
+                flushTitleChange();
+                setTimeout(closeTitleSlashMenu, 150);
+              }}
               sx={{
                 width: "100%",
                 border: 0,
@@ -315,6 +334,58 @@ export default function EditorToolbar({
           rowGap: 0.75,
         }}
       >
+        <Tooltip title={shareIsActive ? "Manage shared link" : "Share this note"} arrow slotProps={tooltipSlotProps}>
+          <ButtonBase
+            onClick={() => {
+              flushTitleChange();
+              onOpenShare?.();
+            }}
+            sx={{
+              borderRadius: 999,
+              bgcolor: shareIsActive ? alpha("#eef4ff", 0.94) : alpha("#fffdf8", 0.78),
+              border: shareIsActive ? "1px solid rgba(83, 127, 196, 0.22)" : `1px solid ${alpha(activeNoteTint, 0.28)}`,
+              boxShadow: shareIsActive ? "0 6px 18px rgba(83, 127, 196, 0.10)" : `0 6px 18px ${alpha(activeNoteTint, 0.12)}`,
+              backdropFilter: "blur(8px)",
+              px: 0.95,
+              py: 0.42,
+              gap: 0.55,
+              display: "flex",
+              alignItems: "center",
+              "&:hover": {
+                bgcolor: shareIsActive ? alpha("#e5efff", 0.98) : alpha("#fff8ef", 0.96),
+              },
+            }}
+          >
+            <Box
+              sx={{
+                width: 22,
+                height: 22,
+                borderRadius: "50%",
+                display: "grid",
+                placeItems: "center",
+                bgcolor: shareIsActive ? alpha("#5b89d7", 0.14) : alpha(activeNoteTint, 0.18),
+                color: shareIsActive ? "#476fb2" : "#7a5240",
+                flexShrink: 0,
+                marginLeft: -0.5
+              }}
+            >
+              <ShareRoundedIcon sx={{ fontSize: 16 }} />
+            </Box>
+            <Typography
+              sx={{
+                display: { xs: "none", sm: "block" },
+                fontSize: 12.5,
+                fontWeight: 700,
+                lineHeight: 1,
+                whiteSpace: "nowrap",
+                color: shareIsActive ? "#476fb2" : "#6c594b",
+              }}
+            >
+              {shareIsActive ? "Shared link" : "Share note"}
+            </Typography>
+          </ButtonBase>
+        </Tooltip>
+
         <Stack direction="row" spacing={0.5} alignItems="center" sx={{ px: 1, py: 0.55, borderRadius: 999, bgcolor: alpha("#fffdf8", 0.78), border: `1px solid ${alpha(activeNoteTint, 0.28)}`, boxShadow: `0 6px 18px ${alpha(activeNoteTint, 0.12)}`, backdropFilter: "blur(8px)" }}>
           <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: "#7a5240", ml: 0.4 }}>Auto Save</Typography>
           <IOSSwitch checked={autoSave} onChange={(e) => onAutoSaveChange?.(e.target.checked)} />
@@ -375,14 +446,6 @@ export default function EditorToolbar({
             <StickyNote2RoundedIcon sx={{ fontSize: 20 }} />
           </IconButton>
         </Tooltip>
-
-        {imageEntries.length > 0 && (
-          <Tooltip title="View images & selection" arrow slotProps={tooltipSlotProps}>
-            <IconButton onMouseDown={(e) => e.preventDefault()} onClick={onOpenSelectionPanel} size="small" sx={{ background: "linear-gradient(135deg, #5c3d2e 0%, #8b5e3c 100%)", color: "#fff8f0", width: 32, height: 32, fontSize: 12, fontWeight: 700, boxShadow: "0 6px 18px rgba(92, 61, 46, 0.22)", "&:hover": { background: "linear-gradient(135deg, #7a5240 0%, #a87350 100%)", boxShadow: "0 8px 20px rgba(92, 61, 46, 0.26)" } }}>
-              <ViewSidebarRoundedIcon sx={{ fontSize: 18 }} />
-            </IconButton>
-          </Tooltip>
-        )}
       </Stack>
     </>
   );

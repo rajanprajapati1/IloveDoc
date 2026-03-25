@@ -12,9 +12,11 @@ import DocbookEditorSurface from "@/components/docbook/DocbookEditorSurface";
 import DocbookOverlays from "@/components/docbook/DocbookOverlays";
 import DocbookSidebar from "@/components/docbook/DocbookSidebar";
 import DocbookCircleToEditOverlay from "@/components/docbook/DocbookCircleToEditOverlay";
-import SelectionPanel from "@/components/docbook/SelectionPanel";
 import FeedbackModal from "@/components/docbook/FeedbackModal";
+import FeedbackAdminPanel from "@/components/docbook/FeedbackAdminPanel";
 import PricingPanel from "@/components/docbook/PricingPanel";
+import ShareNoteModal from "@/components/docbook/share/ShareNoteModal";
+import Loader from "@/components/ui/Loader";
 import WelcomeIntroModal from "@/components/docbook/WelcomeIntroModal";
 import ChangelogPanel from "@/components/docbook/ChangelogPanel";
 import SettingsDashboard from "@/components/docbook/SettingsDashboard";
@@ -24,6 +26,7 @@ import {
   buildId,
   createNote,
   createStickyNote,
+  createTodoHtml,
   defaultNoteContent,
   isExpiredDelete,
   plainTextFromHtml,
@@ -49,15 +52,15 @@ const highlightBlockSelector = "li, p, div, td, th, blockquote, h1, h2, h3, h4, 
 
 export default function Home() {
   const editorRef = useRef(null);
-  const fileInputRef = useRef(null);
+
   const savedSelectionRangeRef = useRef(null);
-  const objectUrlMapRef = useRef({});
   const autoSyncTimerRef = useRef(null);
   const noteFontScaleCommitRef = useRef(null);
   const hasHydratedChangeTrackerRef = useRef(false);
   const commandSearchInputRef = useRef(null);
   const aiWriteSessionRef = useRef(null);
   const aiCancelButtonRef = useRef(null);
+  const liveEditorContentRef = useRef("");
 
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
   const [notes, setNotes] = useState([]);
@@ -72,26 +75,26 @@ export default function Home() {
   const [selectionMenu, setSelectionMenu] = useState({ visible: false, x: 0, y: 0 });
   const [colorAnchorEl, setColorAnchorEl] = useState(null);
   const [linkAnchorEl, setLinkAnchorEl] = useState(null);
+  const [linkDraft, setLinkDraft] = useState("");
   const [fontFamilyAnchorEl, setFontFamilyAnchorEl] = useState(null);
   const [fontSizeAnchorEl, setFontSizeAnchorEl] = useState(null);
   const [headingAnchorEl, setHeadingAnchorEl] = useState(null);
-  const [imageAnchorEl, setImageAnchorEl] = useState(null);
+  const [hoverPreview, setHoverPreview] = useState({ visible: false, x: 0, y: 0, url: "", label: "" });
+
+
   const [listMenuAnchorEl, setListMenuAnchorEl] = useState(null);
   const [noteAnchorEl, setNoteAnchorEl] = useState(null);
   const [noteDraft, setNoteDraft] = useState("");
-  const [linkDraft, setLinkDraft] = useState("");
-  const [imageMode, setImageMode] = useState("attach");
-  const [imageUrlMap, setImageUrlMap] = useState({});
-  const [hoverPreview, setHoverPreview] = useState({ visible: false, x: 0, y: 0, url: "", label: "" });
 
   /* Settings & Selection Panel state */
-  const [selectionPanelOpen, setSelectionPanelOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackAdminEnabled, setFeedbackAdminEnabled] = useState(false);
+  const [feedbackAdminOpen, setFeedbackAdminOpen] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [welcomeIntroOpen, setWelcomeIntroOpen] = useState(false);
-  const [selectionContent, setSelectionContent] = useState("");
   const [customizationPanelOpen, setCustomizationPanelOpen] = useState(false);
   const [customPeople, setCustomPeople] = useState([]);
   const [customFolders, setCustomFolders] = useState([]);
@@ -148,6 +151,24 @@ export default function Home() {
       })
       .slice(0, 30);
   }, [activeNotes, commandSearchQuery]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const syncFeedbackAdminFromUrl = () => {
+      const adminKey = new URLSearchParams(window.location.search).get("admin");
+      const enabled = adminKey === "rajan";
+      setFeedbackAdminEnabled(enabled);
+      setFeedbackAdminOpen(enabled);
+    };
+
+    syncFeedbackAdminFromUrl();
+    window.addEventListener("popstate", syncFeedbackAdminFromUrl);
+
+    return () => {
+      window.removeEventListener("popstate", syncFeedbackAdminFromUrl);
+    };
+  }, []);
 
   const refreshSyncBadgeState = useCallback((overrides = {}) => {
     try {
@@ -316,99 +337,6 @@ export default function Home() {
     [selectEditorRange]
   );
 
-  const persistImageFile = useCallback(
-    async (file, fallbackType = "image/*") => {
-      const imageId = buildId();
-      const fileName = file.name || `image-${Date.now()}.png`;
-
-      await docbookDb.images.put({
-        id: imageId,
-        noteId: activeNoteId,
-        blob: file,
-        name: fileName,
-        mimeType: file.type || fallbackType,
-        createdAt: new Date().toISOString(),
-      });
-
-      const nextMap = { ...objectUrlMapRef.current, [imageId]: URL.createObjectURL(file) };
-      objectUrlMapRef.current = nextMap;
-      setImageUrlMap(nextMap);
-
-      return { imageId, fileName };
-    },
-    [activeNoteId]
-  );
-
-  const removeStoredImage = useCallback(async (imageId) => {
-    const currentMap = objectUrlMapRef.current;
-    const currentUrl = currentMap[imageId];
-    if (currentUrl) {
-      URL.revokeObjectURL(currentUrl);
-      const nextMap = { ...currentMap };
-      delete nextMap[imageId];
-      objectUrlMapRef.current = nextMap;
-      setImageUrlMap(nextMap);
-    }
-
-    await docbookDb.images.delete(imageId).catch(() => { });
-  }, []);
-
-  const insertImageTokenAtRange = useCallback(
-    ({ range, imageId, label, mode }) => {
-      const selection = window.getSelection();
-      const activeRange = selectEditorRange(range);
-      if (!selection || !activeRange) return false;
-
-      const token = document.createElement("span");
-      token.setAttribute("data-img-ref", imageId);
-      token.setAttribute("data-img-label", label || "image");
-
-      if (mode === "insert" || activeRange.collapsed) {
-        token.textContent = "📷";
-        activeRange.collapse(false);
-        activeRange.insertNode(token);
-      } else {
-        try {
-          activeRange.surroundContents(token);
-        } catch {
-          const fragment = activeRange.extractContents();
-          token.appendChild(fragment);
-          activeRange.insertNode(token);
-        }
-      }
-
-      const afterRange = document.createRange();
-      afterRange.setStartAfter(token);
-      afterRange.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(afterRange);
-      savedSelectionRangeRef.current = afterRange.cloneRange();
-      return true;
-    },
-    [selectEditorRange]
-  );
-
-  const addImageToEditor = useCallback(
-    async (file, { mode = "attach", preferSaved = false, explicitRange = null, fallbackType = "image/*", fallbackLabel = "" } = {}) => {
-      if (!activeNoteId || !file) return false;
-
-      const range = getPreferredEditorRange({ allowCollapsed: true, preferSaved, explicitRange });
-      if (!range) return false;
-
-      const label = range.toString().trim() || fallbackLabel || file.name || "image";
-      const { imageId } = await persistImageFile(file, fallbackType);
-
-      if (!insertImageTokenAtRange({ range, imageId, label, mode })) {
-        await removeStoredImage(imageId);
-        return false;
-      }
-
-      syncEditorHtml();
-      window.requestAnimationFrame(updateSelectionMenuPosition);
-      return true;
-    },
-    [activeNoteId, getPreferredEditorRange, insertImageTokenAtRange, persistImageFile, removeStoredImage]
-  );
 
   const updateSelectionMenuPosition = useCallback(() => {
     const editor = editorRef.current;
@@ -549,75 +477,60 @@ export default function Home() {
   );
 
   /* ── Fast content sync (cheap — just reads innerHTML) ── */
-  const syncEditorContent = useCallback(() => {
+  const captureEditorContent = useCallback(() => {
     const editor = editorRef.current;
-    if (!editor) return;
+    if (!editor) return liveEditorContentRef.current || "";
     const html = editor.innerHTML.replace(/\u200B/g, "");
-    updateCurrentNote((note) => ({ ...note, content: html }));
-  }, [updateCurrentNote]);
-
-  /* ── Expensive image orphan cleanup (runs only on blur / after long pause) ── */
-  const cleanupOrphanedImages = useCallback(() => {
-    const editor = editorRef.current;
-    if (!editor) return;
-    const imgSpans = editor.querySelectorAll("[data-img-ref]");
-    const activeIds = new Set();
-    imgSpans.forEach((span) => {
-      const id = span.getAttribute("data-img-ref");
-      if (id) activeIds.add(id);
-    });
-    const currentMap = objectUrlMapRef.current;
-    const orphanedIds = Object.keys(currentMap).filter((id) => !activeIds.has(id));
-    if (orphanedIds.length > 0) {
-      orphanedIds.forEach((id) => {
-        URL.revokeObjectURL(currentMap[id]);
-        delete currentMap[id];
-        docbookDb.images.delete(id).catch(() => { });
-      });
-      objectUrlMapRef.current = { ...currentMap };
-      setImageUrlMap({ ...currentMap });
-    }
+    liveEditorContentRef.current = html;
+    return html;
   }, []);
 
+  const syncEditorContent = useCallback(() => {
+    if (!activeNoteId) return liveEditorContentRef.current || "";
+    const html = captureEditorContent();
+    updateCurrentNote((note) => ({ ...note, content: html, updatedAt: new Date().toISOString() }));
+    return html;
+  }, [activeNoteId, captureEditorContent, updateCurrentNote]);
+
   /* ── Debounced content sync for typing (fires 250ms after last keystroke) ── */
-  const syncDebounceRef = useRef(null);
-  const imageCleanupDebounceRef = useRef(null);
-
   const debouncedSyncEditorHtml = useCallback(() => {
-    if (syncDebounceRef.current) clearTimeout(syncDebounceRef.current);
-    syncDebounceRef.current = setTimeout(() => {
-      syncEditorContent();
-      syncDebounceRef.current = null;
-    }, 250);
-
-    /* Image cleanup runs after a longer pause (1.5s) */
-    if (imageCleanupDebounceRef.current) clearTimeout(imageCleanupDebounceRef.current);
-    imageCleanupDebounceRef.current = setTimeout(() => {
-      cleanupOrphanedImages();
-      imageCleanupDebounceRef.current = null;
-    }, 1500);
-  }, [syncEditorContent, cleanupOrphanedImages]);
+    captureEditorContent();
+  }, [captureEditorContent]);
 
   /* ── Immediate sync (used by blur, commands, toolbar actions) ── */
   const syncEditorHtml = useCallback(() => {
-    if (syncDebounceRef.current) { clearTimeout(syncDebounceRef.current); syncDebounceRef.current = null; }
-    if (imageCleanupDebounceRef.current) { clearTimeout(imageCleanupDebounceRef.current); imageCleanupDebounceRef.current = null; }
     syncEditorContent();
-    cleanupOrphanedImages();
-  }, [syncEditorContent, cleanupOrphanedImages]);
+  }, [syncEditorContent]);
 
-  /* ── Flush pending debounces when switching notes or unmounting ── */
+
+
+  const persistActiveNoteFromEditor = useCallback(async () => {
+    if (!activeNoteId || !activeNote) return null;
+
+    syncEditorHtml();
+
+    const liveContent = (captureEditorContent() || activeNote.content || "").replace(/[\u200B-\u200D\uFEFF]/g, "");
+    const updatedAt = new Date().toISOString();
+
+    const nextNote = {
+      ...activeNote,
+      content: liveContent,
+      updatedAt,
+    };
+
+    setNotes((prev) =>
+      prev.map((note) => (note.id === activeNoteId ? nextNote : note))
+    );
+
+    await docbookDb.notes.put(nextNote);
+    await docbookDb.meta.put({ key: "activeNoteId", value: activeNoteId });
+    return nextNote;
+  }, [activeNote, activeNoteId, captureEditorContent, syncEditorHtml]);
+
+
+
   useEffect(() => {
     return () => {
-      if (syncDebounceRef.current) {
-        clearTimeout(syncDebounceRef.current);
-        syncDebounceRef.current = null;
-        syncEditorContent();
-      }
-      if (imageCleanupDebounceRef.current) {
-        clearTimeout(imageCleanupDebounceRef.current);
-        imageCleanupDebounceRef.current = null;
-      }
     };
   }, [activeNoteId, syncEditorContent]);
 
@@ -637,7 +550,7 @@ export default function Home() {
           const todos = tempDiv.querySelectorAll('[data-todo]');
           todos.forEach(todo => {
             hasTodos = true;
-            const textContainer = todo.querySelector("div[style*='flex: 1']");
+            const textContainer = todo.querySelector("div[data-todo-text]");
             const textHtml = textContainer ? textContainer.innerHTML : todo.innerHTML;
             const p = document.createElement("p");
             p.innerHTML = textHtml;
@@ -658,31 +571,12 @@ export default function Home() {
     [syncEditorHtml, updateSelectionMenuPosition]
   );
 
-  const refreshActiveNoteImages = useCallback(async (noteId) => {
-    if (!noteId) {
-      Object.values(objectUrlMapRef.current).forEach((url) => URL.revokeObjectURL(url));
-      objectUrlMapRef.current = {};
-      setImageUrlMap({});
-      return;
-    }
 
-    const records = await docbookDb.images.where("noteId").equals(noteId).toArray();
-    const next = {};
-
-    for (const record of records) {
-      next[record.id] = objectUrlMapRef.current[record.id] || URL.createObjectURL(record.blob);
-    }
-
-    for (const [id, url] of Object.entries(objectUrlMapRef.current)) {
-      if (!next[id]) URL.revokeObjectURL(url);
-    }
-
-    objectUrlMapRef.current = next;
-    setImageUrlMap(next);
-  }, []);
 
   const saveCurrentNote = useCallback(async () => {
     if (!activeNoteId) return;
+
+    await persistActiveNoteFromEditor();
 
     const now = new Date().toISOString();
     let snapshot = null;
@@ -708,9 +602,10 @@ export default function Home() {
       await docbookDb.notes.bulkPut(snapshot);
       await docbookDb.meta.put({ key: "activeNoteId", value: nextActive });
     }
-  }, [activeNoteId]);
+  }, [activeNoteId, persistActiveNoteFromEditor]);
 
   const createNewNote = useCallback(async () => {
+    await persistActiveNoteFromEditor();
     const fresh = createNote({ content: "<p></p>" });
     setNotes((prev) => [fresh, ...prev]);
     setActiveNoteId(fresh.id);
@@ -720,7 +615,69 @@ export default function Home() {
     hideSelectionMenu();
     await docbookDb.notes.put(fresh);
     await docbookDb.meta.put({ key: "activeNoteId", value: fresh.id });
-  }, [hideSelectionMenu]);
+  }, [hideSelectionMenu, persistActiveNoteFromEditor]);
+
+  const cloneNote = useCallback(async (noteId) => {
+    if (!noteId) return null;
+
+    const sourceNote =
+      noteId === activeNoteId
+        ? await persistActiveNoteFromEditor()
+        : notes.find((note) => note.id === noteId) || null;
+
+    if (!sourceNote) return null;
+
+    const now = new Date().toISOString();
+    const clonedNoteId = buildId();
+    const sourceTitle = sourceNote.title?.trim() || "Untitled";
+    const clonedNote = normalizeNoteRecord({
+      ...sourceNote,
+      id: clonedNoteId,
+      title: `${sourceTitle} - Copy`,
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null,
+      shareLink: null,
+    });
+    const clonedStickyNotes = stickyNotes
+      .filter((sticky) => sticky.noteId === noteId)
+      .map((sticky) => ({
+        ...sticky,
+        id: buildId(),
+        noteId: clonedNoteId,
+        createdAt: now,
+      }));
+
+    setNotes((prev) => [clonedNote, ...prev]);
+    if (clonedStickyNotes.length > 0) {
+      setStickyNotes((prev) => [...prev, ...clonedStickyNotes]);
+    }
+    setShowDeleted(false);
+    setShowChangelog(false);
+    setShowSettings(false);
+    setActiveNoteId(clonedNoteId);
+    hideSelectionMenu();
+    hideHoverPreview();
+
+    const sourceReactions = noteReactions[noteId] || [];
+    if (sourceReactions.length > 0) {
+      setNoteReactions((prev) => {
+        const updated = { ...prev, [clonedNoteId]: [...sourceReactions] };
+        localStorage.setItem("docbook_note_reactions", JSON.stringify(updated));
+        return updated;
+      });
+    }
+
+    await docbookDb.transaction("rw", docbookDb.notes, docbookDb.stickyNotes, docbookDb.meta, async () => {
+      await docbookDb.notes.put(clonedNote);
+      if (clonedStickyNotes.length > 0) {
+        await docbookDb.stickyNotes.bulkPut(clonedStickyNotes);
+      }
+      await docbookDb.meta.put({ key: "activeNoteId", value: clonedNoteId });
+    });
+
+    return clonedNote;
+  }, [activeNoteId, hideHoverPreview, hideSelectionMenu, noteReactions, notes, persistActiveNoteFromEditor, stickyNotes]);
 
   const createNewStickyNote = useCallback(async () => {
     if (!activeNoteId) return null;
@@ -736,6 +693,26 @@ export default function Home() {
     await docbookDb.stickyNotes.put(fresh);
     return fresh;
   }, [activeNoteId, activeNoteStickyNotes.length]);
+
+  const persistNoteShareLink = useCallback(async (noteId, shareLink) => {
+    if (!noteId) return;
+
+    setNotes((prev) =>
+      prev.map((note) => (
+        note.id === noteId
+          ? { ...note, shareLink: shareLink || null }
+          : note
+      ))
+    );
+
+    await docbookDb.notes.update(noteId, { shareLink: shareLink || null });
+  }, []);
+
+  const openShareModal = useCallback(async () => {
+    if (!activeNoteId) return;
+    await persistActiveNoteFromEditor();
+    setShareModalOpen(true);
+  }, [activeNoteId, persistActiveNoteFromEditor]);
 
   const openStickyNote = useCallback((stickyId) => {
     setActiveStickyNoteId(stickyId);
@@ -813,9 +790,8 @@ export default function Home() {
       );
       setStickyNotes((prev) => prev.filter((note) => note.noteId !== noteId));
       setActiveStickyNoteId((prev) => (stickyNotes.some((note) => note.id === prev && note.noteId === noteId) ? "" : prev));
-      await docbookDb.transaction("rw", docbookDb.notes, docbookDb.images, docbookDb.stickyNotes, async () => {
+      await docbookDb.transaction("rw", docbookDb.notes, docbookDb.stickyNotes, async () => {
         await docbookDb.notes.delete(noteId);
-        await docbookDb.images.where("noteId").equals(noteId).delete();
         await docbookDb.stickyNotes.where("noteId").equals(noteId).delete();
         const linkedNotesToUpdate = await docbookDb.notes.filter((note) => Array.isArray(note.links) && note.links.includes(noteId)).toArray();
         if (linkedNotesToUpdate.length > 0) {
@@ -831,13 +807,9 @@ export default function Home() {
     [stickyNotes]
   );
 
-  const attachImageToSelection = useCallback(
-    async (file) => {
-      restoreSelectionRange();
-      await addImageToEditor(file, { mode: imageMode, preferSaved: true });
-    },
-    [addImageToEditor, imageMode, restoreSelectionRange]
-  );
+  const handleOpenSelectionPanel = useCallback(() => {
+    /* no-op: selection panel not currently enabled */
+  }, []);
 
   const handleEditorSelectionChange = useCallback(() => {
     captureSelectionRange();
@@ -857,7 +829,7 @@ export default function Home() {
           todoDiv.setAttribute("data-todo", isChecked ? "false" : "true");
           todoCheckbox.innerHTML = isChecked ? uncheckedIconSvg : checkedIconSvg;
 
-          const textContainer = todoDiv.querySelector("div[style*='flex: 1']");
+          const textContainer = todoDiv.querySelector("div[data-todo-text]");
           if (textContainer) {
             textContainer.style.textDecoration = isChecked ? "none" : "line-through";
             textContainer.style.opacity = isChecked ? "1" : "0.6";
@@ -1003,47 +975,6 @@ export default function Home() {
         selection.addRange(range);
       }
 
-      const files = event.dataTransfer.files;
-      if (files && files.length > 0) {
-        let nextRange = range ? range.cloneRange() : getPreferredEditorRange({ allowCollapsed: true });
-        let handledImageDrop = false;
-
-        for (const file of files) {
-          if (!file.type.startsWith("image/")) continue;
-
-          handledImageDrop = true;
-          const inserted = await addImageToEditor(file, {
-            mode: "insert",
-            explicitRange: nextRange,
-            fallbackLabel: file.name || "image",
-          });
-
-          if (inserted) {
-            nextRange = getPreferredEditorRange({ allowCollapsed: true });
-          }
-        }
-
-        if (handledImageDrop) return;
-
-        for (const file of files) {
-          if (file.type.startsWith("image/")) {
-            const imageId = buildId();
-            await docbookDb.images.put({
-              id: imageId,
-              noteId: activeNoteId,
-              blob: file,
-              name: file.name,
-              mimeType: file.type || "image/*",
-              createdAt: new Date().toISOString(),
-            });
-            const nextMap = { ...objectUrlMapRef.current, [imageId]: URL.createObjectURL(file) };
-            objectUrlMapRef.current = nextMap;
-            setImageUrlMap(nextMap);
-          }
-        }
-        return;
-      }
-
       const droppedUrl = event.dataTransfer.getData("text/uri-list") || event.dataTransfer.getData("text/plain");
       if (droppedUrl && /^https?:\/\//i.test(droppedUrl.trim())) {
         const url = droppedUrl.trim();
@@ -1073,7 +1004,7 @@ export default function Home() {
         syncEditorHtml();
       }
     },
-    [activeNoteId, addImageToEditor, getPreferredEditorRange, syncEditorHtml]
+    [syncEditorHtml]
   );
 
   const handleHighlight = useCallback(() => {
@@ -1166,7 +1097,7 @@ export default function Home() {
 
     if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
       // No selection — insert a single empty todo
-      const todoHtml = `<div data-todo="false" style="display: flex; align-items: flex-start; gap: 8px; margin: 4px 0;"><span data-todo-checkbox="true" style="cursor: pointer; color: #8b5e3c; display: flex; align-items: center; justify-content: center; user-select: none;" contenteditable="false">${uncheckedIconSvg}</span><div style="flex: 1; outline: none; min-width: 50px;"><br></div></div><p><br></p>`;
+      const todoHtml = createTodoHtml({ trailingParagraph: true });
       document.execCommand("insertHTML", false, todoHtml);
       syncEditorHtml();
       return;
@@ -1197,7 +1128,7 @@ export default function Home() {
 
           // Handle existing todos
           if (child.getAttribute("data-todo") !== null) {
-            const textContainer = child.querySelector("div[style*='flex: 1']");
+            const textContainer = child.querySelector("div[data-todo-text]");
             const text = textContainer ? textContainer.innerHTML?.trim() : child.innerHTML?.trim();
             if (text && text !== "<br>") lines.push(text);
           }
@@ -1229,7 +1160,7 @@ export default function Home() {
     // Build HTML with a separate todo for each line
     let todosHtml = "";
     for (const lineContent of lines) {
-      todosHtml += `<div data-todo="false" style="display: flex; align-items: flex-start; gap: 8px; margin: 4px 0;"><span data-todo-checkbox="true" style="cursor: pointer; color: #8b5e3c; display: flex; align-items: center; justify-content: center; user-select: none;" contenteditable="false">${uncheckedIconSvg}</span><div style="flex: 1; outline: none; min-width: 50px;">${lineContent}</div></div>`;
+      todosHtml += createTodoHtml({ content: lineContent });
     }
     todosHtml += `<p><br></p>`;
 
@@ -1350,97 +1281,7 @@ export default function Home() {
     applyNoteFontScale((currentScale) => currentScale - 0.08);
   }, [applyNoteFontScale]);
 
-  /* Handle paste image from clipboard (PrtSc, Ctrl+V with image) */
-  const handlePasteImage = useCallback(
-    async (file) => {
-      const fallbackImageLabel = file?.name || `screenshot-${Date.now()}.png`;
-      await addImageToEditor(file, {
-        mode: "attach",
-        fallbackType: "image/png",
-        fallbackLabel: fallbackImageLabel,
-      });
-      return;
 
-      if (!activeNoteId || !file) return;
-
-      const imageId = buildId();
-      const fileName = file.name || `screenshot-${Date.now()}.png`;
-
-      await docbookDb.images.put({
-        id: imageId,
-        noteId: activeNoteId,
-        blob: file,
-        name: fileName,
-        mimeType: file.type || "image/png",
-        createdAt: new Date().toISOString(),
-      });
-
-      const nextMap = { ...objectUrlMapRef.current, [imageId]: URL.createObjectURL(file) };
-      objectUrlMapRef.current = nextMap;
-      setImageUrlMap(nextMap);
-
-      const selection = window.getSelection();
-      const editor = editorRef.current;
-      if (!selection || !editor || selection.rangeCount === 0) return;
-
-      const range = selection.getRangeAt(0);
-      const commonNode =
-        range.commonAncestorContainer.nodeType === 3
-          ? range.commonAncestorContainer.parentNode
-          : range.commonAncestorContainer;
-
-      if (!commonNode || !editor.contains(commonNode)) return;
-
-      const hasSelection = !selection.isCollapsed;
-      const label = hasSelection ? range.toString().trim() : fileName;
-
-      const token = document.createElement("span");
-      token.setAttribute("data-img-ref", imageId);
-      token.setAttribute("data-img-label", label || "image");
-
-      if (hasSelection) {
-        /* WRAP the selected text — keep it visible, just add the img-ref span around it */
-        try {
-          range.surroundContents(token);
-        } catch {
-          /* If surroundContents fails (cross-element selection), extract and re-insert */
-          const fragment = range.extractContents();
-          token.appendChild(fragment);
-          range.insertNode(token);
-        }
-      } else {
-        /* No selection — insert a camera emoji token at cursor */
-        token.textContent = "📷";
-        range.collapse(false);
-        range.insertNode(token);
-      }
-
-      /* Move cursor after the token */
-      const after = document.createRange();
-      after.setStartAfter(token);
-      after.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(after);
-
-      syncEditorHtml();
-      window.requestAnimationFrame(updateSelectionMenuPosition);
-    },
-    [activeNoteId, addImageToEditor, syncEditorHtml, updateSelectionMenuPosition]
-  );
-
-  /* Open selection panel with current selection content */
-  const handleOpenSelectionPanel = useCallback(() => {
-    const range = getPreferredEditorRange({ allowCollapsed: false, preferSaved: true });
-    if (range) {
-      const fragment = range.cloneContents();
-      const tempDiv = document.createElement("div");
-      tempDiv.appendChild(fragment);
-      setSelectionContent(tempDiv.innerHTML);
-    } else {
-      setSelectionContent("");
-    }
-    setSelectionPanelOpen(true);
-  }, [getPreferredEditorRange]);
 
   /* Import notes from cloud */
   const handleImportNotes = useCallback(async (cloudNotes) => {
@@ -1483,10 +1324,9 @@ export default function Home() {
       /* Purge notes that were soft-deleted more than 7 days ago */
       const expiredIds = storedNotes.filter((n) => isExpiredDelete(n.deletedAt)).map((n) => n.id);
       if (expiredIds.length > 0) {
-        await docbookDb.transaction("rw", docbookDb.notes, docbookDb.images, async () => {
+        await docbookDb.transaction("rw", docbookDb.notes, async () => {
           for (const id of expiredIds) {
             await docbookDb.notes.delete(id);
-            await docbookDb.images.where("noteId").equals(id).delete();
           }
         });
         storedNotes = storedNotes.filter((n) => !expiredIds.includes(n.id));
@@ -1570,8 +1410,6 @@ export default function Home() {
 
     return () => {
       cancelled = true;
-      Object.values(objectUrlMapRef.current).forEach((url) => URL.revokeObjectURL(url));
-      objectUrlMapRef.current = {};
     };
   }, []);
 
@@ -1661,17 +1499,13 @@ export default function Home() {
 
   useEffect(() => {
     if (!editorRef.current || !activeNote) return;
-
-    // Fast-path: We switched to a different note. We MUST load its content.
     if (loadedNoteIdRef.current !== activeNoteId) {
       editorRef.current.innerHTML = activeNote.content || "";
+      liveEditorContentRef.current = activeNote.content || "";
       loadedNoteIdRef.current = activeNoteId;
       return;
     }
 
-    // Danger-path: We are on the same note, but its state content changed.
-    // NEVER overwrite the DOM if the user is currently typing/focused in it,
-    // as blasting innerHTML destroys the native selection (cursor jumps to top).
     if (document.activeElement === editorRef.current) {
       return;
     }
@@ -1680,19 +1514,15 @@ export default function Home() {
     const normActive = (activeNote.content || "").replace(/[\u200B-\u200D\uFEFF]/g, "");
     if (normCurrent !== normActive) {
       editorRef.current.innerHTML = activeNote.content || "";
+      liveEditorContentRef.current = activeNote.content || "";
     }
-  }, [activeNote?.content, activeNoteId]);
+  }, [activeNote?.content, activeNoteId, showSettings, showChangelog]);
 
   useEffect(() => () => {
     if (noteFontScaleCommitRef.current) {
       clearTimeout(noteFontScaleCommitRef.current);
     }
   }, []);
-
-  useEffect(() => {
-    if (!ready) return;
-    void refreshActiveNoteImages(activeNoteId);
-  }, [ready, activeNoteId, refreshActiveNoteImages]);
 
   useEffect(() => {
     const syncSelection = () => window.requestAnimationFrame(updateSelectionMenuPosition);
@@ -1931,13 +1761,14 @@ export default function Home() {
   }, [updateSelectionMenuPosition]);
 
   const activateSearchResult = useCallback(
-    (noteId) => {
+    async (noteId) => {
       if (!noteId) return;
+      await persistActiveNoteFromEditor();
       setShowDeleted(false);
       setActiveNoteId(noteId);
       closeCommandSearch();
     },
-    [closeCommandSearch]
+    [closeCommandSearch, persistActiveNoteFromEditor]
   );
 
   /* Keyboard shortcuts: Ctrl+S save, Ctrl+H settings, Ctrl+K search, Ctrl+D AI */
@@ -2068,6 +1899,10 @@ export default function Home() {
     };
   }, [notes, customizationPanelOpen]);
 
+  if (!ready) {
+    return <Loader />;
+  }
+
   return (
     <Box
       sx={{
@@ -2107,18 +1942,21 @@ export default function Home() {
             showChangelog={showChangelog}
             stickyDragState={stickyDragState}
             isCollapsed={sidebarCollapsed}
-            onToggleDeleted={() => {
+            onToggleDeleted={async () => {
+              await persistActiveNoteFromEditor();
               setShowChangelog(false);
               setShowSettings(false);
               setShowDeleted((prev) => !prev);
             }}
-            onOpenChangelog={(open) => {
+            onOpenChangelog={async (open) => {
+              await persistActiveNoteFromEditor();
               setShowDeleted(false);
               setShowSettings(false);
               setShowChangelog(Boolean(open));
             }}
             showSettings={showSettings}
-            onOpenSettingsPanel={(open) => {
+            onOpenSettingsPanel={async (open) => {
+              await persistActiveNoteFromEditor();
               setShowDeleted(false);
               setShowChangelog(false);
               setShowSettings(Boolean(open));
@@ -2126,11 +1964,15 @@ export default function Home() {
             onCreateNote={() => {
               void createNewNote();
             }}
-            onOpenNote={(noteId) => {
+            onOpenNote={async (noteId) => {
+              await persistActiveNoteFromEditor();
               setShowDeleted(false);
               setShowChangelog(false);
               setShowSettings(false);
               setActiveNoteId(noteId);
+            }}
+            onCloneNote={(noteId) => {
+              void cloneNote(noteId);
             }}
             onDeleteNote={(noteId) => {
               void deleteNote(noteId);
@@ -2177,12 +2019,14 @@ export default function Home() {
               showDeleted={showDeleted}
               showChangelog={showChangelog}
               stickyDragState={stickyDragState}
-              onToggleDeleted={() => {
+              onToggleDeleted={async () => {
+                await persistActiveNoteFromEditor();
                 setShowChangelog(false);
                 setShowSettings(false);
                 setShowDeleted((prev) => !prev);
               }}
-              onOpenChangelog={(open) => {
+              onOpenChangelog={async (open) => {
+                await persistActiveNoteFromEditor();
                 setShowDeleted(false);
                 setShowSettings(false);
                 setShowChangelog(Boolean(open));
@@ -2192,11 +2036,16 @@ export default function Home() {
                 void createNewNote();
                 setDrawerOpen(false);
               }}
-              onOpenNote={(noteId) => {
+              onOpenNote={async (noteId) => {
+                await persistActiveNoteFromEditor();
                 setShowDeleted(false);
                 setShowChangelog(false);
                 setShowSettings(false);
                 setActiveNoteId(noteId);
+                setDrawerOpen(false);
+              }}
+              onCloneNote={(noteId) => {
+                void cloneNote(noteId);
                 setDrawerOpen(false);
               }}
               onDeleteNote={(noteId) => {
@@ -2209,7 +2058,8 @@ export default function Home() {
                 void permanentlyDeleteNote(noteId);
               }}
               showSettings={showSettings}
-              onOpenSettingsPanel={(open) => {
+              onOpenSettingsPanel={async (open) => {
+                await persistActiveNoteFromEditor();
                 setShowDeleted(false);
                 setShowChangelog(false);
                 setShowSettings(Boolean(open));
@@ -2269,7 +2119,6 @@ export default function Home() {
               linkedNotes={linkedNotes}
               backlinkNotes={backlinkNotes}
               editorRef={editorRef}
-              imageUrlMap={imageUrlMap}
               stickyNotes={stickyNotes}
               activeStickyNoteId={activeStickyNoteId}
               onOpenLinkedNote={(noteId) => {
@@ -2280,7 +2129,7 @@ export default function Home() {
               }}
               onConnectNote={connectNoteToActive}
               onDisconnectNote={disconnectNoteFromActive}
-              onTitleChange={(event) => updateCurrentNote((note) => ({ ...note, title: event.target.value }))}
+              onTitleChange={(event) => updateCurrentNote((note) => ({ ...note, title: event.target.value, updatedAt: new Date().toISOString() }))}
               onNoteColorChange={(color) => updateCurrentNote((note) => ({ ...note, color }))}
               onEditorInput={debouncedSyncEditorHtml}
               onEditorBlur={syncEditorHtml}
@@ -2292,8 +2141,6 @@ export default function Home() {
               onEditorDragOver={handleEditorDragOver}
               onEditorDragLeave={handleEditorDragLeave}
               onEditorDrop={handleEditorDrop}
-              onOpenSelectionPanel={handleOpenSelectionPanel}
-              onPasteImage={handlePasteImage}
               onAddStickyNote={() => {
                 void createNewStickyNote();
               }}
@@ -2307,6 +2154,10 @@ export default function Home() {
               onStickyDragStateChange={setStickyDragState}
               onDeleteStickyNote={(stickyId) => {
                 void deleteStickyNote(stickyId);
+              }}
+              shareInfo={activeNote?.shareLink || null}
+              onOpenShare={() => {
+                void openShareModal();
               }}
               onNoteFontSizeIncrease={handleNoteFontScaleIncrease}
               onNoteFontSizeDecrease={handleNoteFontScaleDecrease}
@@ -2404,10 +2255,6 @@ export default function Home() {
           setLinkAnchorEl={setLinkAnchorEl}
           linkDraft={linkDraft}
           setLinkDraft={setLinkDraft}
-          imageAnchorEl={imageAnchorEl}
-          setImageAnchorEl={setImageAnchorEl}
-          setImageMode={setImageMode}
-          fileInputRef={fileInputRef}
           listMenuAnchorEl={listMenuAnchorEl}
           setListMenuAnchorEl={setListMenuAnchorEl}
           editorRef={editorRef}
@@ -2417,7 +2264,6 @@ export default function Home() {
           noteDraft={noteDraft}
           setNoteDraft={setNoteDraft}
           buildId={buildId}
-          attachImageToSelection={attachImageToSelection}
           hoverPreview={hoverPreview}
           onOpenSelectionPanel={handleOpenSelectionPanel}
         />
@@ -2790,13 +2636,10 @@ export default function Home() {
         </IconButton>
       ) : null}
 
-      {/* Selection & Images Panel */}
-      <SelectionPanel
-        editorRef={editorRef}
-        imageUrlMap={imageUrlMap}
-        selectionContent={selectionContent}
-        visible={selectionPanelOpen}
-        onClose={() => setSelectionPanelOpen(false)}
+      <FeedbackAdminPanel
+        open={feedbackAdminOpen}
+        onClose={() => setFeedbackAdminOpen(false)}
+        adminKey={feedbackAdminEnabled ? "rajan" : ""}
       />
 
       {/* Feedback Modal */}
@@ -2808,7 +2651,19 @@ export default function Home() {
       {/* Pricing Panel */}
       <PricingPanel
         open={pricingOpen}
-        onClose={() => setPricingPanelOpen(false)}
+        onClose={() => setPricingOpen(false)}
+      />
+
+      <ShareNoteModal
+        open={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        note={activeNote}
+        onShareSaved={(noteId, shareLink) => {
+          void persistNoteShareLink(noteId, shareLink);
+        }}
+        onShareRemoved={(noteId) => {
+          void persistNoteShareLink(noteId, null);
+        }}
       />
 
       {/* Customization Panel */}

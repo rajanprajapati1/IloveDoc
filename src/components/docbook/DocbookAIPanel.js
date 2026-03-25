@@ -33,7 +33,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { checkedIconSvg, plainTextFromHtml, uncheckedIconSvg } from "./shared";
+import { createTodoHtml, plainTextFromHtml } from "./shared";
 import { AiSvg, BrainSvg, ChatSvg, NotesSvg, WriteSvg, ClaudeSvg, GeminiSvg, KImiSvg, GrokSvg } from "@/assets/icon";
 
 const AI_MODELS = [
@@ -200,10 +200,10 @@ You have full access to rich text formatting. Use it!
 - Lists: <ul><li>...</li></ul> or <ol><li>...</li></ol>
 
 For an unchecked todo, use exactly:
-<div data-todo="false" style="display: flex; align-items: flex-start; gap: 8px; margin: 4px 0;"><span data-todo-checkbox="true" style="cursor: pointer; color: #8b5e3c; display: flex; align-items: center; justify-content: center; user-select: none;" contenteditable="false">${uncheckedIconSvg}</span><div style="flex: 1; outline: none; min-width: 50px;">Task text</div></div><p><br></p>
+${createTodoHtml({ content: "Task text", trailingParagraph: true })}
 
 For a completed todo, use exactly:
-<div data-todo="true" style="display: flex; align-items: flex-start; gap: 8px; margin: 4px 0;"><span data-todo-checkbox="true" style="cursor: pointer; color: #8b5e3c; display: flex; align-items: center; justify-content: center; user-select: none;" contenteditable="false">${checkedIconSvg}</span><div style="flex: 1; outline: none; min-width: 50px; text-decoration: line-through; opacity: 0.6;">Task text</div></div><p><br></p>`;
+${createTodoHtml({ checked: true, content: "Task text", trailingParagraph: true })}`;
 
   if (selectedHtml) {
     systemContent += `\n\nCRITICAL INSTRUCTION: The user has SELECTED a specific part of the text. You must rewrite or replace ONLY this selected fragment according to the prompt.

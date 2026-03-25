@@ -88,7 +88,7 @@ export default function TokenMenu({
                 <TuneRoundedIcon sx={{ fontSize: 14 }} />
               </IconButton>
             )}
-            <Typography sx={{ color: "#6a5a49", fontSize: 14, fontWeight: 800, lineHeight: 1 }}>
+            <Typography sx={{ color: "#6a5a49", fontSize: 12.5, fontWeight: 800, lineHeight: 1 }}>
               {tokenMenu.tokenType === "mention" ? "@" : tokenMenu.tokenType === "folder" ? "#" : "!"}
             </Typography>
           </Stack>

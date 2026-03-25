@@ -66,3 +66,108 @@ textarea {
   width: 0;
   height: 0;
 }
+
+.docbook-loader {
+  position: relative;
+  width: 94px;
+  height: 88px;
+}
+
+.docbook-loader__page {
+  position: absolute;
+  inset: 0;
+  border-radius: 18px 18px 14px 14px;
+  transform-origin: left center;
+}
+
+.docbook-loader__page--back {
+  background: linear-gradient(180deg, #fff8d9 0%, #f3df9d 100%);
+  border: 1px solid rgba(179, 140, 45, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.66);
+  transform: translateX(7px) scale(0.96);
+}
+
+.docbook-loader__page--front {
+  background:
+    linear-gradient(90deg, rgba(205, 167, 76, 0.22) 0 10px, transparent 10px 100%),
+    linear-gradient(180deg, #fffef6 0%, #fff8de 100%);
+  border: 1px solid rgba(128, 99, 41, 0.16);
+  box-shadow:
+    0 16px 34px rgba(98, 73, 34, 0.16),
+    inset 0 -1px 0 rgba(201, 172, 94, 0.2);
+  animation: docbook-loader-float 1.8s ease-in-out infinite;
+}
+
+.docbook-loader__page--front::before {
+  content: "";
+  position: absolute;
+  top: 16px;
+  left: 20px;
+  width: 48px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(119, 92, 49, 0.18);
+  box-shadow:
+    0 14px 0 rgba(119, 92, 49, 0.12),
+    0 28px 0 rgba(119, 92, 49, 0.12),
+    18px 42px 0 rgba(119, 92, 49, 0.08);
+}
+
+.docbook-loader__page--front::after {
+  content: "";
+  position: absolute;
+  inset: 10px 12px auto auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(247, 227, 109, 0.75);
+  box-shadow: 0 0 0 6px rgba(247, 227, 109, 0.16);
+}
+
+.docbook-loader__spark {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #d99932;
+  opacity: 0;
+}
+
+.docbook-loader__spark--one {
+  top: 8px;
+  right: -6px;
+  animation: docbook-loader-spark 1.8s ease-in-out infinite;
+}
+
+.docbook-loader__spark--two {
+  bottom: 6px;
+  left: -4px;
+  width: 8px;
+  height: 8px;
+  background: #8f7d66;
+  animation: docbook-loader-spark 1.8s ease-in-out 0.35s infinite;
+}
+
+@keyframes docbook-loader-float {
+  0%, 100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(1.5deg);
+  }
+}
+
+@keyframes docbook-loader-spark {
+  0%, 100% {
+    transform: translateY(0) scale(0.5);
+    opacity: 0;
+  }
+  40% {
+    opacity: 0.9;
+  }
+  60% {
+    transform: translateY(-10px) scale(1);
+    opacity: 0;
+  }
+}
+    

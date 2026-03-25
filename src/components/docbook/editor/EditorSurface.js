@@ -29,7 +29,6 @@ export default function DocbookEditorSurface({
   autoSave = true,
   onAutoSaveChange,
   editorRef,
-  imageUrlMap = {},
   stickyNotes = [],
   activeStickyNoteId,
   onOpenLinkedNote,
@@ -47,7 +46,6 @@ export default function DocbookEditorSurface({
   onEditorDragLeave,
   onEditorDrop,
   onOpenSelectionPanel,
-  onPasteImage,
   onNoteFontSizeDecrease,
   onFontSizeDecrease,
   onAddStickyNote,
@@ -56,6 +54,8 @@ export default function DocbookEditorSurface({
   onMoveStickyNote,
   onStickyDragStateChange,
   onDeleteStickyNote,
+  shareInfo,
+  onOpenShare,
   onNoteColorChange,
   onNoteFontSizeIncrease,
   onFontSizeIncrease,
@@ -86,7 +86,6 @@ export default function DocbookEditorSurface({
 
   const activeNoteTint = activeNote?.color || noteColorOptions[0].value;
   const editorFontScale = activeNote?.fontScale || 1;
-  const imageEntries = Object.entries(imageUrlMap);
 
   /* ── Dynamic selection highlight color ── */
   useEffect(() => {
@@ -107,14 +106,15 @@ export default function DocbookEditorSurface({
   }, []);
 
   /* ── Hooks ── */
-  const { mappedLints, applySuggestion, updateRects, triggerLint } = useGrammarChecker({
+  const { mappedLints, applySuggestion, updateRects, triggerLint, clearLints } = useGrammarChecker({
     editorRef,
   });
 
   useEffect(() => {
     // Initial lint for existing content
     if (grammarEnabled) triggerLint();
-  }, [activeNote?.id, triggerLint, grammarEnabled]);
+    else clearLints();
+  }, [activeNote?.id, triggerLint, grammarEnabled, clearLints]);
 
   const toggleGrammar = useCallback(() => {
     setGrammarEnabled((prev) => {
@@ -203,7 +203,6 @@ export default function DocbookEditorSurface({
     onEditorDragOver,
     onEditorDragLeave,
     onEditorDrop,
-    onPasteImage,
     refreshSlashMenu,
     refreshTokenMenu,
     closeSlashMenu,
@@ -321,12 +320,12 @@ export default function DocbookEditorSurface({
           onNoteFontSizeIncrease={onNoteFontSizeIncrease}
           onFontSizeIncrease={onFontSizeIncrease}
           onAddStickyNote={onAddStickyNote}
-          onOpenSelectionPanel={onOpenSelectionPanel}
           stickyNotesVisible={stickyNotesVisible}
           onToggleStickyNotes={toggleStickyNotesVisibility}
+          shareInfo={shareInfo}
+          onOpenShare={onOpenShare}
           grammarEnabled={grammarEnabled}
           onToggleGrammar={toggleGrammar}
-          imageEntries={imageEntries}
           aiWorking={aiWorking}
           getDateSuggestions={getDateSuggestions}
         />

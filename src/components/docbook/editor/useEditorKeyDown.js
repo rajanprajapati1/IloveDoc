@@ -3,7 +3,141 @@
 import { useCallback } from "react";
 import { richTokenBoundarySelector } from "./constants";
 import { createTableCell, getTableRootNode, removeTableAndInsertParagraph } from "./tableUtils";
-import { uncheckedIconSvg } from "../shared";
+import { createImportantHtml, createTodoHtml } from "../shared";
+
+const editableTextSelector = "div[data-todo-text], div[data-important-text]";
+const meaningfulContentSelector = "img, table, [data-note-ref], [data-user-mention], [data-folder-ref], [data-location-ref], [data-highlight]";
+const blockShortcutSelector = "p, div, li, blockquote, h1, h2, h3, h4, h5, h6";
+
+function getEditableTextContainer(block) {
+  return block?.querySelector?.(editableTextSelector) || null;
+}
+
+function hasMeaningfulFragmentContent(fragment) {
+  if (!fragment) return false;
+
+  const textContent = (fragment.textContent || "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\u00A0/g, " ")
+    .trim();
+
+  if (textContent) return true;
+  return typeof fragment.querySelector === "function" && Boolean(fragment.querySelector(meaningfulContentSelector));
+}
+
+function hasMeaningfulBlockContent(block) {
+  const contentRoot = getEditableTextContainer(block) || block;
+  if (!contentRoot) return false;
+  return hasMeaningfulFragmentContent(contentRoot.cloneNode(true));
+}
+
+function placeCaret(selection, container, atEnd = false) {
+  if (!selection || !container) return;
+  const range = document.createRange();
+  range.selectNodeContents(container);
+  range.collapse(!atEnd);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function buildEditorMarkerId(prefix) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function replaceSelectedBlock(selection, block, editor, htmlFactory, markerPrefix) {
+  if (!selection || !block || !editor) return null;
+
+  const markerId = buildEditorMarkerId(markerPrefix);
+  const range = document.createRange();
+  if (block === editor) {
+    range.selectNodeContents(editor);
+  } else {
+    range.selectNode(block);
+  }
+  selection.removeAllRanges();
+  selection.addRange(range);
+  document.execCommand("insertHTML", false, htmlFactory(markerId));
+
+  const inserted = editor.querySelector(`[data-editor-marker="${markerId}"]`);
+  if (inserted) {
+    inserted.removeAttribute("data-editor-marker");
+  }
+  return inserted;
+}
+
+function canUseEditorAsShortcutBlock(editor) {
+  if (!editor) return false;
+  if (editor.querySelector("br")) return false;
+  if (editor.querySelector(blockShortcutSelector)) return false;
+  if (editor.querySelector("div")) return false;
+  for (const child of Array.from(editor.childNodes)) {
+    if (child.nodeType === Node.TEXT_NODE && /[\r\n]/.test(child.textContent || "")) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function hasInlineLineBreakText(node) {
+  return Array.from(node?.childNodes || []).some(
+    (child) => child.nodeType === Node.TEXT_NODE && /[\r\n]/.test(child.textContent || "")
+  );
+}
+
+function getShortcutBlockElement(node, editor, options = {}) {
+  const { allowTodo = false, allowImportant = false } = options;
+  const element = node?.nodeType === 3 ? node.parentElement : node;
+  if (!element || !editor) return null;
+
+  const todoBlock = allowTodo ? element.closest?.("[data-todo]") : null;
+  if (todoBlock && editor.contains(todoBlock)) return todoBlock;
+
+  const importantBlock = allowImportant ? element.closest?.("[data-important]") : null;
+  if (importantBlock && editor.contains(importantBlock)) return importantBlock;
+
+  if (element.closest?.("[data-todo], [data-important]")) return null;
+
+  const block = element.closest?.(blockShortcutSelector);
+  if (!block) {
+    if ((node?.parentNode === editor || element === editor) && canUseEditorAsShortcutBlock(editor)) return editor;
+    return null;
+  }
+  if (block === editor) return canUseEditorAsShortcutBlock(editor) ? editor : null;
+  if (!editor.contains(block)) return null;
+  if (block.tagName === "DIV" && block.querySelector("br")) return null;
+  if (block.tagName === "DIV" && hasInlineLineBreakText(block)) return null;
+  return block;
+}
+
+function getBlockContentHtml(block) {
+  const contentRoot = getEditableTextContainer(block);
+  if (contentRoot) {
+    return hasMeaningfulFragmentContent(contentRoot.cloneNode(true)) ? contentRoot.innerHTML : "<br>";
+  }
+  return hasMeaningfulBlockContent(block) ? block.innerHTML : "<br>";
+}
+
+function getSuffixShortcutContext(selection, node, block, markerRegex) {
+  if (!selection || !node || node.nodeType !== 3 || !block) return null;
+
+  const textBeforeCaret = node.nodeValue.slice(0, selection.anchorOffset);
+  const markerMatch = textBeforeCaret.match(markerRegex);
+  if (!markerMatch) return null;
+
+  const markerStart = selection.anchorOffset - markerMatch[0].length;
+
+  const beforeRange = document.createRange();
+  beforeRange.selectNodeContents(block);
+  beforeRange.setEnd(node, markerStart);
+  if (!hasMeaningfulFragmentContent(beforeRange.cloneContents())) return null;
+
+  const afterRange = document.createRange();
+  afterRange.selectNodeContents(block);
+  afterRange.setStart(node, selection.anchorOffset);
+  if (hasMeaningfulFragmentContent(afterRange.cloneContents())) return null;
+
+  return { markerStart };
+}
 
 /**
  * Hook for the editor's keyDown handler.
@@ -198,30 +332,98 @@ export default function useEditorKeyDown({
         const todoDiv = todoNode?.closest?.("[data-todo]");
         if (todoDiv) {
           event.preventDefault();
-          const textContainer = todoDiv.querySelector("div[style*='flex: 1']");
-          const textContent = textContainer ? textContainer.innerText.trim() : "";
+          const textContainer = getEditableTextContainer(todoDiv);
+          const hasContent = hasMeaningfulBlockContent(todoDiv);
 
-          if (!textContent) {
+          if (!hasContent) {
             const p = document.createElement("p");
             p.innerHTML = "<br>";
             todoDiv.parentNode.insertBefore(p, todoDiv.nextSibling);
             todoDiv.parentNode.removeChild(todoDiv);
-            const newRange = document.createRange();
-            newRange.setStart(p, 0);
-            newRange.collapse(true);
-            sel.removeAllRanges();
-            sel.addRange(newRange);
+            placeCaret(sel, p);
           } else {
-            const newTodoHtml = `<div data-todo="false" style="display: flex; align-items: flex-start; gap: 8px; margin: 4px 0;"><span data-todo-checkbox="true" style="cursor: pointer; color: #8b5e3c; display: flex; align-items: center; justify-content: center; user-select: none;" contenteditable="false">${uncheckedIconSvg}</span><div style="flex: 1; outline: none; min-width: 50px;"><br></div></div>`;
+            const newTodoHtml = createTodoHtml();
             todoDiv.insertAdjacentHTML("afterend", newTodoHtml);
             const newTodo = todoDiv.nextElementSibling;
-            const newTextContainer = newTodo.querySelector("div[style*='flex: 1']");
-            const newRange = document.createRange();
-            newRange.setStart(newTextContainer, 0);
-            newRange.collapse(true);
-            sel.removeAllRanges();
-            sel.addRange(newRange);
+            const newTextContainer = getEditableTextContainer(newTodo);
+            placeCaret(sel, newTextContainer || textContainer || newTodo);
           }
+          if (onEditorInput) onEditorInput();
+          return;
+        }
+      }
+
+      /* ── Escape Important block on Enter ── */
+      if (isEnter) {
+        const impNode = node.nodeType === 3 ? node.parentElement : node;
+        const impDiv = impNode?.closest?.("[data-important]");
+        if (impDiv) {
+          event.preventDefault();
+          const textContainer = getEditableTextContainer(impDiv);
+          const hasContent = hasMeaningfulBlockContent(impDiv);
+
+          if (!hasContent) {
+            const p = document.createElement("p");
+            p.innerHTML = "<br>";
+            impDiv.parentNode.insertBefore(p, impDiv.nextSibling);
+            impDiv.parentNode.removeChild(impDiv);
+            placeCaret(sel, p);
+          } else {
+            const newImpHtml = createImportantHtml();
+            impDiv.insertAdjacentHTML("afterend", newImpHtml);
+            const newImp = impDiv.nextElementSibling;
+            const newTextContainer = getEditableTextContainer(newImp);
+            placeCaret(sel, newTextContainer || textContainer || newImp);
+          }
+          if (onEditorInput) onEditorInput();
+          return;
+        }
+      }
+
+      /* ── Auto-format "!! " to Important Block ── */
+      if (event.key === " " && sel.isCollapsed && node.nodeType === 3) {
+        const editorEl = node.parentElement?.closest?.("[contenteditable='true']");
+        const blockEl = getShortcutBlockElement(node, editorEl, { allowTodo: true });
+        const shortcutContext = getSuffixShortcutContext(sel, node, blockEl, /\s!!$/);
+
+        if (shortcutContext && editorEl) {
+          event.preventDefault();
+          node.nodeValue = `${node.nodeValue.slice(0, shortcutContext.markerStart)}${node.nodeValue.slice(sel.anchorOffset)}`;
+          const content = getBlockContentHtml(blockEl);
+          const inserted = replaceSelectedBlock(
+            sel,
+            blockEl,
+            editorEl,
+            (markerId) => createImportantHtml({ content, rootAttributes: { "data-editor-marker": markerId } }),
+            "important"
+          );
+          placeCaret(sel, getEditableTextContainer(inserted) || inserted, true);
+
+          if (onEditorInput) onEditorInput();
+          return;
+        }
+      }
+
+
+      /* ── Auto-format "[] " to Todo Block ── */
+      if (event.key === " " && sel.isCollapsed && node.nodeType === 3) {
+        const editorEl = node.parentElement?.closest?.("[contenteditable='true']");
+        const blockEl = getShortcutBlockElement(node, editorEl);
+        const shortcutContext = getSuffixShortcutContext(sel, node, blockEl, /\s\[\]$/);
+
+        if (shortcutContext && editorEl) {
+          event.preventDefault();
+          node.nodeValue = `${node.nodeValue.slice(0, shortcutContext.markerStart)}${node.nodeValue.slice(sel.anchorOffset)}`;
+          const content = hasMeaningfulBlockContent(blockEl) ? blockEl.innerHTML : "<br>";
+          const inserted = replaceSelectedBlock(
+            sel,
+            blockEl,
+            editorEl,
+            (markerId) => createTodoHtml({ content, rootAttributes: { "data-editor-marker": markerId } }),
+            "todo"
+          );
+          placeCaret(sel, getEditableTextContainer(inserted) || inserted, true);
+
           if (onEditorInput) onEditorInput();
           return;
         }
@@ -334,6 +536,8 @@ export default function useEditorKeyDown({
       closeSlashMenu,
       closeTokenMenu,
       onEditorInput,
+      setSlashMenu,
+      setTokenMenu,
       slashMenu.selectedIndex,
       slashMenu.visible,
       tokenMenu.selectedIndex,

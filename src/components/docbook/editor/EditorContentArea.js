@@ -32,7 +32,10 @@ function EditorContentArea({
       ref={editorRef}
       contentEditable
       suppressContentEditableWarning
-      spellCheck
+      spellCheck={false}
+      data-gramm="false"
+      data-gramm_editor="false"
+      data-enable-grammarly="false"
       data-placeholder="Start writing your note..."
       onKeyDown={handleEditorKeyDown}
       onInput={handleInput}

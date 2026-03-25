@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { uncheckedIconSvg } from "../shared";
+import { createTodoHtml } from "../shared";
 
 const TOP_LEVEL_COMMANDS = [
   {
@@ -245,23 +245,29 @@ export default function useSlashCommands({
       const items = matches.map((loc) => ({
         id: `map-loc-${loc.id}`,
         kind: "map",
-        label: `📍 ${loc.name}`,
+        label: `Location: ${loc.name}`,
         description: loc.address || loc.description || "Custom location",
         value: loc.name,
       }));
 
-      if (argument && !matches.some((l) => l.name.toLowerCase() === argument.toLowerCase())) {
+      if (argument && !matches.some((loc) => loc.name.toLowerCase() === argument.toLowerCase())) {
         items.unshift({
           id: "map-pin",
           kind: "map",
-          label: `📍 ${argument}`,
+          label: `Location: ${argument}`,
           description: `Insert location: ${argument}`,
           value: argument,
         });
       }
 
       if (items.length === 0) {
-        items.push({ id: "map-hint", kind: "map", label: "📍 Insert Location", description: "Type a place after /map", value: "" });
+        items.push({
+          id: "map-hint",
+          kind: "map",
+          label: "Insert Location",
+          description: "Type a place after /map",
+          value: "",
+        });
       }
 
       return {
@@ -363,7 +369,7 @@ export default function useSlashCommands({
 
     if (item.kind === "todo") {
       const count = item.count || 1;
-      const singleTodo = `<div data-todo="false" style="display: flex; align-items: flex-start; gap: 8px; margin: 4px 0;"><span data-todo-checkbox="true" style="cursor: pointer; color: #8b5e3c; display: flex; align-items: center; justify-content: center; user-select: none;" contenteditable="false">${uncheckedIconSvg}</span><div style="flex: 1; outline: none; min-width: 50px;"><br></div></div>`;
+      const singleTodo = createTodoHtml();
       document.execCommand("insertHTML", false, singleTodo.repeat(count));
       if (onEditorInput) onEditorInput();
       return;
@@ -371,7 +377,7 @@ export default function useSlashCommands({
 
     if (item.kind === "map" && item.value) {
       const mapUrl = `https://www.google.com/maps/search/${encodeURIComponent(item.value)}`;
-      const mapHtml = `<a href="${mapUrl}" target="_blank" rel="noopener noreferrer" data-location="${item.value.replace(/"/g, "&quot;")}" style="display:inline-flex;align-items:center;gap:0.3em;vertical-align:middle;border-radius:999px;padding:0.18em 0.6em;margin:0 0.1em;background:rgba(255,248,240,0.96);border:1px solid rgba(139,94,60,0.22);box-shadow:0 2px 8px rgba(92,61,46,0.1);color:#3e2f24;text-decoration:none;line-height:1.4;font-size:0.88em;font-weight:600;cursor:pointer;">📍 ${item.value}</a>&nbsp;`;
+      const mapHtml = `<a href="${mapUrl}" target="_blank" rel="noopener noreferrer" data-location="${item.value.replace(/"/g, "&quot;")}" style="display:inline-flex;align-items:center;gap:0.3em;vertical-align:middle;border-radius:999px;padding:0.18em 0.6em;margin:0 0.1em;background:rgba(255,248,240,0.96);border:1px solid rgba(139,94,60,0.22);box-shadow:0 2px 8px rgba(92,61,46,0.1);color:#3e2f24;text-decoration:none;line-height:1.4;font-size:0.88em;font-weight:600;cursor:pointer;">Location ${item.value}</a>&nbsp;`;
       document.execCommand("insertHTML", false, mapHtml);
       if (onEditorInput) onEditorInput();
       return;
@@ -385,7 +391,7 @@ export default function useSlashCommands({
     if (item.kind === "existing") {
       onOpenStickyNote?.(item.id);
     }
-  }, [closeSlashMenu, getSlashCommandContext, onAddStickyNote, onEditorInput, onOpenStickyNote, refreshSlashMenu, replaceSlashToken]);
+  }, [closeSlashMenu, getSlashCommandContext, onAddStickyNote, onEditorInput, onOpenStickyNote, replaceSlashToken]);
 
   return {
     slashMenu: { ...slashMenu, title: suggestionTitle },

@@ -15,7 +15,6 @@ import { richTokenBoundarySelector } from "./constants";
  * @param {Function} params.onEditorDragOver
  * @param {Function} params.onEditorDragLeave
  * @param {Function} params.onEditorDrop
- * @param {Function} params.onPasteImage
  * @param {Function} params.refreshSlashMenu
  * @param {Function} params.refreshTokenMenu
  * @param {Function} params.closeSlashMenu
@@ -33,7 +32,6 @@ export default function useEditorEvents({
   onEditorDragOver,
   onEditorDragLeave,
   onEditorDrop,
-  onPasteImage,
   refreshSlashMenu,
   refreshTokenMenu,
   closeSlashMenu,
@@ -57,31 +55,9 @@ export default function useEditorEvents({
 
   const handlePaste = useCallback(
     (event) => {
-      const clipboardData = event.clipboardData;
-      if (!clipboardData) return;
-
-      const items = clipboardData.items;
-      if (!items || items.length === 0) return;
-
-      let imageItem = null;
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.startsWith("image/")) {
-          imageItem = items[i];
-          break;
-        }
-      }
-
-      if (!imageItem) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-
-      const file = imageItem.getAsFile();
-      if (file && onPasteImage) {
-        onPasteImage(file);
-      }
+      /* Browser natively handles text/html paste. Image file pasting is removed */
     },
-    [onPasteImage]
+    []
   );
 
   const handleClick = useCallback(

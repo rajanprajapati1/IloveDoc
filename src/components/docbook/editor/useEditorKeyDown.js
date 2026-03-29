@@ -3,9 +3,9 @@
 import { useCallback } from "react";
 import { richTokenBoundarySelector } from "./constants";
 import { createTableCell, getTableRootNode, removeTableAndInsertParagraph } from "./tableUtils";
-import { createImportantHtml, createTodoHtml } from "../shared";
+import { createTodoHtml } from "../shared";
 
-const editableTextSelector = "div[data-todo-text], div[data-important-text]";
+const editableTextSelector = "div[data-todo-text]";
 const meaningfulContentSelector = "img, table, [data-note-ref], [data-user-mention], [data-folder-ref], [data-location-ref], [data-highlight]";
 const blockShortcutSelector = "p, div, li, blockquote, h1, h2, h3, h4, h5, h6";
 
@@ -48,15 +48,24 @@ function replaceSelectedBlock(selection, block, editor, htmlFactory, markerPrefi
   if (!selection || !block || !editor) return null;
 
   const markerId = buildEditorMarkerId(markerPrefix);
-  const range = document.createRange();
+  const html = htmlFactory(markerId);
+
   if (block === editor) {
+    // Replacing entire editor content uses execCommand so undo still works.
+    const range = document.createRange();
     range.selectNodeContents(editor);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    document.execCommand("insertHTML", false, html);
   } else {
-    range.selectNode(block);
+    const temp = document.createElement("div");
+    temp.innerHTML = html;
+    const newNode = temp.firstElementChild;
+
+    if (newNode && block.parentNode) {
+      block.parentNode.replaceChild(newNode, block);
+    }
   }
-  selection.removeAllRanges();
-  selection.addRange(range);
-  document.execCommand("insertHTML", false, htmlFactory(markerId));
 
   const inserted = editor.querySelector(`[data-editor-marker="${markerId}"]`);
   if (inserted) {
@@ -85,17 +94,14 @@ function hasInlineLineBreakText(node) {
 }
 
 function getShortcutBlockElement(node, editor, options = {}) {
-  const { allowTodo = false, allowImportant = false } = options;
+  const { allowTodo = false } = options;
   const element = node?.nodeType === 3 ? node.parentElement : node;
   if (!element || !editor) return null;
 
   const todoBlock = allowTodo ? element.closest?.("[data-todo]") : null;
   if (todoBlock && editor.contains(todoBlock)) return todoBlock;
 
-  const importantBlock = allowImportant ? element.closest?.("[data-important]") : null;
-  if (importantBlock && editor.contains(importantBlock)) return importantBlock;
-
-  if (element.closest?.("[data-todo], [data-important]")) return null;
+  if (element.closest?.("[data-todo]")) return null;
 
   const block = element.closest?.(blockShortcutSelector);
   if (!block) {
@@ -173,7 +179,7 @@ export default function useEditorKeyDown({
     (event) => {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
 
-      /* ── Slash menu keyboard navigation ── */
+      /* -- Slash menu keyboard navigation -- */
       if (slashMenu.visible && activeSuggestions.length > 0) {
         if (event.key === "ArrowDown") {
           event.preventDefault();
@@ -197,7 +203,7 @@ export default function useEditorKeyDown({
         }
       }
 
-      /* ── Token menu keyboard navigation ── */
+      /* -- Token menu keyboard navigation -- */
       if (tokenMenu.visible && activeTokenSuggestions.length > 0) {
         if (event.key === "ArrowDown") {
           event.preventDefault();
@@ -224,12 +230,12 @@ export default function useEditorKeyDown({
       const sel = window.getSelection();
       if (!sel || sel.rangeCount === 0) return;
 
-      /* ── If selection is active, let browser collapse it natively on arrow keys.
-             We just return early so our rich-token boundary code doesn't fire. ── */
+      /* -- If selection is active, let browser collapse it natively on arrow keys.
+             We just return early so our rich-token boundary code doesn't fire. -- */
       if (!sel.isCollapsed) {
         const key = event.key;
         if (key === "ArrowLeft" || key === "ArrowRight") {
-          // Don't preventDefault — let the browser collapse naturally (Left→start, Right→end).
+          // Don't preventDefault; let the browser collapse naturally (Left=start, Right=end).
           // Return so our rich-token-boundary logic below doesn't also run.
           return;
         }
@@ -242,7 +248,7 @@ export default function useEditorKeyDown({
 
       const isEnter = event.key === "Enter";
 
-      /* ── Escape standard lists (ul/ol) on Enter if empty ── */
+      /* -- Escape standard lists (ul/ol) on Enter if empty -- */
       if (isEnter) {
         const liNode = node.nodeType === 3 ? node.parentElement : node;
         const li = liNode?.closest?.("li");
@@ -272,7 +278,7 @@ export default function useEditorKeyDown({
         }
       }
 
-      /* ── Escape Table on Enter ── */
+      /* -- Escape Table on Enter -- */
       if (isEnter) {
         const cellNode = node.nodeType === 3 ? node.parentElement : node;
         const cell = cellNode?.closest?.("td, th");
@@ -326,7 +332,7 @@ export default function useEditorKeyDown({
         }
       }
 
-      /* ── Escape Todo list on Enter ── */
+      /* -- Escape Todo list on Enter -- */
       if (isEnter) {
         const todoNode = node.nodeType === 3 ? node.parentElement : node;
         const todoDiv = todoNode?.closest?.("[data-todo]");
@@ -353,59 +359,7 @@ export default function useEditorKeyDown({
         }
       }
 
-      /* ── Escape Important block on Enter ── */
-      if (isEnter) {
-        const impNode = node.nodeType === 3 ? node.parentElement : node;
-        const impDiv = impNode?.closest?.("[data-important]");
-        if (impDiv) {
-          event.preventDefault();
-          const textContainer = getEditableTextContainer(impDiv);
-          const hasContent = hasMeaningfulBlockContent(impDiv);
-
-          if (!hasContent) {
-            const p = document.createElement("p");
-            p.innerHTML = "<br>";
-            impDiv.parentNode.insertBefore(p, impDiv.nextSibling);
-            impDiv.parentNode.removeChild(impDiv);
-            placeCaret(sel, p);
-          } else {
-            const newImpHtml = createImportantHtml();
-            impDiv.insertAdjacentHTML("afterend", newImpHtml);
-            const newImp = impDiv.nextElementSibling;
-            const newTextContainer = getEditableTextContainer(newImp);
-            placeCaret(sel, newTextContainer || textContainer || newImp);
-          }
-          if (onEditorInput) onEditorInput();
-          return;
-        }
-      }
-
-      /* ── Auto-format "!! " to Important Block ── */
-      if (event.key === " " && sel.isCollapsed && node.nodeType === 3) {
-        const editorEl = node.parentElement?.closest?.("[contenteditable='true']");
-        const blockEl = getShortcutBlockElement(node, editorEl, { allowTodo: true });
-        const shortcutContext = getSuffixShortcutContext(sel, node, blockEl, /\s!!$/);
-
-        if (shortcutContext && editorEl) {
-          event.preventDefault();
-          node.nodeValue = `${node.nodeValue.slice(0, shortcutContext.markerStart)}${node.nodeValue.slice(sel.anchorOffset)}`;
-          const content = getBlockContentHtml(blockEl);
-          const inserted = replaceSelectedBlock(
-            sel,
-            blockEl,
-            editorEl,
-            (markerId) => createImportantHtml({ content, rootAttributes: { "data-editor-marker": markerId } }),
-            "important"
-          );
-          placeCaret(sel, getEditableTextContainer(inserted) || inserted, true);
-
-          if (onEditorInput) onEditorInput();
-          return;
-        }
-      }
-
-
-      /* ── Auto-format "[] " to Todo Block ── */
+      /* -- Auto-format "[] " to Todo Block -- */
       if (event.key === " " && sel.isCollapsed && node.nodeType === 3) {
         const editorEl = node.parentElement?.closest?.("[contenteditable='true']");
         const blockEl = getShortcutBlockElement(node, editorEl);
@@ -429,7 +383,7 @@ export default function useEditorKeyDown({
         }
       }
 
-      /* ── Rich token boundary management ── */
+      /* -- Rich token boundary management -- */
       const el = node.nodeType === 3 ? node.parentElement : node;
       const span = el?.closest?.(richTokenBoundarySelector);
       if (!span) return;
@@ -547,3 +501,4 @@ export default function useEditorKeyDown({
 
   return handleEditorKeyDown;
 }
+

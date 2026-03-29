@@ -1,5 +1,5 @@
 export const stickyColorOptions = [
-  { value: "#FFFFFF", label: "White", ink: "#2d2d2d", shade: "#e8e8e8", edge: "#ffffff", pin: "#d4d4d4" },
+  { value: "#9494946b", label: "White", ink: "#2d2d2d", shade: "#e8e8e8", edge: "#9494946b", pin: "#d4d4d4" },
   { value: "#F7E36D", label: "Butter", ink: "#3C2B12", shade: "#DEBF49", edge: "#FFF6B5", pin: "#C98B11" },
   { value: "#FFB56A", label: "Apricot", ink: "#482713", shade: "#E98B43", edge: "#FFD6A8", pin: "#D96A1D" },
   { value: "#FF7E73", label: "Coral", ink: "#4B1F1B", shade: "#E35D52", edge: "#FFC0B7", pin: "#C83F34" },
@@ -36,14 +36,10 @@ export const noteColorOptions = stickyColorOptions.map(({ value, label }) => ({ 
 export const uncheckedIconSvg = `<svg focusable="false" aria-hidden="true" viewBox="0 0 24 24" style="width:1.2em; height:1.2em; fill:currentColor"><path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"></path></svg>`;
 export const checkedIconSvg = `<svg focusable="false" aria-hidden="true" viewBox="0 0 24 24" style="width:1.2em; height:1.2em; fill:currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-8.29 13.29a.9959.9959 0 0 1-1.41 0L5.71 12.7a.9959.9959 0 0 1 0-1.41c.39-.39 1.02-.39 1.41 0L10 14.17l6.88-6.88c.39-.39 1.02-.39 1.41 0 .39.39.39 1.02 0 1.41l-7.58 7.59z"></path></svg>`;
 export const crossIconSvg = `<svg focusable="false" aria-hidden="true" viewBox="0 0 24 24" style="width:1.2em; height:1.2em; fill:currentColor"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>`;
-export const importantIconSvg = `<svg focusable="false" aria-hidden="true" viewBox="0 0 24 24" style="width:1.2em; height:1.2em; fill:currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"></path></svg>`;
 export const todoRowStyle = "display:flex;align-items:center;gap:8px;margin:4px 0;min-height:24px;";
 export const todoCheckboxStyle = "cursor:pointer;color:#8b5e3c;display:flex;align-items:center;justify-content:center;user-select:none;flex:0 0 auto;width:20px;height:20px;line-height:0;";
 export const todoTextStyle = "flex:1;outline:none;min-width:50px;line-height:1.5;padding-top:0;";
 export const todoTextDoneStyle = `${todoTextStyle}text-decoration:line-through;opacity:0.6;`;
-export const importantRowStyle = "display:flex;align-items:center;gap:8px;margin:0px 0;min-height:24px;";
-export const importantTextStyle = "flex:1;outline:none;min-width:50px;line-height:1.5;padding-top:0;";
-export const importantIconStyle = "color:#d32f2f;display:flex;align-items:center;justify-content:center;user-select:none;flex:0 0 auto;width:20px;height:20px;line-height:0;";
 
 function serializeRootAttributes(rootAttributes = {}) {
   return Object.entries(rootAttributes)
@@ -58,11 +54,6 @@ export function createTodoHtml({ checked = false, content = "<br>", trailingPara
   const rootAttrString = serializeRootAttributes(rootAttributes);
   const todoHtml = `<div data-todo="${checked ? "true" : "false"}"${rootAttrString ? ` ${rootAttrString}` : ""} style="${todoRowStyle}"><span data-todo-checkbox="true" style="${todoCheckboxStyle}" contenteditable="false" spellcheck="false">${icon}</span><div data-todo-text="true" style="${textStyle}">${content}</div></div>`;
   return trailingParagraph ? `${todoHtml}<p><br></p>` : todoHtml;
-}
-
-export function createImportantHtml({ content = "<br>", rootAttributes = {} } = {}) {
-  const rootAttrString = serializeRootAttributes(rootAttributes);
-  return `<div data-important="true"${rootAttrString ? ` ${rootAttrString}` : ""} style="${importantRowStyle}"><span data-important-icon="true" style="${importantIconStyle}" contenteditable="false" spellcheck="false">${importantIconSvg}</span><div data-important-text="true" style="${importantTextStyle}">${content}</div></div>`;
 }
 export const defaultNoteContent = `
 <div style="

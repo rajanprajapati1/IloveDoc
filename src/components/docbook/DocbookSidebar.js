@@ -34,12 +34,15 @@ import {
 } from "@mui/material";
 import RoomPreferencesRoundedIcon from '@mui/icons-material/RoomPreferencesRounded';
 import ListAltRoundedIcon from "@mui/icons-material/ListAltRounded";
+import DragIndicatorRoundedIcon from "@mui/icons-material/DragIndicatorRounded";
+import PriorityHighRoundedIcon from "@mui/icons-material/PriorityHighRounded";
 import { alpha } from "@mui/material/styles";
 import { HeartIcon, NotesSvg } from "@/assets/icon";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { formatEditedAt, plainTextFromHtml, timeAgoLabel, tooltipSlotProps } from "./shared";
 import { ALL_EMOJIS, DEFAULT_SELECTED_EMOJIS } from "./CustomizationPanel";
 import LoupeRoundedIcon from '@mui/icons-material/LoupeRounded';
+import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 
 function SectionLabel({ children, isDrawer, isCollapsed }) {
   if (isCollapsed) return null;
@@ -131,10 +134,14 @@ function NoteTitleLink({
   customEmojis = [],
   reactions = [],
   onToggleReaction,
+  onToggleImportant,
+  dragHandleProps,
+  isDragging = false,
 }) {
   const title = note.title?.trim() || "";
   const preview = plainTextFromHtml(note.content) || "Empty note";
   const noteColor = note.color || "#F7E36D";
+  const isImportant = Boolean(note.isImportant);
   const stickyNoteCount = stickyNotes.length;
   const activeReactionCode = reactions[0] || "";
   const activeReaction = activeReactionCode ? ALL_EMOJIS.find((emoji) => emoji.code === activeReactionCode) : null;
@@ -146,6 +153,7 @@ function NoteTitleLink({
         transition: "background-color 200ms, transform 180ms ease",
         borderRadius: 8,
         position: "relative",
+        opacity: isDragging ? 0.92 : 1,
         "&::after": isStickyDragging
           ? {
             content: '""',
@@ -162,11 +170,22 @@ function NoteTitleLink({
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.35 }}>
         <Tooltip
           arrow
-          placement="right"
-          slotProps={tooltipSlotProps}
+          placement="right-start"
+          slotProps={{
+            ...tooltipSlotProps,
+            popper: {
+              modifiers: [
+                {
+                  name: "offset",
+                  options: { offset: [14, 0] },
+                },
+              ],
+            },
+          }}
+          disableInteractive
           disableFocusListener={isStickyDragging}
           disableHoverListener={isStickyDragging}
-          enterDelay={350}
+          enterDelay={750}
           title={
             <Box
               sx={{
@@ -196,6 +215,13 @@ function NoteTitleLink({
                     }}
                   />
                   <Typography sx={{ fontSize: 12.8, fontWeight: 800, lineHeight: 1.3, color: "#2f261f" }}>{title}</Typography>
+                  {isImportant && (
+                    <Box sx={{ px: 0.8, py: 0.25, borderRadius: 999, bgcolor: alpha("#ff7043", 0.14), border: "1px solid rgba(255, 112, 67, 0.3)" }}>
+                      <Typography sx={{ fontSize: 10, fontWeight: 800, color: "#bf4a1d", letterSpacing: "0.03em", textTransform: "uppercase" }}>
+                        Important
+                      </Typography>
+                    </Box>
+                  )}
                 </Stack>
                 <Typography sx={{ fontSize: 12, lineHeight: 1.45, color: "#53483f" }}>{preview.slice(0, 150)}</Typography>
                 <Typography sx={{ fontSize: 10.5, mt: 0.75, color: "#8a7664", fontWeight: 600 }}>{formatEditedAt(note.updatedAt)}</Typography>
@@ -358,6 +384,26 @@ function NoteTitleLink({
             {!isCollapsed && (
               <>
                 <Box
+                  {...dragHandleProps}
+                  onClick={(event) => event.stopPropagation()}
+                  sx={{
+                    width: 18,
+                    height: 18,
+                    minWidth: 18,
+                    minHeight: 18,
+                    flexShrink: 0,
+                    display: "grid",
+                    placeItems: "center",
+                    borderRadius: 999,
+                    color: "#9a8a7a",
+                    cursor: "grab",
+                    "&:active": { cursor: "grabbing" },
+                    "&:hover": { bgcolor: alpha("#8f7d66", 0.12), color: "#6b6158" },
+                  }}
+                >
+                  <DragIndicatorRoundedIcon sx={{ fontSize: 15 }} />
+                </Box>
+                <Box
                   sx={{
                     width: 14,
                     height: 14,
@@ -392,7 +438,7 @@ function NoteTitleLink({
 
         {!isCollapsed && (
           <Stack direction="row" spacing={0.2} sx={{ flexShrink: 0, display: isDrawer ? "flex" : { xs: "none", lg: "flex" } }}>
-            <Tooltip arrow placement="right" slotProps={tooltipSlotProps} title="Clone note">
+            <Tooltip arrow placement="top" slotProps={tooltipSlotProps} title="Clone note">
               <Box component="span">
                 <IconButton
                   size="small"
@@ -408,7 +454,30 @@ function NoteTitleLink({
                 </IconButton>
               </Box>
             </Tooltip>
-            <Tooltip arrow placement="right" slotProps={tooltipSlotProps} title={disableDelete ? "At least one note is required" : "Delete note"}>
+            <Tooltip arrow placement="top" slotProps={tooltipSlotProps} title={isImportant ? "Unmark important" : "Mark important"}>
+              <Box component="span">
+                <IconButton
+                  size="small"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleImportant?.(note.id);
+                  }}
+                  sx={{
+                    width: 24,
+                    height: 24,
+                    color: isImportant ? "#bf4a1d" : "#82796f",
+                    bgcolor: isImportant ? alpha("#ff7043", 0.12) : "transparent",
+                    "&:hover": {
+                      bgcolor: isImportant ? alpha("#ff7043", 0.2) : alpha("#8f7d66", 0.12),
+                      color: isImportant ? "#a63e17" : "#5f554b",
+                    },
+                  }}
+                >
+                  <PriorityHighRoundedIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Box>
+            </Tooltip>
+            <Tooltip arrow placement="top" slotProps={tooltipSlotProps} title={disableDelete ? "At least one note is required" : "Delete note"}>
               <Box component="span">
                 <IconButton
                   size="small"
@@ -531,6 +600,8 @@ export default function DocbookSidebar({
   customEmojis = [],
   noteReactions = {},
   onToggleReaction,
+  onToggleImportantNote,
+  onReorderNotes,
 }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [notesAnchorEl, setNotesAnchorEl] = useState(null);
@@ -753,31 +824,61 @@ export default function DocbookSidebar({
                 "&::-webkit-scrollbar-thumb": { bgcolor: alpha("#8f7d66", 0.2), borderRadius: 2 },
               }}
             >
-              {notes.map((note) => (
-                <NoteTitleLink
-                  key={note.id}
-                  note={note}
-                  stickyNotes={stickyNotes.filter((stickyNote) => stickyNote.noteId === note.id)}
-                  active={note.id === activeNoteId}
-                  isCollapsed={isCollapsed}
-                  isStickyDragging={Boolean(stickyDragState?.stickyId)}
-                  isStickyDropTarget={stickyDragState?.targetNoteId === note.id}
-                  disableDelete={notes.length <= 1}
-                  onOpen={() => onOpenNote(note.id)}
-                  onClone={(event) => {
-                    event.stopPropagation();
-                    onCloneNote(note.id);
-                  }}
-                  onDelete={(event) => {
-                    event.stopPropagation();
-                    onDeleteNote(note.id);
-                  }}
-                  isDrawer={isDrawer}
-                  customEmojis={customEmojis}
-                  reactions={noteReactions[note.id] || []}
-                  onToggleReaction={onToggleReaction}
-                />
-              ))}
+              <DragDropContext
+                onDragEnd={(result) => {
+                  if (!result.destination) return;
+                  if (result.destination.index === result.source.index) return;
+                  onReorderNotes?.(result.source.index, result.destination.index);
+                }}
+              >
+                <Droppable droppableId={isDrawer ? "sidebar-notes-drawer" : "sidebar-notes"}>
+                  {(droppableProvided) => (
+                    <Stack
+                      spacing={0}
+                      ref={droppableProvided.innerRef}
+                      {...droppableProvided.droppableProps}
+                    >
+                      {notes.map((note, index) => (
+                        <Draggable key={note.id} draggableId={note.id} index={index}>
+                          {(draggableProvided, draggableSnapshot) => (
+                            <Box
+                              ref={draggableProvided.innerRef}
+                              {...draggableProvided.draggableProps}
+                            >
+                              <NoteTitleLink
+                                note={note}
+                                stickyNotes={stickyNotes.filter((stickyNote) => stickyNote.noteId === note.id)}
+                                active={note.id === activeNoteId}
+                                isCollapsed={isCollapsed}
+                                isStickyDragging={Boolean(stickyDragState?.stickyId)}
+                                isStickyDropTarget={stickyDragState?.targetNoteId === note.id}
+                                disableDelete={notes.length <= 1}
+                                onOpen={() => onOpenNote(note.id)}
+                                onClone={(event) => {
+                                  event.stopPropagation();
+                                  onCloneNote(note.id);
+                                }}
+                                onDelete={(event) => {
+                                  event.stopPropagation();
+                                  onDeleteNote(note.id);
+                                }}
+                                isDrawer={isDrawer}
+                                customEmojis={customEmojis}
+                                reactions={noteReactions[note.id] || []}
+                                onToggleReaction={onToggleReaction}
+                                onToggleImportant={onToggleImportantNote}
+                                dragHandleProps={draggableProvided.dragHandleProps}
+                                isDragging={draggableSnapshot.isDragging}
+                              />
+                            </Box>
+                          )}
+                        </Draggable>
+                      ))}
+                      {droppableProvided.placeholder}
+                    </Stack>
+                  )}
+                </Droppable>
+              </DragDropContext>
             </Stack>
           </Box>
         )}

@@ -26,18 +26,17 @@
     {
       "date": "March 25, 2026",
       "title": "Faster note workflow and smarter writing shortcuts",
-      "summary": "DocBook now keeps edits safer while switching views, adds quick note cloning, and improves writing shortcuts for tasks and highlighted callouts.",
+      "summary": "DocBook now keeps edits safer while switching views, adds quick note cloning, and improves writing shortcuts for tasks.",
       "changes": [
         "Added note cloning from the sidebar so you can duplicate a note with its content and sticky notes.",
         "Improved note switching flow to persist current edits before opening other panels or notes.",
-        "Added auto-convert shortcuts in the editor: use [] to start todo blocks and !! to create important callout blocks.",
+        "Added auto-convert shortcuts in the editor: use [] to start todo blocks.",
         "Improved mention and folder chip sizing for a cleaner reading experience in the editor.",
         "Added a dedicated app loading screen for smoother startup transitions."
       ],
       "how_to_use": [
         "In the sidebar, use the clone icon on a note row to duplicate it.",
         "Type [] followed by space to convert the current line into a todo block.",
-        "Type !! followed by space to convert the current line into an important callout block.",
         "Open notes, changelog, or settings as usual; current note edits now persist more reliably during navigation."
       ]
     },

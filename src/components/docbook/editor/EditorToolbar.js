@@ -403,6 +403,7 @@ export default function EditorToolbar({
         <Stack direction="row" spacing={0.5} alignItems="center" sx={{ px: 0.7, py: 0.5, borderRadius: 999, bgcolor: alpha("#fffdf8", 0.78), border: `1px solid ${alpha(activeNoteTint, 0.28)}`, boxShadow: `0 6px 18px ${alpha(activeNoteTint, 0.12)}`, backdropFilter: "blur(8px)" }}>
           {noteColorOptions.map((option) => {
             const selected = option.value === activeNote?.color;
+            const isWhite = option.value.toUpperCase() === "#FFFFFF";
             return (
               <Box
                 key={option.value}
@@ -412,9 +413,10 @@ export default function EditorToolbar({
                 onClick={() => onNoteColorChange?.(option.value)}
                 sx={{
                   width: 16, height: 16, borderRadius: "50%", border: 0, bgcolor: option.value, cursor: "pointer",
-                  boxShadow: selected ? `0 0 0 2px ${alpha("#fffdf8", 0.96)}, 0 0 0 4px ${alpha(option.value, 0.44)}` : `0 0 0 1px ${alpha("#2e261f", 0.08)}`,
+                  boxShadow: selected
+                    ? `0 0 0 1px ${alpha("#fffdf8", 0.96)}, 0 0 0 3px ${isWhite ? alpha("#9ca3af", 0.8) : alpha(option.value, 0.44)}`
+                    : `0 0 0 1px ${isWhite ? "rgba(156, 163, 175, 0.9)" : alpha("#2e261f", 0.08)}`,
                   transition: "transform 150ms ease, box-shadow 150ms ease",
-                  "&:hover": { transform: "translateY(-1px) scale(1.05)" },
                 }}
               />
             );

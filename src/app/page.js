@@ -45,7 +45,71 @@ function normalizeNoteRecord(note) {
   return {
     ...note,
     links: Array.isArray(note?.links) ? [...new Set(note.links.filter(Boolean))] : [],
+    isImportant: Boolean(note?.isImportant),
   };
+}
+
+function stripRemovedEditorMarkup(html = "") {
+  if (
+    !html
+    || (
+      !html.includes("data-todo-important")
+      && !html.includes("data-todo-important-toggle")
+      && !html.includes("data-important")
+    )
+  ) {
+    return html;
+  }
+
+  if (typeof document === "undefined") {
+    return html
+      .replace(/\sdata-todo-important="(?:true|false)"/g, "")
+      .replace(/<span data-todo-important-toggle="true"[^>]*><\/span>/g, "")
+      .replace(/<div data-important="true"[^>]*>(?:<span data-important-icon="true"[^>]*>[\s\S]*?<\/span>)?<div data-important-text="true"[^>]*>([\s\S]*?)<\/div><\/div>/g, "<p>$1</p>");
+  }
+
+  const temp = document.createElement("div");
+  temp.innerHTML = html;
+
+  temp.querySelectorAll("[data-todo]").forEach((todo) => {
+    todo.removeAttribute("data-todo-important");
+    todo.querySelectorAll("[data-todo-important-toggle]").forEach((toggle) => toggle.remove());
+  });
+
+  temp.querySelectorAll("[data-important]").forEach((importantBlock) => {
+    const textContainer = importantBlock.querySelector("[data-important-text]");
+    const paragraph = document.createElement("p");
+    paragraph.innerHTML = textContainer ? textContainer.innerHTML : "<br>";
+    importantBlock.parentNode?.replaceChild(paragraph, importantBlock);
+  });
+
+  return temp.innerHTML;
+}
+
+function buildActiveNoteOrder(noteList = []) {
+  return noteList
+    .filter((note) => !note.deletedAt)
+    .map((note) => note.id);
+}
+
+function applyPersistedActiveOrder(noteList = [], orderedIds = []) {
+  const activeNotes = noteList.filter((note) => !note.deletedAt);
+  const deleted = noteList.filter((note) => note.deletedAt);
+  const activeById = new Map(activeNotes.map((note) => [note.id, note]));
+
+  const orderedActive = [];
+  for (const id of orderedIds) {
+    const note = activeById.get(id);
+    if (!note) continue;
+    orderedActive.push(note);
+    activeById.delete(id);
+  }
+
+  const remainingActive = activeNotes
+    .filter((note) => activeById.has(note.id))
+    .sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+
+  return [...orderedActive, ...remainingActive, ...deleted];
 }
 
 const highlightBlockSelector = "li, p, div, td, th, blockquote, h1, h2, h3, h4, h5, h6";
@@ -480,7 +544,7 @@ export default function Home() {
   const captureEditorContent = useCallback(() => {
     const editor = editorRef.current;
     if (!editor) return liveEditorContentRef.current || "";
-    const html = editor.innerHTML.replace(/\u200B/g, "");
+    const html = stripRemovedEditorMarkup(editor.innerHTML.replace(/\u200B/g, ""));
     liveEditorContentRef.current = html;
     return html;
   }, []);
@@ -580,29 +644,68 @@ export default function Home() {
 
     const now = new Date().toISOString();
     let snapshot = null;
-    let nextActive = "";
 
     setNotes((prev) => {
-      const current = prev.find((note) => note.id === activeNoteId);
-      if (!current) return prev;
-
-      const saved = {
-        ...current,
-        title: current.title?.trim() || "Untitled",
-        updatedAt: now,
-      };
-
-      const next = [saved, ...prev.filter((note) => note.id !== activeNoteId)];
+      const next = prev.map((note) =>
+        note.id === activeNoteId
+          ? {
+            ...note,
+            title: note.title?.trim() || "Untitled",
+            updatedAt: now,
+          }
+          : note
+      );
       snapshot = next;
-      nextActive = saved.id;
       return next;
     });
 
     if (snapshot) {
       await docbookDb.notes.bulkPut(snapshot);
-      await docbookDb.meta.put({ key: "activeNoteId", value: nextActive });
+      await docbookDb.meta.put({ key: "activeNoteId", value: activeNoteId });
     }
   }, [activeNoteId, persistActiveNoteFromEditor]);
+
+  const reorderNotes = useCallback(async (sourceIndex, destinationIndex) => {
+    let snapshot = null;
+
+    setNotes((prev) => {
+      const active = prev.filter((note) => !note.deletedAt);
+      const deleted = prev.filter((note) => note.deletedAt);
+      if (
+        sourceIndex < 0
+        || destinationIndex < 0
+        || sourceIndex >= active.length
+        || destinationIndex >= active.length
+      ) {
+        return prev;
+      }
+
+      const reorderedActive = [...active];
+      const [moved] = reorderedActive.splice(sourceIndex, 1);
+      if (!moved) return prev;
+      reorderedActive.splice(destinationIndex, 0, moved);
+      snapshot = [...reorderedActive, ...deleted];
+      return snapshot;
+    });
+
+    if (!snapshot) return;
+    await docbookDb.notes.bulkPut(snapshot);
+    await docbookDb.meta.put({ key: "noteOrder", value: buildActiveNoteOrder(snapshot) });
+  }, []);
+
+  const toggleImportantNote = useCallback(async (noteId) => {
+    let nextIsImportant = false;
+
+    setNotes((prev) =>
+      prev.map((note) => {
+        if (note.id !== noteId) return note;
+        nextIsImportant = !Boolean(note.isImportant);
+        return { ...note, isImportant: nextIsImportant };
+      })
+    );
+
+    await docbookDb.notes.update(noteId, { isImportant: nextIsImportant });
+  }, []);
 
   const createNewNote = useCallback(async () => {
     await persistActiveNoteFromEditor();
@@ -1381,6 +1484,9 @@ export default function Home() {
       }
 
       const activeMeta = await docbookDb.meta.get("activeNoteId");
+      const noteOrderMeta = await docbookDb.meta.get("noteOrder");
+      const persistedOrder = Array.isArray(noteOrderMeta?.value) ? noteOrderMeta.value : [];
+      storedNotes = applyPersistedActiveOrder(storedNotes, persistedOrder);
       const preferred = activeMeta?.value;
       const availableNotes = storedNotes.filter((n) => !n.deletedAt);
       const initialActiveId = availableNotes.some((note) => note.id === preferred) ? preferred : availableNotes[0]?.id || "";
@@ -1448,6 +1554,14 @@ export default function Home() {
   useEffect(() => {
     if (!ready) return;
     const timeoutId = setTimeout(() => {
+      void docbookDb.meta.put({ key: "noteOrder", value: buildActiveNoteOrder(notes) });
+    }, 180);
+    return () => clearTimeout(timeoutId);
+  }, [ready, notes]);
+
+  useEffect(() => {
+    if (!ready) return;
+    const timeoutId = setTimeout(() => {
       void docbookDb.stickyNotes.bulkPut(stickyNotes);
     }, 250);
     return () => clearTimeout(timeoutId);
@@ -1499,9 +1613,10 @@ export default function Home() {
 
   useEffect(() => {
     if (!editorRef.current || !activeNote) return;
+    const normalizedActiveContent = stripRemovedEditorMarkup(activeNote.content || "");
     if (loadedNoteIdRef.current !== activeNoteId) {
-      editorRef.current.innerHTML = activeNote.content || "";
-      liveEditorContentRef.current = activeNote.content || "";
+      editorRef.current.innerHTML = normalizedActiveContent;
+      liveEditorContentRef.current = normalizedActiveContent;
       loadedNoteIdRef.current = activeNoteId;
       return;
     }
@@ -1511,10 +1626,10 @@ export default function Home() {
     }
 
     const normCurrent = editorRef.current.innerHTML.replace(/[\u200B-\u200D\uFEFF]/g, "");
-    const normActive = (activeNote.content || "").replace(/[\u200B-\u200D\uFEFF]/g, "");
+    const normActive = normalizedActiveContent.replace(/[\u200B-\u200D\uFEFF]/g, "");
     if (normCurrent !== normActive) {
-      editorRef.current.innerHTML = activeNote.content || "";
-      liveEditorContentRef.current = activeNote.content || "";
+      editorRef.current.innerHTML = normalizedActiveContent;
+      liveEditorContentRef.current = normalizedActiveContent;
     }
   }, [activeNote?.content, activeNoteId, showSettings, showChangelog]);
 
@@ -1999,6 +2114,12 @@ export default function Home() {
                 return updated;
               });
             }}
+            onReorderNotes={(sourceIndex, destinationIndex) => {
+              void reorderNotes(sourceIndex, destinationIndex);
+            }}
+            onToggleImportantNote={(noteId) => {
+              void toggleImportantNote(noteId);
+            }}
           />
 
           <Drawer
@@ -2090,6 +2211,12 @@ export default function Home() {
                   return updated;
                 });
               }}
+              onReorderNotes={(sourceIndex, destinationIndex) => {
+                void reorderNotes(sourceIndex, destinationIndex);
+              }}
+              onToggleImportantNote={(noteId) => {
+                void toggleImportantNote(noteId);
+              }}
             />
           </Drawer>
 
@@ -2170,8 +2297,8 @@ export default function Home() {
               customFolders={customFolders}
               customLocations={customLocations}
               onOpenCustomization={() => setCustomizationPanelOpen(true)}
-              onPeopleChange={setCustomPeople}
-              onFoldersChange={setCustomFolders}
+            onPeopleChange={setCustomPeople}
+            onFoldersChange={setCustomFolders}
               onLocationsChange={setCustomLocations}
               aiWorking={aiWorking}
             />

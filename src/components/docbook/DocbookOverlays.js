@@ -189,7 +189,13 @@ export default function DocbookOverlays({
                 runCommand("foreColor", color.value);
                 setColorAnchorEl(null);
               }}
-              sx={{ width: 24, height: 24, bgcolor: color.value, border: "1px solid rgba(0,0,0,0.16)", "&:hover": { opacity: 0.85 } }}
+              sx={{
+                width: 24,
+                height: 24,
+                bgcolor: color.value,
+                border: color.value.toUpperCase() === "#FFFFFF" ? "1px solid rgba(156,163,175,0.9)" : "1px solid rgba(0,0,0,0.16)",
+                "&:hover": { opacity: 0.85 },
+              }}
             />
           ))}
         </Stack>

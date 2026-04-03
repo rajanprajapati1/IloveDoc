@@ -182,10 +182,10 @@ function NoteTitleLink({
               ],
             },
           }}
-          disableInteractive
           disableFocusListener={isStickyDragging}
           disableHoverListener={isStickyDragging}
           enterDelay={750}
+          leaveDelay={180}
           title={
             <Box
               sx={{
